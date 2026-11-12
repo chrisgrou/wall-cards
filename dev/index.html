@@ -8,45 +8,83 @@
 <title>Wall Cards · dev</title>
 <style>
   body{margin:0;padding:24px;background:linear-gradient(160deg,#eef1f4,#dde3e8);min-height:100vh;box-sizing:border-box;font-family:sans-serif}
-  #grid{display:grid;grid-template-columns:repeat(4,220px);grid-auto-rows:228px;gap:12px}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,220px);grid-auto-rows:228px;grid-auto-flow:dense;gap:12px}
   #grid > *{min-height:0}
   .tall{grid-row:span 2}
-  pre{font:12px monospace;color:#5b6670;margin-top:16px;white-space:pre-wrap}
+  .wide{grid-column:span 2}
+  pre{font:12px monospace;color:#5b6670;margin-top:16px;white-space:pre-wrap;max-height:160px;overflow:auto}
 </style>
 </head>
 <body>
 <div id="grid"></div>
 <pre id="log"></pre>
 <script type="module">
-import '../dist/wall-cards.js';
+/* Το ?t= παρακάμπτει την κρυφή μνήμη του /local/ (31 ημέρες) */
+await import('../dist/wall-cards.js?t=' + Date.now());
 
 const now = () => new Date().toISOString();
-const S = (state, attributes = {}) => ({ state, attributes, last_updated: now() });
+const S = (state, attributes = {}) => ({ state: String(state), attributes, last_updated: now() });
 const states = {
   'light.demo': S('on', { friendly_name: 'Φως υπνοδωματίου', brightness: 160, supported_color_modes: ['brightness'] }),
-  'light.plain': S('off', { friendly_name: 'Φως χωρίς dimmer', supported_color_modes: ['onoff'] }),
-  'lock.demo': S('locked', { friendly_name: 'Door' }),
-  'sensor.batt': S('76', {}),
-  'input_select.wash': S('on', {}),
-  'sensor.rem': S('0:42:00', {}), 'sensor.tot': S('1:12:00', {}),
-  'sensor.course': S('Cotton', {}), 'sensor.temp': S('40℃', {}),
-  'button.pause': S('unknown', {}), 'button.start': S('unknown', {}),
+  'switch.lamp': S('off', { friendly_name: 'Φωτιστικό γραφείου' }),
+  'lock.door': S('locked', { friendly_name: 'Door' }),
+  'sensor.batt': S(76),
+  'lock.opener': S('locked', { friendly_name: 'Entrance' }),
+  'input_select.wash': S('on'), 'sensor.rem': S('0:42:00'), 'sensor.tot': S('1:12:00'),
+  'sensor.course': S('Cotton'), 'sensor.temp': S('40℃'), 'button.pause': S('unknown'), 'button.start': S('unknown'),
+  'binary_sensor.dry': S('on'), 'sensor.dry_rem': S(65, { unit_of_measurement: 'min' }), 'sensor.dry_tot': S(100, { unit_of_measurement: 'min' }),
+  'input_select.dish': S('finished'),
+  'climate.boiler': S('heat', { friendly_name: 'Λέβητας', temperature: 22, current_temperature: 21.3, hvac_action: 'heating', target_temp_step: 0.5, min_temp: 5, max_temp: 30 }),
+  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30 }),
+  'switch.heater': S('off'), 'timer.heater': S('idle', { duration: '0:15:00' }),
+  'fan.purifier': S('on', { preset_mode: 'Auto', percentage: 40 }), 'sensor.pm25': S(8),
+  'sensor.co2': S(640), 'sensor.voc': S('Χαμ.'), 'sensor.pm10': S(14),
+  'vacuum.robo': S('docked', { battery_level: 100 }), 'sensor.area': S(0),
+  'media_player.tv': S('playing', { friendly_name: 'Τηλεόραση', app_name: 'Netflix', media_title: 'Ντοκιμαντέρ', media_series_title: 'Σεζόν 2', is_volume_muted: false, media_duration: 3600, media_position: 650, media_position_updated_at: now() }),
+  'media_player.music': S('playing', { friendly_name: 'Σαλόνι', app_name: 'Music Assistant', media_title: 'Το τρένο φεύγει στις 8', media_artist: 'Μίκης Θεοδωράκης', media_duration: 200, media_position: 76, media_position_updated_at: now() }),
+  'sensor.car': S(78), 'sensor.range': S(392, { unit_of_measurement: 'km' }), 'device_tracker.car': S('home'),
+  'binary_sensor.charging': S('on'), 'lock.car': S('locked'), 'climate.car': S('off'), 'switch.charger': S('on'), 'button.find': S('unknown'),
 };
 const cards = [];
-const log = (t) => (document.getElementById('log').textContent = t + '\n' + document.getElementById('log').textContent);
-const set = (id, state, attrs) => { states[id] = S(state, { ...states[id].attributes, ...attrs }); push(); };
+const logEl = document.getElementById('log');
+const log = (t) => (logEl.textContent = t + '\n' + logEl.textContent);
+const set = (id, state, attrs) => { states[id] = S(state ?? states[id].state, { ...states[id].attributes, ...attrs }); push(); };
+
+/* Ψεύτικο Home Assistant: καταγράφει την κλήση και αλλάζει την κατάσταση όπως θα έκανε η συσκευή */
+function react(domain, service, d) {
+  const id = d.entity_id, cur = states[id];
+  const flip = () => set(id, cur.state === 'on' ? 'off' : 'on');
+  if (service === 'toggle' && domain !== 'media_player') return flip();
+  if (domain === 'homeassistant') return set(id, service === 'turn_on' ? 'on' : 'off');
+  if (domain === 'light') return set(id, 'on', { brightness: Math.round(d.brightness_pct * 2.55) });
+  if (domain === 'lock') return service === 'open' ? null : set(id, service === 'lock' ? 'locked' : 'unlocked');
+  if (domain === 'button') {
+    if (id === 'button.pause') set('input_select.wash', 'paused');
+    if (id === 'button.start') set('input_select.wash', 'on');
+    return;
+  }
+  if (domain === 'climate') {
+    if (service === 'set_temperature') return set(id, null, { temperature: d.temperature });
+    return set(id, service === 'turn_off' ? 'off' : id === 'climate.ac' ? 'cool' : 'heat');
+  }
+  if (domain === 'timer') {
+    if (service === 'cancel') return set(id, 'idle', { finishes_at: undefined });
+    const [h, m, s] = d.duration.split(':').map(Number);
+    return set(id, 'active', { duration: d.duration, finishes_at: new Date(Date.now() + (h * 3600 + m * 60 + s) * 1000).toISOString() });
+  }
+  if (domain === 'vacuum') return set(id, { start: 'cleaning', pause: 'paused', return_to_base: 'docked' }[service], service === 'start' ? {} : {});
+  if (domain === 'media_player') {
+    if (service === 'toggle') return set(id, cur.state === 'off' ? 'playing' : 'off');
+    if (service === 'volume_mute') return set(id, null, { is_volume_muted: d.is_volume_muted });
+    if (service === 'media_play_pause') return set(id, cur.state === 'playing' ? 'paused' : 'playing', { media_position_updated_at: now() });
+    return set(id, null, { media_title: service === 'media_next_track' ? 'Midnight City' : 'Ένα το χελιδόνι', media_artist: service === 'media_next_track' ? 'M83' : 'Γρηγόρης Μπιθικώτσης', media_position: 0, media_position_updated_at: now() });
+  }
+}
 const hass = {
   states,
   callService(domain, service, data) {
     log(`${domain}.${service} ${JSON.stringify(data)}`);
-    const id = data.entity_id, cur = states[id];
-    setTimeout(() => {
-      if (domain === 'light' && service === 'toggle') set(id, cur.state === 'on' ? 'off' : 'on');
-      if (domain === 'light' && service === 'turn_on') set(id, 'on', { brightness: Math.round(data.brightness_pct * 2.55) });
-      if (domain === 'lock') set(id, service === 'lock' ? 'locked' : 'unlocked');
-      if (id === 'button.pause') set('input_select.wash', 'paused');
-      if (id === 'button.start') set('input_select.wash', 'on');
-    }, 300);
+    setTimeout(() => react(domain, service, data), 300);
     return Promise.resolve();
   },
 };
@@ -55,13 +93,31 @@ const add = (tag, config, cls) => {
   const el = document.createElement(tag);
   el.setConfig(config);
   if (cls) el.className = cls;
+  el.addEventListener('hass-more-info', (e) => log('more-info ' + e.detail.entityId));
   document.getElementById('grid').appendChild(el);
   cards.push(el);
 };
+const appliance = { remaining_entity: 'sensor.rem', total_entity: 'sensor.tot', program_entity: 'sensor.course', temp_entity: 'sensor.temp', pause_entity: 'button.pause', start_entity: 'button.start' };
+
 add('wall-light-card', { entity: 'light.demo' }, 'tall');
-add('wall-lock-card', { entity: 'lock.demo', subtitle: 'Πόρτα διαμερίσματος', battery_entity: 'sensor.batt' });
-add('wall-washer-card', { entity: 'input_select.wash', remaining_entity: 'sensor.rem', total_entity: 'sensor.tot', program_entity: 'sensor.course', temp_entity: 'sensor.temp', pause_entity: 'button.pause', start_entity: 'button.start' });
-add('wall-light-card', { entity: 'light.plain' }, 'tall');
+add('wall-switch-card', { entity: 'switch.lamp' });
+add('wall-lock-card', { entity: 'lock.door', subtitle: 'Πόρτα διαμερίσματος', battery_entity: 'sensor.batt' });
+add('wall-opener-card', { entity: 'lock.opener' });
+add('wall-air-card', { entity: 'sensor.pm25', subtitle: 'Σαλόνι', co2_entity: 'sensor.co2', voc_entity: 'sensor.voc', pm10_entity: 'sensor.pm10' });
+add('wall-climate-card', { entity: 'climate.boiler' });
+add('wall-climate-card', { entity: 'climate.ac' });
+add('wall-heater-card', { entity: 'switch.heater', timer_entity: 'timer.heater' });
+add('wall-purifier-card', { entity: 'fan.purifier', pm25_entity: 'sensor.pm25' });
+add('wall-washer-card', { entity: 'input_select.wash', ...appliance });
+add('wall-dryer-card', { entity: 'binary_sensor.dry', remaining_entity: 'sensor.dry_rem', total_entity: 'sensor.dry_tot' });
+add('wall-dishwasher-card', { entity: 'input_select.dish' });
+add('wall-vacuum-card', { entity: 'vacuum.robo', area_entity: 'sensor.area' });
+add('wall-tv-card', { entity: 'media_player.tv' }, 'wide');
+add('wall-music-card', { entity: 'media_player.music' }, 'wide');
+add('wall-car-card', { entity: 'sensor.car', name: 'Tesla Model 3', range_entity: 'sensor.range', location_entity: 'device_tracker.car', charging_entity: 'binary_sensor.charging', lock_entity: 'lock.car', climate_entity: 'climate.car', charger_entity: 'switch.charger', locate_entity: 'button.find' }, 'wide');
+/* Ακραίες περιπτώσεις: entity που δεν υπάρχει, και κάρτα μόνο με το υποχρεωτικό πεδίο */
+add('wall-climate-card', { entity: 'climate.missing' });
+add('wall-car-card', { entity: 'sensor.car' }, 'wide');
 push();
 window.__wall = { states, set, cards };
 </script>
