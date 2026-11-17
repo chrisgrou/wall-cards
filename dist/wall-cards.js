@@ -34,10 +34,11 @@ const BASE_CSS = `
   --w-card:rgba(255,255,255,.75); --w-track:#e1e6eb;
   --w-ok:oklch(0.55 0.12 150); --w-warn:oklch(0.6 0.15 50);
   --w-blue:oklch(0.55 0.1 228); --w-blue-bg:oklch(0.94 0.025 228);
-  --w-hot:oklch(0.62 0.17 35); --w-cold:oklch(0.55 0.13 240);
+  --w-amber:#e09a1f; --w-hot:oklch(0.62 0.17 35); --w-cold:oklch(0.55 0.13 240);
   --w-font:'Manrope',sans-serif;
   --w-spring:cubic-bezier(.3,1.4,.5,1);
-  display:block; height:100%;
+  display:block; height:100%; border-radius:24px;
+  box-shadow:0 0 0 1px rgba(40,50,60,.05),0 8px 20px rgba(40,50,60,.10);
   font-family:var(--w-font); color:var(--w-ink);
   -webkit-font-smoothing:antialiased;
 }
@@ -54,7 +55,7 @@ button{font:inherit;border:0;padding:0;cursor:pointer;color:inherit;background:n
 .card.unavail{opacity:.5}
 .head{display:flex;flex-direction:column;min-width:0}
 .title{font:600 17px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sub{font:500 13px var(--w-font);color:var(--w-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font:500 15px var(--w-font);color:var(--w-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ms{
   font-family:'Material Symbols Rounded'; font-weight:400; font-style:normal; line-height:1;
   letter-spacing:normal; text-transform:none; white-space:nowrap; direction:ltr;
@@ -104,7 +105,7 @@ button{font:inherit;border:0;padding:0;cursor:pointer;color:inherit;background:n
 
 
 /* Σκευόμορφα κοινά: οθόνη LCD, στρογγυλό πλήκτρο, χαραγμένο ταμπελάκι, γραμμή κατάστασης */
-.lcd{background:#1b2622;color:#9ff0c0;border-radius:6px;font:600 15px var(--w-font);letter-spacing:.5px;
+.lcd{background:#1b2622;color:#9ff0c0;border-radius:6px;font:600 20px var(--w-font);letter-spacing:.5px;
   display:grid;place-items:center;white-space:nowrap;font-variant-numeric:tabular-nums}
 .kb{flex:none;border-radius:50%;display:grid;place-items:center;color:var(--w-ink);
   background:radial-gradient(circle at 35% 30%,#fff,#dfe3e6 45%,#aeb5bb);
@@ -112,11 +113,22 @@ button{font:inherit;border:0;padding:0;cursor:pointer;color:inherit;background:n
 .kb:active{transform:scale(.94)}
 .kb:disabled{opacity:.4;cursor:default}
 .kb.lit{color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in oklch,var(--acc,var(--w-blue)) 55%,#fff),var(--acc,var(--w-blue)))}
-.tag{position:absolute;z-index:2;max-width:70%;font:600 11px var(--w-font);letter-spacing:.6px;text-transform:uppercase;
+.tag{position:absolute;z-index:2;max-width:70%;font:600 13px var(--w-font);letter-spacing:.6px;text-transform:uppercase;
   color:var(--w-muted);background:linear-gradient(180deg,#eef0f2,#cfd4d8);padding:2px 8px;border-radius:4px;
   box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.note{position:absolute;left:0;right:0;bottom:8px;padding:0 12px;text-align:center}
+.note{position:absolute;left:0;right:0;bottom:8px;padding:0 34px;text-align:center;font-weight:600;font-size:16px;color:var(--w-ink)}
 .shell,.shell.on{padding:0;background:linear-gradient(180deg,#fcfdfd,#e6eaed);box-shadow:inset 0 1px 0 #fff,inset 0 -3px 5px rgba(0,0,0,.08)}
+
+
+/* Κατάσταση με μια ματιά: λυχνία στην ίδια γωνία σε κάθε συσκευή με κύκλο λειτουργίας.
+   .idle = ανενεργή (ξεθωριασμένη), .on = λειτουργεί, .done = τελείωσε και περιμένει τον χρήστη */
+@keyframes w-pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.lamp{position:absolute;left:14px;bottom:14px;width:14px;height:14px;border-radius:50%;background:#b8c2cb;transition:background .3s}
+.on .lamp{background:var(--ring,var(--acc,var(--w-blue)));animation:w-pulse 2s ease-in-out infinite}
+.done .lamp{background:var(--w-amber);animation:w-pulse 1s ease-in-out infinite}
+.card.idle{opacity:.72}
+.idle .lcd{color:#3d4d47}
+.done .lcd{color:#ffd27a;animation:w-pulse 1.6s ease-in-out infinite}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
@@ -228,6 +240,78 @@ class WallWideCard extends WallBaseCard {
   getGridOptions() { return { columns: 12, rows: 4, min_columns: 8, min_rows: 4 }; }
 }
 
+/* ── Popup: δικό μας αναδυόμενο φύλλο, ίδιο για όλες τις κάρτες ──
+   openPopup((sheet, close) => { …γέμισε το sheet… }) · κλείνει με πάτημα έξω από το φύλλο */
+const POPUP_CSS = `
+:host{position:fixed;inset:0;z-index:9999;height:auto;border-radius:0;box-shadow:none}
+.veil{position:absolute;inset:0;display:grid;place-items:center;background:rgba(20,30,40,0);transition:background .2s}
+.veil.in{background:rgba(20,30,40,.35)}
+.sheet{min-width:280px;max-width:560px;padding:22px;border-radius:28px;background:#f4f6f8;
+  box-shadow:0 22px 50px rgba(20,30,40,.3);transform:scale(.85);opacity:0;transition:transform .3s var(--w-spring),opacity .2s}
+.in .sheet{transform:scale(1);opacity:1}
+.grp{font:600 15px var(--w-font);color:var(--w-muted);margin:0 0 10px}
+.sw{display:grid;grid-template-columns:repeat(4,64px);gap:14px;justify-content:center}
+.sw + .grp{margin-top:20px}
+.sw button{width:64px;height:64px;border-radius:50%;background:var(--c);box-shadow:0 3px 6px rgba(0,0,0,.2),inset 0 0 0 4px #fff;transition:transform .15s}
+.sw button:active{transform:scale(.92)}
+`;
+
+function openPopup(build) {
+  const host = document.createElement('div');
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = `<style>${BASE_CSS}${POPUP_CSS}</style><div class="veil"><div class="sheet" role="dialog"></div></div>`;
+  const veil = root.querySelector('.veil');
+  const close = () => { veil.classList.remove('in'); setTimeout(() => host.remove(), 220); };
+  veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
+  build(root.querySelector('.sheet'), close);
+  document.body.appendChild(host);
+  requestAnimationFrame(() => veil.classList.add('in'));
+  return close;
+}
+
+/* ── Φώτα: χρώμα λάμπας για ενδείξεις, και popup επιλογής χρώματος ── */
+const lightModes = (s) => s?.attributes?.supported_color_modes || [];
+const hasColor = (s) => lightModes(s).some((m) => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m));
+const hasTemp = (s) => lightModes(s).includes('color_temp');
+const WHITES = [['Θερμό λευκό', 2700, '#f6cc7a'], ['Ουδέτερο λευκό', 4000, '#f6e7c4'], ['Ψυχρό λευκό', 6500, '#cfe2f7']];
+const COLORS = [
+  ['Κόκκινο', [255, 60, 50]], ['Πορτοκαλί', [255, 140, 40]], ['Κίτρινο', [255, 210, 60]], ['Πράσινο', [70, 200, 90]],
+  ['Γαλάζιο', [60, 200, 210]], ['Μπλε', [70, 120, 255]], ['Μοβ', [160, 90, 240]], ['Ροζ', [255, 90, 170]],
+];
+
+function lampColor(s) {
+  const a = s?.attributes || {};
+  if (a.rgb_color && a.color_mode !== 'color_temp') return `rgb(${a.rgb_color.join(',')})`;
+  const k = a.color_temp_kelvin;
+  return !k || k < 3300 ? '#f6cc7a' : k < 5000 ? '#f6e7c4' : '#cfe2f7';
+}
+
+/* Ανοίγει τα έτοιμα χρώματα· αν το φως δεν έχει χρώμα, πέφτει στο παράθυρο του HA */
+function lightPopup(card) {
+  const id = card._config.entity;
+  const s = card.st(id);
+  if (!hasColor(s) && !hasTemp(s)) return card.moreInfo(id);
+  openPopup((sheet, close) => {
+    const row = (title, items) => {
+      const p = document.createElement('p');
+      p.className = 'grp';
+      p.textContent = title;
+      const g = document.createElement('div');
+      g.className = 'sw';
+      items.forEach(([label, color, data]) => {
+        const b = document.createElement('button');
+        b.style.setProperty('--c', color);
+        b.setAttribute('aria-label', label);
+        b.addEventListener('click', () => { card.call('light', 'turn_on', { entity_id: id, ...data }); close(); });
+        g.appendChild(b);
+      });
+      sheet.append(p, g);
+    };
+    if (hasTemp(s)) row('Λευκό', WHITES.map(([n, k, c]) => [n, c, { color_temp_kelvin: k }]));
+    if (hasColor(s)) row('Χρώμα', COLORS.map(([n, rgb]) => [n, `rgb(${rgb.join(',')})`, { rgb_color: rgb }]));
+  });
+}
+
 /* Φόρμα ρυθμίσεων από απλή περιγραφή πεδίων: [όνομα, ετικέτα, selector, required] */
 function form(fields) {
   const labels = Object.fromEntries(fields.map((f) => [f[0], f[1]]));
@@ -287,7 +371,7 @@ class WallLightCard extends WallBaseCard {
 .zone{flex:1;position:relative;overflow:hidden;touch-action:none;cursor:ns-resize}
 .zone.nodim{cursor:default}
 .glow{position:absolute;left:0;right:0;bottom:0;transition:height .12s,opacity .35s;
-  background:linear-gradient(180deg,oklch(0.93 0.07 85),oklch(0.88 0.1 80))}
+  background:linear-gradient(180deg,color-mix(in srgb,var(--lamp,#f6cc7a) 55%,#fff),color-mix(in srgb,var(--lamp,#f6cc7a) 85%,#fff))}
 .grip{position:absolute;left:0;right:0;display:flex;justify-content:center;transition:bottom .12s,opacity .35s}
 .grip span{width:40px;height:4px;border-radius:2px;background:rgba(80,60,20,.25);margin-bottom:-12px}
 .top{padding:14px 14px 0;justify-content:flex-end;align-items:center;min-height:40px}
@@ -329,7 +413,7 @@ class WallLightCard extends WallBaseCard {
   bind() {
     const zone = this.$('.zone');
     this.$('.tune').addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.$('.tune').addEventListener('click', () => this.moreInfo(this._config.entity));
+    this.$('.tune').addEventListener('click', () => lightPopup(this));
     this.$('.rocker').addEventListener('click', () => {
       this._hold = null;
       this.call('light', 'toggle', { entity_id: this._config.entity });
@@ -364,6 +448,7 @@ class WallLightCard extends WallBaseCard {
     const id = this._config.entity;
     const s = this.st(id);
     this.label();
+    this.$('.card').style.setProperty('--lamp', lampColor(s));
     this.$('.card').classList.toggle('unavail', !this.available(id));
     const modes = s?.attributes?.supported_color_modes || [];
     this._dimmable = modes.some((m) => m !== 'onoff');
@@ -387,88 +472,134 @@ class WallLightCard extends WallBaseCard {
   }
 }
 
-/* ── Διακόπτης: πλάκα τοίχου με πλήκτρο που πατιέται ── */
+/* ── Διακόπτης: πλήκτρο τοίχου· στα φώτα γεμίζει στο χρώμα της λάμπας ως τη φωτεινότητα ── */
 class WallSwitchCard extends WallBaseCard {
   static css = `
-.card,.card.on{padding:0;border-radius:22px;color:#2d2a24;cursor:pointer;
-  background:linear-gradient(180deg,#fdfdfb,#f1efea);
-  box-shadow:0 14px 28px rgba(40,45,55,.16),0 3px 6px rgba(40,45,55,.10),inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.05)}
-.key{position:absolute;left:50%;top:26px;width:96px;height:138px;margin-left:-48px;border-radius:14px;display:grid;place-items:center;
-  font-size:36px;transition:background .2s,box-shadow .2s,color .3s,text-shadow .3s;
+.card,.card.on{padding:0;border-radius:22px;color:#2d2a24;background:linear-gradient(180deg,#fdfdfb,#f1efea);
+  box-shadow:inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.05)}
+.key{position:absolute;left:50%;top:20px;width:112px;height:156px;margin-left:-56px;border-radius:16px;overflow:hidden;
+  touch-action:none;cursor:pointer;transition:box-shadow .2s;
   background:linear-gradient(180deg,#ffffff,#eeece6);box-shadow:0 4px 8px rgba(40,45,55,.18),inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.06)}
-.on .key{background:linear-gradient(180deg,#ebe8e1,#f6f4ef);box-shadow:inset 0 3px 7px rgba(0,0,0,.14),0 1px 0 #fff;
-  color:oklch(0.62 0.15 70);text-shadow:0 0 12px oklch(0.8 0.14 80 / .8)}
-.tune{position:absolute;right:4px;top:4px;width:40px;height:40px;border-radius:50%;color:#a8a296;font-size:20px}
-.tag{left:50%;transform:translateX(-50%);bottom:16px}
+.on .key{box-shadow:inset 0 3px 7px rgba(0,0,0,.14),0 1px 0 #fff}
+.lvl{position:absolute;left:0;right:0;bottom:0;height:0;transition:height .12s;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--lamp,#f6cc7a) 70%,#fff),var(--lamp,#f6cc7a))}
+.ic{position:absolute;left:0;right:0;top:18px;text-align:center;font-size:34px;color:#8a8578;transition:color .3s}
+.on .ic{color:color-mix(in srgb,var(--lamp,#f6cc7a) 55%,#3a2a08)}
+.pc{position:absolute;left:0;right:0;bottom:12px;text-align:center;font:700 24px var(--w-font);letter-spacing:-.5px}
+.more{position:absolute;right:2px;top:2px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#a8a296;font-size:22px}
+.dot{width:28px;height:28px;border-radius:50%;background:var(--lamp,#d8d4ca);box-shadow:0 2px 4px rgba(0,0,0,.25),inset 0 0 0 3px #fff}
+.card:not(.on) .dot{background:#d8d4ca}
+.tag{left:50%;transform:translateX(-50%);bottom:12px}
 `;
 
   static getConfigForm() {
     return form([['entity', 'Συσκευή', ent(['light', 'switch', 'input_boolean', 'fan']), true], LABEL]);
   }
-  static getStubConfig(hass) { return { entity: firstEntity(hass, 'switch') || firstEntity(hass, 'light') }; }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'light') || firstEntity(hass, 'switch') }; }
   watched() { return [this._config.entity]; }
 
   template() {
     return `
-<div class="card" role="button" aria-label="Άναμμα/Σβήσιμο">
-  <span class="key ms">power_settings_new</span>
-  <button class="tune ms" aria-label="Ρυθμίσεις">tune</button>
+<div class="card">
+  <div class="key" role="button" aria-label="Άναμμα/Σβήσιμο">
+    <div class="lvl"></div><span class="ic ms">power_settings_new</span><span class="pc"></span>
+  </div>
+  <button class="more" aria-label="Χρώμα και ρυθμίσεις"><span class="dot" hidden></span><span class="ms tn">tune</span></button>
   ${TAG}
 </div>`;
   }
 
   bind() {
-    this.$('.tune').addEventListener('click', (e) => { e.stopPropagation(); this.moreInfo(this._config.entity); });
-    this.$('.card').addEventListener('click', () => {
-      if (this.available(this._config.entity)) this.call('homeassistant', 'toggle', { entity_id: this._config.entity });
+    const key = this.$('.key');
+    this.$('.more').addEventListener('click', () => lightPopup(this));
+    /* Πάτημα = on/off. Σύρσιμο πάνω-κάτω (μόνο σε φώτα με ρύθμιση) = φωτεινότητα. */
+    key.addEventListener('pointerdown', (e0) => {
+      const id = this._config.entity;
+      if (!this.available(id)) return;
+      key.setPointerCapture(e0.pointerId);
+      let moved = false;
+      const move = (ev) => {
+        if (!this._dimmable || (!moved && Math.abs(ev.clientY - e0.clientY) < 8)) return;
+        moved = true;
+        const r = key.getBoundingClientRect();
+        this._drag = Math.round(clamp(((r.bottom - ev.clientY) / r.height) * 100, 1, 100));
+        this.paint(true, this._drag);
+      };
+      const up = (ev) => {
+        key.removeEventListener('pointermove', move);
+        key.removeEventListener('pointerup', up);
+        key.removeEventListener('pointercancel', up);
+        if (moved) {
+          const pct = this._drag;
+          this._hold = { pct, until: Date.now() + 2500 };
+          this.call('light', 'turn_on', { entity_id: id, brightness_pct: pct });
+        } else if (ev.type === 'pointerup') {
+          this._hold = null;
+          this.call('homeassistant', 'toggle', { entity_id: id });
+        }
+        this._drag = null;
+      };
+      key.addEventListener('pointermove', move);
+      key.addEventListener('pointerup', up);
+      key.addEventListener('pointercancel', up);
     });
   }
 
   update() {
     const id = this._config.entity;
+    const s = this.st(id);
     const card = this.$('.card');
     card.classList.toggle('unavail', !this.available(id));
-    card.classList.toggle('on', this.val(id) === 'on');
+    card.style.setProperty('--lamp', id.startsWith('light.') ? lampColor(s) : '#f6cc7a');
+    this._dimmable = id.startsWith('light.') && lightModes(s).some((m) => m !== 'onoff');
+    const pick = hasColor(s) || hasTemp(s);
+    this.$('.dot').hidden = !pick;
+    this.$('.tn').hidden = pick;
     this.label();
+    if (this._drag != null) return;
+    if (this._hold && Date.now() < this._hold.until) { this.paint(true, this._hold.pct); return; }
+    this._hold = null;
+    const br = s?.attributes?.brightness;
+    this.paint(s?.state === 'on', this._dimmable && br != null ? Math.max(1, Math.round((br / 255) * 100)) : 100);
+  }
+
+  paint(on, pct) {
+    this.$('.card').classList.toggle('on', on);
+    this.$('.lvl').style.height = on ? pct + '%' : '0%';
+    this.$('.pc').textContent = on && this._dimmable ? pct + '%' : '';
   }
 }
 
-/* ── Κλειδαριά: μεταλλική πλάκα με πόμολο που γυρίζει ── */
-const LOCK_LABELS = {
-  locked: 'Κλειδωμένη', unlocked: 'Ξεκλείδωτη', locking: 'Κλειδώνει…', unlocking: 'Ξεκλειδώνει…',
-  jammed: 'Μπλοκαρισμένη', open: 'Ανοιχτή', opening: 'Ανοίγει…',
-};
-
+/* ── Κλειδαριά: μεταλλική πλάκα με πόμολο· το φόντο λέει την κατάσταση, χωρίς λεκτικό ── */
 class WallLockCard extends WallBaseCard {
   static css = `
-.card{align-items:center;justify-content:center;gap:10px}
-.card.open{background:oklch(0.93 0.05 60)}
+.card{align-items:center;justify-content:center;background:oklch(0.93 0.04 235)}
+.card.locked{background:oklch(0.93 0.05 150)}
+.card.jam{background:oklch(0.93 0.05 60)}
 .tag{left:12px;top:12px}
-.plate{flex:none;width:76px;height:112px;border-radius:38px;position:relative;
+.plate{flex:none;width:112px;height:164px;border-radius:56px;position:relative;
   background:linear-gradient(145deg,#f7f8f9 0%,#d5d9dd 45%,#eceff1 60%,#bfc5ca 100%);
-  box-shadow:0 8px 16px rgba(30,40,50,.22),0 2px 3px rgba(30,40,50,.18),inset 0 1px 1px #fff,inset 0 -2px 3px rgba(0,0,0,.12)}
-.led{position:absolute;top:8px;left:50%;width:8px;height:8px;margin-left:-4px;border-radius:50%;
+  box-shadow:0 10px 18px rgba(30,40,50,.24),0 2px 3px rgba(30,40,50,.18),inset 0 1px 1px #fff,inset 0 -2px 3px rgba(0,0,0,.12)}
+.led{position:absolute;top:11px;left:50%;width:10px;height:10px;margin-left:-5px;border-radius:50%;
   transition:background .3s,box-shadow .3s;background:var(--c);box-shadow:0 0 6px var(--c),inset 0 1px 1px rgba(255,255,255,.5)}
-.ring{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-26px 0 0 -29px;border-radius:50%;
+.ring{position:absolute;left:50%;top:50%;width:88px;height:88px;margin:-40px 0 0 -44px;border-radius:50%;
   background:linear-gradient(160deg,#c9ced3,#f3f5f6);box-shadow:inset 0 3px 6px rgba(0,0,0,.25),inset 0 -1px 1px #fff}
-.knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-22px 0 0 -25px;border-radius:50%;
+.knob{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-34px 0 0 -38px;border-radius:50%;
   transition:transform .5s var(--w-spring);
   background:radial-gradient(circle at 35% 30%,#ffffff,#dfe3e6 40%,#aeb5bb 100%);box-shadow:0 4px 8px rgba(0,0,0,.3),inset 0 1px 1px #fff}
 .locked .knob{transform:rotate(90deg)}
-.knob span{position:absolute;left:50%;top:5px;bottom:5px;width:15px;margin-left:-7.5px;border-radius:8px;
+.knob span{position:absolute;left:50%;top:7px;bottom:7px;width:22px;margin-left:-11px;border-radius:11px;
   background:linear-gradient(90deg,#b4bbc1,#f4f6f7 45%,#c3c9ce);box-shadow:0 2px 3px rgba(0,0,0,.3),inset 0 1px 0 #fff}
-.slot{position:absolute;bottom:8px;left:50%;width:5px;height:10px;margin-left:-3px;border-radius:3px;background:#3a4148;box-shadow:inset 0 2px 2px #000,0 1px 0 #fff}
-.foot{display:flex;flex-direction:column;gap:1px;min-width:0;align-items:center;text-align:center}
-.state{font:700 16px var(--w-font);line-height:1.2;transition:color .3s;color:var(--c)}
-.batt{font:500 12px var(--w-font);color:var(--w-muted);display:flex;align-items:center;gap:2px}
-.batt .ms{font-size:14px}
+.slot{position:absolute;bottom:11px;left:50%;width:6px;height:12px;margin-left:-3px;border-radius:3px;background:#3a4148;box-shadow:inset 0 2px 2px #000,0 1px 0 #fff}
+.batt{position:absolute;right:12px;top:12px;font:600 15px var(--w-font);color:var(--w-warn);display:flex;align-items:center;gap:2px}
+.batt .ms{font-size:20px}
 `;
 
   static getConfigForm() {
     return form([
       ['entity', 'Κλειδαριά', ent('lock'), true],
       LABEL,
-      ['battery_entity', 'Μπαταρία (προαιρετικό)', ent('sensor', 'battery')],
+      ['battery_entity', 'Μπαταρία — εμφανίζεται μόνο όταν πέσει κάτω από 20% (προαιρετικό)', ent('sensor', 'battery')],
     ]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'lock') }; }
@@ -479,10 +610,10 @@ class WallLockCard extends WallBaseCard {
     return `
 <div class="card">
   ${TAG}
+  <span class="batt" hidden><span class="ms">battery_1_bar</span><span class="bv"></span></span>
   <button class="plate press" aria-label="Κλείδωμα/Ξεκλείδωμα">
     <span class="led"></span><span class="ring"></span><span class="knob"><span></span></span><span class="slot"></span>
   </button>
-  <div class="foot"><span class="state"></span><span class="batt"><span class="ms"></span><span class="bv"></span></span></div>
 </div>`;
   }
 
@@ -503,49 +634,38 @@ class WallLockCard extends WallBaseCard {
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('locked', locked);
-    card.classList.toggle('open', ok && !locked);
-    card.style.setProperty('--c', !ok ? 'var(--w-faint)' : locked ? 'var(--w-ok)' : 'var(--w-warn)');
+    card.classList.toggle('jam', s === 'jammed');
+    card.style.setProperty('--c', !ok ? 'var(--w-faint)' : s === 'jammed' ? 'var(--w-warn)' : locked ? 'var(--w-ok)' : 'oklch(0.6 0.13 240)');
+    this.$('.plate').setAttribute('aria-label', locked ? 'Κλειδωμένη — πάτα για ξεκλείδωμα' : 'Ξεκλείδωτη — πάτα για κλείδωμα');
     this.label();
-    this.$('.state').textContent = ok ? LOCK_LABELS[s] || s : 'Μη διαθέσιμη';
-
     const lvl = this.num(c.battery_entity);
-    this.$('.batt').hidden = isNaN(lvl);
-    if (!isNaN(lvl)) {
-      const bars = Math.round((lvl / 100) * 6);
-      this.$('.batt .ms').textContent = bars >= 6 ? 'battery_full' : `battery_${bars}_bar`;
-      this.$('.bv').textContent = Math.round(lvl) + '%';
-    }
+    this.$('.batt').hidden = isNaN(lvl) || lvl >= 20;
+    this.$('.bv').textContent = isNaN(lvl) ? '' : Math.round(lvl) + '%';
   }
 }
 
-/* ── Είσοδος πολυκατοικίας: θυροτηλέφωνο με χρυσό κουμπί και «άνοιγμα στο κουδούνι» ── */
+/* ── Είσοδος πολυκατοικίας: θυροτηλέφωνο με μεγάλο χρυσό κουμπί και «άνοιγμα στο κουδούνι» ── */
 class WallOpenerCard extends WallBaseCard {
   static css = `
-@keyframes bld-ring{0%{transform:scale(.85);opacity:.7}100%{transform:scale(1.9);opacity:0}}
+@keyframes bld-ring{0%{transform:scale(.85);opacity:.7}100%{transform:scale(1.5);opacity:0}}
 @keyframes bld-buzz{0%,100%{translate:0 0}25%{translate:-1.5px 0}75%{translate:1.5px 0}}
-.card,.card.on{padding:14px 16px;background:linear-gradient(160deg,#f1f3f4,#d6dadd 60%,#c3c8cc);
+.card,.card.on{padding:0;background:linear-gradient(160deg,#f1f3f4,#d6dadd 60%,#c3c8cc);
   box-shadow:inset 0 1px 0 #fff,inset 0 -2px 4px rgba(0,0,0,.12)}
-.top{min-height:44px;align-items:center}
-.tag{position:static}
-.bell{flex:none;width:44px;height:44px;margin:-6px -6px 0 auto;border-radius:50%;display:grid;place-items:center;font-size:22px;
-  transition:background .3s,color .3s,box-shadow .2s;color:#3b4148;
-  background:linear-gradient(180deg,#fbfcfc,#dfe3e6);box-shadow:0 2px 4px rgba(0,0,0,.18),inset 0 1px 0 #fff}
-.rto .bell{background:oklch(0.78 0.15 75);color:#3a2a08;box-shadow:inset 0 2px 4px rgba(0,0,0,.25),0 0 10px oklch(0.78 0.15 75 / .5)}
-.panel{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.grille{display:grid;grid-template-columns:repeat(3,4px);gap:4px;flex:none}
-.grille span{width:4px;height:4px;border-radius:50%;background:#5f676e;box-shadow:inset 0 1px 1px rgba(0,0,0,.5),0 1px 0 #fff}
-.socket{flex:none;width:96px;height:96px;border-radius:50%;display:grid;place-items:center;position:relative;
+.tag{left:12px;top:12px}
+.bell{position:absolute;right:10px;top:10px;width:46px;height:46px;font-size:24px;color:#3b4148}
+.rto .bell{color:#3a2a08;background:radial-gradient(circle at 35% 30%,#ffe2a0,oklch(0.78 0.15 75))}
+.socket{position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-66px 0 0 -75px;border-radius:50%;display:grid;place-items:center;
   background:linear-gradient(160deg,#aeb5ba,#e8ebed);box-shadow:inset 0 3px 6px rgba(0,0,0,.28),0 1px 0 #fff}
-.wave{position:absolute;inset:8px;border-radius:50%;border:2px solid oklch(0.72 0.15 80);pointer-events:none;opacity:0}
+.wave{position:absolute;inset:10px;border-radius:50%;border:2px solid oklch(0.72 0.15 80);pointer-events:none;opacity:0}
 .opening .wave{animation:bld-ring 1.2s ease-out infinite}
-.key{position:relative;width:80px;height:80px;border-radius:50%;display:grid;place-items:center;font-size:34px;color:#5a4317;
+.key{position:relative;width:126px;height:126px;border-radius:50%;display:grid;place-items:center;font-size:48px;color:#5a4317;
   transition:transform .12s,box-shadow .12s,color .3s;
   background:radial-gradient(circle at 35% 30%,#f7e2a8,#d1a752 50%,#9c7428 100%);
   box-shadow:0 4px 6px rgba(0,0,0,.5),inset 0 1px 1px #fff8de,inset 0 -2px 3px rgba(0,0,0,.25)}
 .opening .key{transform:translateY(2px) scale(.96);color:#2f2410;animation:bld-buzz .07s linear infinite;
   box-shadow:0 1px 2px rgba(0,0,0,.5),inset 0 2px 4px rgba(0,0,0,.35)}
-.bar{flex:none;width:4px;height:36px;border-radius:2px;transition:background .3s,box-shadow .3s;background:var(--led);box-shadow:0 0 8px var(--led)}
-.state{text-align:center;min-height:17px;font-weight:600;transition:color .3s;color:var(--fg,var(--w-muted))}
+.bar{position:absolute;left:14px;top:50%;width:5px;height:44px;margin-top:-14px;border-radius:3px;
+  transition:background .3s,box-shadow .3s;background:var(--led);box-shadow:0 0 8px var(--led)}
 `;
 
   static getConfigForm() {
@@ -561,16 +681,13 @@ class WallOpenerCard extends WallBaseCard {
   template() {
     return `
 <div class="card">
-  <div class="top">${TAG}<button class="bell ms fill" aria-label="Άνοιγμα στο κουδούνι">notifications_active</button></div>
-  <div class="panel">
-    <span class="grille">${'<span></span>'.repeat(12)}</span>
-    <span class="socket">
-      <span class="wave"></span><span class="wave" style="animation-delay:.4s"></span><span class="wave" style="animation-delay:.8s"></span>
-      <button class="key ms" aria-label="Άνοιγμα εισόδου">key</button>
-    </span>
-    <span class="bar"></span>
-  </div>
-  <span class="sub state"></span>
+  ${TAG}
+  <button class="kb bell ms fill" aria-label="Άνοιγμα στο κουδούνι">notifications_active</button>
+  <span class="bar"></span>
+  <span class="socket">
+    <span class="wave"></span><span class="wave" style="animation-delay:.4s"></span><span class="wave" style="animation-delay:.8s"></span>
+    <button class="key ms" aria-label="Άνοιγμα εισόδου">key</button>
+  </span>
 </div>`;
   }
 
@@ -610,9 +727,7 @@ class WallOpenerCard extends WallBaseCard {
     card.classList.toggle('opening', opening);
     card.classList.toggle('rto', rto);
     card.style.setProperty('--led', opening ? 'oklch(0.72 0.17 150)' : rto ? 'oklch(0.78 0.15 75)' : '#5a1f1f');
-    card.style.setProperty('--fg', opening ? 'oklch(0.5 0.13 150)' : rto ? 'oklch(0.55 0.13 65)' : 'var(--w-muted)');
     this.label();
-    this.$('.state').textContent = !ok ? 'Μη διαθέσιμη' : opening ? 'Ανοιχτή' : rto ? 'Ανοίγει στο κουδούνι' : '';
   }
 }
 
@@ -621,12 +736,12 @@ const APPL_IDLE = ['off', 'idle', 'standby', 'power off', 'ready', 'none', '-', 
 const APPL_DONE = ['finished', 'complete', 'completed', 'end', 'done'];
 const APPL_PAUSED = ['pause', 'paused'];
 const KNOB = '<button class="kb knob ms fill" aria-label="Έναρξη/Παύση"></button>';
-const DOOR = (art) => `<div class="door"><div class="rim"></div><div class="glass">${art}<span class="shine"></span></div></div>`;
+const DOOR = (art) => `<div class="door"><div class="rim"></div><div class="glass">${art}<span class="check ms">check</span><span class="shine"></span></div></div>`;
 
 class WallApplianceCard extends WallBaseCard {
   static css = `
 .strip{position:absolute;left:12px;right:12px;top:12px;height:44px;display:flex;align-items:center;gap:8px}
-.strip .lcd{flex:1;height:28px}
+.strip .lcd{flex:1;height:32px}
 .knob{width:44px;height:44px;font-size:24px}
 .drawer{width:54px;height:22px;border-radius:5px;background:linear-gradient(180deg,#dfe4e8,#f4f6f7);box-shadow:inset 0 2px 3px rgba(0,0,0,.2)}
 .vent{width:54px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
@@ -642,7 +757,7 @@ class WallApplianceCard extends WallBaseCard {
 .card:not(.on) .water{animation-play-state:paused}
 .holes{position:absolute;inset:8px;border-radius:50%;border:2px dashed rgba(255,255,255,.35)}
 .on .holes{animation:wm-spin 2.4s linear infinite}
-.tag{left:10px;bottom:30px}
+.tag{right:10px;bottom:36px}
 .k-washer{--ring:#2f7fa8}
 .k-dryer{--ring:#c9792e}
 .k-dryer .glass{background:#3a2a20}
@@ -651,7 +766,7 @@ class WallApplianceCard extends WallBaseCard {
 .k-dryer.on .holes{animation-duration:1.6s}
 .k-dish{--ring:#2f9aa0}
 .band{position:absolute;left:0;right:0;top:0;height:50px;padding:0 10px 0 14px;display:flex;align-items:center;gap:8px;background:linear-gradient(180deg,#39424a,#252c32)}
-.band .lcd{flex:1;height:28px;background:#101a1c;color:#8fe0e6}
+.band .lcd{flex:1;height:32px;background:#101a1c;color:#8fe0e6}
 .handle{position:absolute;left:14px;right:14px;top:60px;height:12px;border-radius:6px;background:linear-gradient(180deg,#f6f8f9,#b9c0c6);box-shadow:0 3px 5px rgba(0,0,0,.25)}
 .win{position:absolute;left:22px;right:22px;top:86px;bottom:34px;border-radius:12px;background:#17313a;overflow:hidden;box-shadow:inset 0 4px 10px rgba(0,0,0,.6)}
 .win .fillw{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(110,200,205,.45);transition:height .8s}
@@ -661,6 +776,10 @@ class WallApplianceCard extends WallBaseCard {
 .arm{position:absolute;left:50%;bottom:10px;width:84px;height:6px;margin-left:-42px;border-radius:3px;background:#aeb9bf}
 .on .arm{animation:wm-spin 1.4s linear infinite}
 .bar{position:absolute;left:22px;right:22px;bottom:26px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--ring) var(--pct,0%),#c3cad0 var(--pct,0%))}
+.shell.on{box-shadow:inset 0 0 0 3px var(--ring)}
+.shell.done{--ring:var(--w-amber);cursor:pointer;background:linear-gradient(180deg,#fff7e6,#f6e3bd);box-shadow:inset 0 0 0 4px var(--w-amber)}
+.check{position:absolute;inset:0;display:grid;place-items:center;background:#33424b;color:#fff;font-size:48px;opacity:0;transition:opacity .4s}
+.done .check{opacity:1}
 `;
   static kind = 'washer';
   static face = `<div class="strip"><div class="drawer"></div><div class="lcd"></div>${KNOB}</div>${DOOR('<div class="water"></div><div class="holes"></div>')}`;
@@ -677,6 +796,7 @@ class WallApplianceCard extends WallBaseCard {
       ['temp_entity', 'Θερμοκρασία', sensor],
       ['pause_entity', 'Κουμπί παύσης', action],
       ['start_entity', 'Κουμπί έναρξης', action],
+      ['ack_entity', 'Ενέργεια επιβεβαίωσης «το άδειασα» (προαιρετικό)', action],
     ]);
   }
   static getStubConfig() { return { entity: '' }; }
@@ -688,12 +808,26 @@ class WallApplianceCard extends WallBaseCard {
 
   template() {
     const k = this.constructor;
-    return `<div class="card shell k-${k.kind}">${k.face}${TAG}<span class="sub note"></span></div>`;
+    return `<div class="card shell k-${k.kind}">${k.face}${TAG}<span class="lamp"></span><span class="sub note"></span></div>`;
   }
 
   bind() {
-    this.tapMore();
+    /* Πάτημα στην κάρτα: επιβεβαίωση όταν έχει τελειώσει, αλλιώς λεπτομέρειες */
+    this.$('.card').addEventListener('click', (e) => {
+      if (e.composedPath().some((n) => n.tagName === 'BUTTON')) return;
+      if (this._done) this.ack(); else this.moreInfo(this._config.entity);
+    });
     this.$('.knob').addEventListener('click', () => this.trigger(this._action));
+  }
+
+  /* Επιβεβαίωση «το άδειασα»: γυρίζει τη συσκευή σε ανενεργή. Η κατάσταση ζει στο HA, όχι στην κάρτα. */
+  ack() {
+    const c = this._config;
+    if (c.ack_entity) return this.trigger(c.ack_entity);
+    const domain = c.entity.split('.')[0];
+    const idle = (this.st(c.entity)?.attributes?.options || []).find((o) => APPL_IDLE.includes(String(o).toLowerCase()));
+    if (['input_select', 'select'].includes(domain) && idle) return this.call(domain, 'select_option', { entity_id: c.entity, option: idle });
+    this.moreInfo(c.entity);
   }
 
   update() {
@@ -707,10 +841,13 @@ class WallApplianceCard extends WallBaseCard {
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('on', run);
+    card.classList.toggle('done', done);
+    card.classList.toggle('idle', ok && !run && !paused && !done);
+    this._done = done;
     this.label();
     const program = [this.val(c.program_entity), this.val(c.temp_entity)].filter(Boolean).join(' ');
     this.$('.note').textContent =
-      !ok ? 'Μη διαθέσιμο' : paused ? 'Σε παύση' : done ? 'Ολοκληρώθηκε' : run ? program || 'Σε λειτουργία' : '';
+      !ok ? 'Μη διαθέσιμο' : paused ? 'Σε παύση' : done ? '' : run ? program || 'Σε λειτουργία' : '';
 
     /* Επιλογέας: παύση όταν τρέχει, έναρξη αλλιώς — μόνο αν έχει οριστεί το αντίστοιχο entity */
     const knob = this.$('.knob');
@@ -736,7 +873,7 @@ class WallDryerCard extends WallApplianceCard {
 class WallDishwasherCard extends WallApplianceCard {
   static kind = 'dish';
   static face = `<div class="band"><div class="lcd"></div>${KNOB}</div><div class="handle"></div>
-<div class="win"><div class="fillw"></div><div class="plates">${'<i></i>'.repeat(7)}</div><div class="arm"></div></div><div class="bar"></div>`;
+<div class="win"><div class="fillw"></div><div class="plates">${'<i></i>'.repeat(7)}</div><div class="arm"></div><span class="check ms">check</span></div><div class="bar"></div>`;
 }
 
 /* ── Κλίμα: στρογγυλός θερμοστάτης τοίχου, ή εσωτερική μονάδα κλιματιστικού ── */
@@ -758,14 +895,14 @@ class WallClimateCard extends WallBaseCard {
 .flame{font-size:16px;color:#ff9a57;opacity:0;transition:opacity .4s}
 .heating .flame{opacity:1}
 .th .sp{font:500 29px var(--w-font);letter-spacing:-1px;line-height:1.1}
-.th .room{font:500 11px var(--w-font);color:#b9c1c8}
+.th .room{font:500 13px var(--w-font);color:#b9c1c8}
 .th .tag{left:10px;top:10px}
 /* κλιματιστικό */
 .unit{position:relative;flex:none;height:62px;margin:-2px -4px 0;border-radius:14px 14px 8px 8px;
   background:linear-gradient(180deg,#fff,#e8ecef);box-shadow:0 6px 12px rgba(40,60,90,.22),inset 0 1px 0 #fff}
 .vents{position:absolute;left:12px;top:13px;display:flex;flex-direction:column;gap:4px}
-.vents i{width:76px;height:2px;background:#c9d0d6}
-.unit .lcd{position:absolute;right:10px;top:9px;width:70px;height:28px;background:#16222e;color:var(--lcd,#6b7a86);transition:color .3s}
+.vents i{width:64px;height:2px;background:#c9d0d6}
+.unit .lcd{position:absolute;right:10px;top:8px;width:82px;height:32px;background:#16222e;color:var(--lcd,#6b7a86);transition:color .3s}
 .flap{position:absolute;left:8px;right:8px;bottom:-3px;height:9px;border-radius:3px;transform-origin:50% 0;transition:transform .6s;
   background:linear-gradient(180deg,#f7f9fa,#cdd4da);box-shadow:0 2px 3px rgba(0,0,0,.2)}
 .on .flap{transform:perspective(60px) rotateX(-35deg)}
@@ -986,75 +1123,109 @@ class WallHeaterCard extends WallBaseCard {
   }
 }
 
-/* ── Καθαριστής αέρα: πύργος με γρίλια και φωτεινό δαχτυλίδι στο χρώμα της ποιότητας ── */
+/* ── Καθαριστής αέρα: πύργος με φωτεινό δαχτυλίδι ποιότητας και ρυθμιστικό στάθμης ── */
+const PUR_OFF = ['off', 'idle', 'standby', 'unavailable', 'unknown', ''];
+
 class WallPurifierCard extends WallBaseCard {
   static css = `
 .card{padding:0;--acc:oklch(0.58 0.13 var(--h,150));--tint:oklch(0.95 0.03 var(--h,150))}
-.tower{position:absolute;left:20px;top:22px;bottom:14px;width:88px;border-radius:26px 26px 14px 14px;
+.tower{position:absolute;left:18px;top:18px;bottom:14px;width:88px;border-radius:26px 26px 14px 14px;
   background:linear-gradient(90deg,#dfe4e7,#ffffff 45%,#d3d9dd);box-shadow:0 6px 12px rgba(30,60,40,.22)}
+.solo .tower{left:50%;margin-left:-44px}
 .halo{position:absolute;left:10px;right:10px;top:10px;height:22px;border-radius:50%;background:#20262b;
-  box-shadow:0 0 0 3px #b8c2cb;transition:box-shadow .4s}
-.on .halo{box-shadow:0 0 0 3px oklch(0.72 0.15 var(--h,150)),0 0 10px oklch(0.72 0.15 var(--h,150))}
+  box-shadow:0 0 0 4px #b8c2cb;transition:box-shadow .4s}
+.on .halo{box-shadow:0 0 0 4px var(--glow,#e9eef2),0 0 10px var(--glow,#e9eef2)}
 .grille{position:absolute;left:12px;right:12px;top:48px;bottom:14px;border-radius:8px;
   background:radial-gradient(circle,#8f989f 1.5px,transparent 2px) 0 0/8px 8px}
-.side{position:absolute;left:118px;right:10px;top:22px;bottom:14px;display:flex;flex-direction:column;align-items:center;gap:2px}
-.pw{width:48px;height:48px;font-size:24px;margin-bottom:4px}
-.big{line-height:1.15}
-.sub{font-size:12px;max-width:100%}
-.state{font-weight:600;color:oklch(0.5 0.12 var(--h,150))}
-.tag{left:24px;bottom:20px;max-width:80px}
+.pw{position:absolute;left:50%;bottom:16px;width:48px;height:48px;margin-left:-24px;font-size:24px}
+.lv{position:absolute;right:16px;top:18px;bottom:14px;width:80px;border-radius:22px;background:#cdd6cf;box-shadow:inset 0 2px 5px rgba(0,0,0,.2)}
+.lv.live{cursor:pointer}
+.lvfill{position:absolute;left:4px;right:4px;bottom:4px;height:calc(var(--pos,0) * (100% - 48px) + 20px);border-radius:18px;
+  background:var(--acc);opacity:0;transition:height .4s,opacity .3s}
+.on .lvfill{opacity:.85}
+.thumb{position:absolute;left:4px;right:4px;height:40px;bottom:calc(var(--pos,0) * (100% - 48px) + 4px);border-radius:20px;
+  display:grid;place-items:center;padding:0 6px;font:700 14px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(180deg,#ffffff,#e3e7ea);box-shadow:0 3px 6px rgba(0,0,0,.25),inset 0 1px 0 #fff;transition:bottom .4s var(--w-spring)}
+.tag{left:22px;top:52px;max-width:80px}
 `;
 
   static getConfigForm() {
+    const action = ent(['script', 'button', 'input_button']);
     return form([
-      ['entity', 'Καθαριστής (fan)', ent(['fan', 'switch']), true],
+      ['entity', 'Κατάσταση ή συσκευή (fan, διακόπτης, αισθητήρας)', ANY, true],
       LABEL,
-      ['pm25_entity', 'Αισθητήρας PM2.5 (προαιρετικό)', ent('sensor')],
+      ['level_entity', 'Στάθμη λειτουργίας — μόνο ένδειξη (προαιρετικό)', ent(['input_select', 'select', 'sensor'])],
+      ['pm25_entity', 'Αισθητήρας PM2.5 για το χρώμα του δαχτυλιδιού (προαιρετικό)', ent('sensor')],
+      ['on_entity', 'Ενέργεια ανάμματος (προαιρετικό)', action],
+      ['off_entity', 'Ενέργεια σβησίματος (προαιρετικό)', action],
     ]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'fan') }; }
-  watched() { return [this._config.entity, this._config.pm25_entity]; }
+  watched() { const c = this._config; return [c.entity, c.level_entity, c.pm25_entity]; }
 
   template() {
     return `
 <div class="card">
-  <div class="tower"><div class="halo"></div><div class="grille"></div></div>
-  ${TAG}
-  <div class="side">
+  <div class="tower"><div class="halo"></div><div class="grille"></div>
     <button class="kb pw ms fill" aria-label="On/Off">power_settings_new</button>
-    <span class="big"></span><span class="sub unit"></span><span class="sub state"></span>
   </div>
+  ${TAG}
+  <div class="lv"><div class="lvfill"></div><div class="thumb"></div></div>
 </div>`;
   }
+
+  /* Οι στάθμες έρχονται από το level_entity (ένδειξη) ή από τα preset ενός fan (ρυθμίζονται) */
+  levels() {
+    const c = this._config;
+    const lv = this.st(c.level_entity);
+    if (lv) return { list: lv.attributes?.options || [], cur: lv.state, live: false };
+    const a = this.st(c.entity)?.attributes || {};
+    if (c.entity.startsWith('fan.') && a.preset_modes?.length) return { list: a.preset_modes, cur: a.preset_mode, live: true };
+    return { list: [], cur: '', live: false };
+  }
+  direct() { return ['fan', 'switch', 'input_boolean', 'light'].includes(this._config.entity.split('.')[0]); }
+  isOn() { return this.available(this._config.entity) && !PUR_OFF.includes(this.val(this._config.entity).toLowerCase()); }
 
   bind() {
     this.tapMore();
     this.$('.pw').addEventListener('click', () => {
-      if (this.available(this._config.entity)) this.call('homeassistant', 'toggle', { entity_id: this._config.entity });
+      const c = this._config;
+      if (!this.available(c.entity)) return;
+      if (this.direct()) this.call('homeassistant', 'toggle', { entity_id: c.entity });
+      else this.trigger(this.isOn() ? c.off_entity : c.on_entity);
+    });
+    this.$('.lv').addEventListener('click', (e) => {
+      const { list, live } = this.levels();
+      if (!live) return;
+      e.stopPropagation();
+      const r = this.$('.lv').getBoundingClientRect();
+      const i = Math.round(clamp((r.bottom - e.clientY) / r.height, 0, 1) * (list.length - 1));
+      this.call('fan', 'set_preset_mode', { entity_id: this._config.entity, preset_mode: list[i] });
     });
   }
 
   update() {
     const c = this._config;
     const ok = this.available(c.entity);
-    const on = this.val(c.entity) === 'on';
-    const a = this.st(c.entity)?.attributes || {};
+    const on = this.isOn();
     const pm = this.num(c.pm25_entity);
-    const [quality, hue] = isNaN(pm) ? ['', 150] : airQuality(pm);
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('on', on);
-    card.style.setProperty('--h', hue);
+    card.style.setProperty('--h', isNaN(pm) ? 150 : airQuality(pm)[1]);
+    card.style.setProperty('--glow', isNaN(pm) ? '#e9eef2' : `oklch(0.72 0.15 ${airQuality(pm)[1]})`);
     this.$('.pw').classList.toggle('lit', on);
+    this.$('.pw').hidden = !this.direct() && !c.on_entity && !c.off_entity;
     this.label();
-    this.$('.state').textContent = !ok ? 'Μη διαθέσιμος' : !on ? 'Κλειστός' : [quality, a.preset_mode].filter(Boolean).join(' · ');
-    if (!isNaN(pm)) {
-      this.$('.big').textContent = String(pm < 10 ? Math.round(pm * 10) / 10 : Math.round(pm)).replace('.', ',');
-      this.$('.unit').textContent = 'PM2.5';
-    } else {
-      this.$('.big').textContent = on && a.percentage != null ? a.percentage + '%' : '—';
-      this.$('.unit').textContent = on && a.percentage != null ? 'ταχύτητα' : '';
-    }
+
+    const { list, cur, live } = this.levels();
+    const i = list.indexOf(cur);
+    const lv = this.$('.lv');
+    lv.hidden = !list.length;
+    lv.classList.toggle('live', live);
+    card.classList.toggle('solo', !list.length);
+    card.style.setProperty('--pos', i > 0 && list.length > 1 ? i / (list.length - 1) : 0);
+    this.$('.thumb').textContent = i >= 0 ? cur : '—';
   }
 }
 
