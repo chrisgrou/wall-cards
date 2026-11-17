@@ -35,7 +35,7 @@ const states = {
   'binary_sensor.dry': S('on'), 'sensor.dry_rem': S(65, { unit_of_measurement: 'min' }), 'sensor.dry_tot': S(100, { unit_of_measurement: 'min' }),
   'input_select.dish': S('finished'),
   'climate.boiler': S('heat', { friendly_name: 'Λέβητας', temperature: 22, current_temperature: 21.3, hvac_action: 'heating', target_temp_step: 0.5, min_temp: 5, max_temp: 30 }),
-  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30 }),
+  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'cool', 'heat'] }),
   'switch.heater': S('off'), 'timer.heater': S('idle', { duration: '0:15:00' }),
   'fan.purifier': S('on', { preset_mode: 'Auto', percentage: 40 }), 'sensor.pm25': S(8),
   'sensor.co2': S(640), 'sensor.voc': S('Χαμ.'), 'sensor.pm10': S(14),
@@ -100,12 +100,12 @@ const add = (tag, config, cls) => {
 const appliance = { remaining_entity: 'sensor.rem', total_entity: 'sensor.tot', program_entity: 'sensor.course', temp_entity: 'sensor.temp', pause_entity: 'button.pause', start_entity: 'button.start' };
 
 add('wall-light-card', { entity: 'light.demo' }, 'tall');
-add('wall-switch-card', { entity: 'switch.lamp' });
-add('wall-lock-card', { entity: 'lock.door', subtitle: 'Πόρτα διαμερίσματος', battery_entity: 'sensor.batt' });
+add('wall-switch-card', { entity: 'switch.lamp', label: 'Γραφείο' });
+add('wall-lock-card', { entity: 'lock.door', battery_entity: 'sensor.batt' });
 add('wall-opener-card', { entity: 'lock.opener' });
-add('wall-air-card', { entity: 'sensor.pm25', subtitle: 'Σαλόνι', co2_entity: 'sensor.co2', voc_entity: 'sensor.voc', pm10_entity: 'sensor.pm10' });
+add('wall-air-card', { entity: 'sensor.pm25', co2_entity: 'sensor.co2', voc_entity: 'sensor.voc', pm10_entity: 'sensor.pm10' });
 add('wall-climate-card', { entity: 'climate.boiler' });
-add('wall-climate-card', { entity: 'climate.ac' });
+add('wall-climate-card', { entity: 'climate.ac', label: 'Σαλόνι' });
 add('wall-heater-card', { entity: 'switch.heater', timer_entity: 'timer.heater' });
 add('wall-purifier-card', { entity: 'fan.purifier', pm25_entity: 'sensor.pm25' });
 add('wall-washer-card', { entity: 'input_select.wash', ...appliance });
@@ -114,7 +114,7 @@ add('wall-dishwasher-card', { entity: 'input_select.dish' });
 add('wall-vacuum-card', { entity: 'vacuum.robo', area_entity: 'sensor.area' });
 add('wall-tv-card', { entity: 'media_player.tv' }, 'wide');
 add('wall-music-card', { entity: 'media_player.music' }, 'wide');
-add('wall-car-card', { entity: 'sensor.car', name: 'Tesla Model 3', range_entity: 'sensor.range', location_entity: 'device_tracker.car', charging_entity: 'binary_sensor.charging', lock_entity: 'lock.car', climate_entity: 'climate.car', charger_entity: 'switch.charger', locate_entity: 'button.find' }, 'wide');
+add('wall-car-card', { entity: 'sensor.car', name: 'Model 3', range_entity: 'sensor.range', location_entity: 'device_tracker.car', charging_entity: 'binary_sensor.charging', lock_entity: 'lock.car', climate_entity: 'climate.car', charger_entity: 'switch.charger', locate_entity: 'button.find' }, 'wide');
 /* Ακραίες περιπτώσεις: entity που δεν υπάρχει, και κάρτα μόνο με το υποχρεωτικό πεδίο */
 add('wall-climate-card', { entity: 'climate.missing' });
 add('wall-car-card', { entity: 'sensor.car' }, 'wide');
