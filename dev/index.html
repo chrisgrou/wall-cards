@@ -35,7 +35,7 @@ const states = {
   'binary_sensor.dry': S('on'), 'sensor.dry_rem': S(65, { unit_of_measurement: 'min' }), 'sensor.dry_tot': S(100, { unit_of_measurement: 'min' }),
   'input_select.dish': S('finished', { options: ['on', 'off', 'finished'] }),
   'climate.boiler': S('heat', { friendly_name: 'Λέβητας', temperature: 22, current_temperature: 21.3, hvac_action: 'heating', target_temp_step: 0.5, min_temp: 5, max_temp: 30 }),
-  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'cool', 'heat'] }),
+  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'cool', 'heat', 'dry', 'fan_only'], fan_modes: ['auto', 'low', 'medium', 'high'], fan_mode: 'auto', swing_modes: ['off', 'vertical', 'horizontal', 'both'], swing_mode: 'vertical' }),
   'switch.heater': S('off'), 'timer.heater': S('idle', { duration: '0:15:00' }),
   'binary_sensor.pur': S('on'), 'input_select.pur': S('Medium', { options: ['Off', 'Sleep', 'Low', 'Medium', 'High'] }), 'script.pur_on': S('off'), 'script.pur_off': S('off'), 'sensor.pm25': S(8),
   'sensor.co2': S(640), 'sensor.voc': S('Χαμ.'), 'sensor.pm10': S(14),
@@ -67,6 +67,9 @@ function react(domain, service, d) {
   }
   if (domain === 'climate') {
     if (service === 'set_temperature') return set(id, null, { temperature: d.temperature });
+    if (service === 'set_hvac_mode') return set(id, d.hvac_mode);
+    if (service === 'set_fan_mode') return set(id, null, { fan_mode: d.fan_mode });
+    if (service === 'set_swing_mode') return set(id, null, { swing_mode: d.swing_mode });
     return set(id, service === 'turn_off' ? 'off' : id === 'climate.ac' ? 'cool' : 'heat');
   }
   if (domain === 'timer') {
@@ -123,6 +126,22 @@ add('wall-climate-card', { entity: 'climate.missing' });
 add('wall-car-card', { entity: 'sensor.car' }, 'wide');
 push();
 window.__wall = { states, set, cards };
+
+/* Δείγμα μεγάλου popup με καρτέλες, για έλεγχο του προτύπου */
+const { openPopup, popSection, popChips, popStepper } = window.wallCards;
+const demo = document.createElement('button');
+demo.textContent = 'Δείγμα μεγάλου popup με καρτέλες';
+demo.style.cssText = 'margin-top:16px;height:44px;padding:0 16px;border-radius:14px;border:0;font:600 15px sans-serif;background:#fff';
+demo.onclick = () => openPopup(cards.find((c) => c.localName === 'wall-vacuum-card'), {
+  icon: 'cleaning_services', size: 'lg', status: () => 'Στη βάση · 100%',
+  tabs: [{ id: 'rooms', label: 'Δωμάτια', icon: 'meeting_room' }, { id: 'power', label: 'Ισχύς', icon: 'speed' }, { id: 'more', label: 'Ρουτίνες', icon: 'schedule' }],
+  render: (p, tab) => {
+    if (tab === 'rooms') popChips(popSection(p, 'Καθάρισε'), ['Σαλόνι', 'Κουζίνα', 'Υπνοδωμάτιο', 'Παιδικό', 'Γραφείο', 'Μπάνιο'].map((label, i) => ({ label, sel: i === 1, tap: () => log('δωμάτιο ' + label) })));
+    if (tab === 'power') { popStepper(popSection(p, 'Περάσματα'), { text: '2', dec: () => log('−'), inc: () => log('+') }); popChips(popSection(p, 'Αναρρόφηση'), ['Ήσυχη', 'Κανονική', 'Δυνατή', 'Μέγιστη'].map((label, i) => ({ label, sel: i === 1, tap: () => log(label) }))); }
+    if (tab === 'more') popChips(popSection(p, 'Ρουτίνες'), [{ label: 'Μετά το φαγητό', icon: 'restaurant', tap: () => log('ρουτίνα') }, { label: 'Όταν λείπουμε', icon: 'directions_walk', tap: () => log('ρουτίνα') }]);
+  },
+});
+document.body.appendChild(demo);
 </script>
 </body>
 </html>

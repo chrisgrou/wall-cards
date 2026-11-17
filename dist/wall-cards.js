@@ -178,6 +178,7 @@ class WallBaseCard extends HTMLElement {
     if (sig === this._sig) return;
     this._sig = sig;
     this.update();
+    this._popup?.refresh();
   }
 
   connectedCallback() {
@@ -213,13 +214,13 @@ class WallBaseCard extends HTMLElement {
     this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: id }, bubbles: true, composed: true }));
   }
 
-  /* Πάτημα στο σώμα της κάρτας (όχι σε κουμπί) ανοίγει τις λεπτομέρειες */
-  tapMore() {
+  /* Πάτημα στο σώμα της κάρτας (όχι σε κουμπί) ανοίγει το popup της κάρτας, ή αλλιώς τις λεπτομέρειες του HA */
+  tapMore(open) {
     const card = this.$('.card');
     card.style.cursor = 'pointer';
     card.addEventListener('click', (e) => {
       if (e.composedPath().some((n) => n.tagName === 'BUTTON')) return;
-      this.moreInfo(this._config.entity);
+      if (open) open(); else this.moreInfo(this._config.entity);
     });
   }
 
@@ -240,39 +241,243 @@ class WallWideCard extends WallBaseCard {
   getGridOptions() { return { columns: 12, rows: 4, min_columns: 8, min_rows: 4 }; }
 }
 
-/* ── Popup: δικό μας αναδυόμενο φύλλο, ίδιο για όλες τις κάρτες ──
-   openPopup((sheet, close) => { …γέμισε το sheet… }) · κλείνει με πάτημα έξω από το φύλλο */
+/* ── Popup: ένα ενιαίο πρότυπο για όλες τις κάρτες ──
+ *
+ *   openPopup(card, {
+ *     icon:   'lightbulb',               εικονίδιο κεφαλίδας
+ *     size:   'sm' | 'md' | 'lg',        πλάτος φύλλου
+ *     accent: () => 'css χρώμα',         χρώμα έμφασης (προαιρετικό)
+ *     status: () => 'Αναμμένο · 63%',    γραμμή κατάστασης κάτω από τον τίτλο
+ *     tabs:   [{ id, label, icon }],     καρτέλες (προαιρετικό)
+ *     render: (p, tab) => { … },         γεμίζει το p.body με popSection / popChips / popSlider …
+ *   })
+ *
+ * Τίτλος: config.title → config.label → όνομα του entity.
+ * Το σώμα ξαναχτίζεται όταν αλλάξει η κατάσταση της κάρτας (όχι όσο ο χρήστης σέρνει κάτι).
+ * Κλείνει με το ✕, με πάτημα έξω, με Escape, ή μόνο του μετά από POPUP_IDLE_MS αδράνειας.
+ * Ανοίγει και κλείνει «από» την κάρτα που το κάλεσε. Ένα popup τη φορά.
+ */
+const POPUP_IDLE_MS = 30000;
 const POPUP_CSS = `
 :host{position:fixed;inset:0;z-index:9999;height:auto;border-radius:0;box-shadow:none}
-.veil{position:absolute;inset:0;display:grid;place-items:center;background:rgba(20,30,40,0);transition:background .2s}
-.veil.in{background:rgba(20,30,40,.35)}
-.sheet{min-width:280px;max-width:560px;padding:22px;border-radius:28px;background:#f4f6f8;
-  box-shadow:0 22px 50px rgba(20,30,40,.3);transform:scale(.85);opacity:0;transition:transform .3s var(--w-spring),opacity .2s}
-.in .sheet{transform:scale(1);opacity:1}
+.veil{position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:rgba(20,30,40,0);transition:background .25s}
+.veil.in{background:rgba(20,30,40,.38)}
+.sheet{width:100%;max-height:100%;display:flex;flex-direction:column;border-radius:30px;background:#f4f6f8;overflow:hidden;
+  box-shadow:0 22px 50px rgba(20,30,40,.3);opacity:0;transform:translate(var(--dx,0px),var(--dy,0px)) scale(.3);
+  transition:transform .22s ease-in,opacity .18s ease-in}
+.in .sheet{opacity:1;transform:none;transition:transform .42s var(--w-spring),opacity .2s}
+.s-sm{max-width:380px}
+.s-md{max-width:540px}
+.s-lg{max-width:780px}
+.ph{flex:none;display:flex;align-items:center;gap:12px;padding:18px 14px 14px 20px}
+.pi{flex:none;width:48px;height:48px;border-radius:16px;display:grid;place-items:center;font-size:26px;
+  background:#fff;color:var(--acc,var(--w-ink));box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pt{flex:1;min-width:0;display:flex;flex-direction:column}
+.pn{font:700 20px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ps{font:500 15px var(--w-font);color:var(--w-muted);min-height:20px}
+.px{flex:none;width:48px;height:48px;border-radius:50%;font-size:26px;color:var(--w-muted);transition:transform .15s,background .2s}
+.px:active{transform:scale(.92);background:rgba(0,0,0,.06)}
+.tabs{flex:none;display:flex;gap:6px;margin:0 20px 14px;padding:4px;border-radius:18px;background:var(--w-track)}
+.tabs button{flex:1;height:44px;border-radius:14px;font:600 15px var(--w-font);color:var(--w-muted);
+  display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s,color .2s}
+.tabs button.sel{background:#fff;color:var(--w-ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.tabs .ms{font-size:20px}
+.pb{flex:1;min-height:0;overflow-y:auto;padding:4px 20px 22px;display:flex;flex-direction:column;gap:18px}
 .grp{font:600 15px var(--w-font);color:var(--w-muted);margin:0 0 10px}
-.sw{display:grid;grid-template-columns:repeat(4,64px);gap:14px;justify-content:center}
-.sw + .grp{margin-top:20px}
-.sw button{width:64px;height:64px;border-radius:50%;background:var(--c);box-shadow:0 3px 6px rgba(0,0,0,.2),inset 0 0 0 4px #fff;transition:transform .15s}
+.sw{display:flex;flex-wrap:wrap;gap:12px}
+.sw button{width:60px;height:60px;border-radius:50%;background:var(--c);box-shadow:0 3px 6px rgba(0,0,0,.2),inset 0 0 0 4px #fff;transition:transform .15s}
 .sw button:active{transform:scale(.92)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{min-height:48px;padding:0 16px;border-radius:16px;background:#fff;font:600 15px var(--w-font);
+  display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);transition:background .2s,color .2s,transform .15s}
+.chips button:active{transform:scale(.96)}
+.chips button.sel{background:var(--acc,var(--w-blue));color:#fff}
+.chips .ms{font-size:22px}
+.sl{position:relative;height:60px;border-radius:20px;background:var(--w-track);overflow:hidden;touch-action:none;cursor:ew-resize}
+.sl i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--acc,var(--w-blue));opacity:.55}
+.sl span{position:absolute;top:0;bottom:0;display:flex;align-items:center}
+.sl .ms{left:18px;font-size:26px}
+.sl .sv{right:18px;font:700 18px var(--w-font)}
+.stepper{display:flex;align-items:center;justify-content:center;gap:18px}
+.stepper button{width:64px;height:64px;border-radius:50%;background:#fff;font-size:34px;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:transform .15s}
+.stepper button:active{transform:scale(.94)}
+.stepper b{min-width:160px;text-align:center;font:400 56px var(--w-font);letter-spacing:-2px;color:var(--acc,var(--w-ink))}
 `;
 
-function openPopup(build) {
+let activePopup = null;
+const popTitle = (card) => card._config.title || card._config.label || card.friendly(card._config.entity);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+function openPopup(card, spec) {
+  if (activePopup) activePopup.close(true);
   const host = document.createElement('div');
   const root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = `<style>${BASE_CSS}${POPUP_CSS}</style><div class="veil"><div class="sheet" role="dialog"></div></div>`;
-  const veil = root.querySelector('.veil');
-  const close = () => { veil.classList.remove('in'); setTimeout(() => host.remove(), 220); };
-  veil.addEventListener('click', (e) => { if (e.target === veil) close(); });
-  build(root.querySelector('.sheet'), close);
+  root.innerHTML = `<style>${BASE_CSS}${POPUP_CSS}</style>
+<div class="veil"><div class="sheet s-${spec.size || 'sm'}" role="dialog" aria-modal="true">
+  <header class="ph">
+    <span class="pi ms fill"></span><div class="pt"><span class="pn"></span><span class="ps"></span></div>
+    <button class="px ms" aria-label="Κλείσιμο">close</button>
+  </header>
+  <nav class="tabs" hidden></nav>
+  <div class="pb"></div>
+</div></div>`;
+  const $ = (s) => root.querySelector(s);
+  const veil = $('.veil'), sheet = $('.sheet'), body = $('.pb'), nav = $('.tabs');
+  let idle, closed = false, tab = spec.tabs?.[0]?.id;
+
+  /* Το φύλλο «βγαίνει» από την κάρτα και γυρίζει σε αυτήν: μετατόπιση από το κέντρο του ως το κέντρο της κάρτας */
+  const aim = () => {
+    const c = card.getBoundingClientRect(), s = sheet.getBoundingClientRect();
+    sheet.style.setProperty('--dx', `${c.left + c.width / 2 - (s.left + s.width / 2)}px`);
+    sheet.style.setProperty('--dy', `${c.top + c.height / 2 - (s.top + s.height / 2)}px`);
+  };
+  const wake = () => { clearTimeout(idle); idle = setTimeout(() => p.close(), POPUP_IDLE_MS); };
+  const onKey = (e) => { if (e.key === 'Escape') p.close(); };
+
+  const p = {
+    card, body, busy: false,
+    close(now) {
+      if (closed) return;
+      closed = true;
+      clearTimeout(idle);
+      document.removeEventListener('keydown', onKey);
+      card._popup = null;
+      if (activePopup === p) activePopup = null;
+      if (now) return host.remove();
+      aim();
+      veil.classList.remove('in');
+      setTimeout(() => host.remove(), 240);
+    },
+    /* Καλείται από την κάρτα σε κάθε αλλαγή κατάστασης */
+    refresh() {
+      $('.pi').textContent = spec.icon || 'tune';
+      $('.pn').textContent = popTitle(card);
+      $('.ps').textContent = spec.status?.() || '';
+      if (spec.accent) sheet.style.setProperty('--acc', spec.accent());
+      if (p.busy) return;
+      const top = body.scrollTop;
+      body.replaceChildren();
+      spec.render(p, tab);
+      body.scrollTop = top;
+    },
+  };
+
+  if (spec.tabs?.length) {
+    nav.hidden = false;
+    spec.tabs.forEach((t) => {
+      const b = el('button');
+      if (t.icon) b.appendChild(el('span', 'ms', t.icon));
+      b.appendChild(el('span', '', t.label));
+      b.classList.toggle('sel', t.id === tab);
+      b.addEventListener('click', () => {
+        tab = t.id;
+        nav.querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b));
+        body.scrollTop = 0;
+        p.refresh();
+      });
+      nav.appendChild(b);
+    });
+  }
+  veil.addEventListener('click', (e) => { if (e.target === veil) p.close(); });
+  veil.addEventListener('pointerdown', wake);
+  $('.px').addEventListener('click', () => p.close());
+  document.addEventListener('keydown', onKey);
+
   document.body.appendChild(host);
-  requestAnimationFrame(() => veil.classList.add('in'));
-  return close;
+  p.refresh();
+  aim();
+  requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add('in')));
+  wake();
+  card._popup = p;
+  activePopup = p;
+  return p;
 }
 
-/* ── Φώτα: χρώμα λάμπας για ενδείξεις, και popup επιλογής χρώματος ── */
+/* Δομικά στοιχεία popup — όλα τα popups χτίζονται μόνο με αυτά */
+
+/* Ενότητα με προαιρετική επικεφαλίδα· επιστρέφει το στοιχείο όπου μπαίνουν τα χειριστήρια */
+function popSection(p, title) {
+  const s = el('section');
+  if (title) s.appendChild(el('p', 'grp', title));
+  p.body.appendChild(s);
+  return s;
+}
+
+/* Κουμπιά-επιλογές: [{ label, icon, sel, tap }] */
+function popChips(parent, items) {
+  const g = el('div', 'chips');
+  items.forEach(({ label, icon, sel, tap }) => {
+    const b = el('button');
+    if (icon) b.appendChild(el('span', 'ms', icon));
+    b.appendChild(el('span', '', label));
+    b.classList.toggle('sel', !!sel);
+    b.addEventListener('click', tap);
+    g.appendChild(b);
+  });
+  parent.appendChild(g);
+}
+
+/* Κύκλοι χρώματος: [{ label, color, tap }] */
+function popSwatches(parent, items) {
+  const g = el('div', 'sw');
+  items.forEach(({ label, color, tap }) => {
+    const b = el('button');
+    b.style.setProperty('--c', color);
+    b.setAttribute('aria-label', label);
+    b.addEventListener('click', tap);
+    g.appendChild(b);
+  });
+  parent.appendChild(g);
+}
+
+/* Οριζόντιο ρυθμιστικό 1–100: { icon, value, set(v) } · η εντολή στέλνεται στο άφημα */
+function popSlider(parent, p, { icon, value, set }) {
+  const s = el('div', 'sl');
+  const text = el('span', 'sv');
+  const paint = (v) => { s.style.setProperty('--v', v + '%'); text.textContent = v ? v + '%' : '—'; };
+  s.append(el('i'), el('span', 'ms', icon), text);
+  paint(value);
+  s.addEventListener('pointerdown', (e0) => {
+    s.setPointerCapture(e0.pointerId);
+    p.busy = true;
+    let v = value;
+    const move = (ev) => {
+      const r = s.getBoundingClientRect();
+      v = Math.round(clamp(((ev.clientX - r.left) / r.width) * 100, 1, 100));
+      paint(v);
+    };
+    const up = () => {
+      s.removeEventListener('pointermove', move);
+      s.removeEventListener('pointerup', up);
+      s.removeEventListener('pointercancel', up);
+      p.busy = false;
+      set(v);
+    };
+    move(e0);
+    s.addEventListener('pointermove', move);
+    s.addEventListener('pointerup', up);
+    s.addEventListener('pointercancel', up);
+  });
+  parent.appendChild(s);
+}
+
+/* Μεγάλος αριθμός με − / + : { text, dec(), inc() } */
+function popStepper(parent, { text, dec, inc }) {
+  const g = el('div', 'stepper');
+  const a = el('button', 'ms', 'remove'), b = el('button', 'ms', 'add');
+  a.setAttribute('aria-label', 'Λιγότερο');
+  b.setAttribute('aria-label', 'Περισσότερο');
+  a.addEventListener('click', dec);
+  b.addEventListener('click', inc);
+  g.append(a, el('b', '', text), b);
+  parent.appendChild(g);
+}
+
+/* ── Φώτα: χρώμα λάμπας για ενδείξεις, και popup φωτός ── */
 const lightModes = (s) => s?.attributes?.supported_color_modes || [];
 const hasColor = (s) => lightModes(s).some((m) => ['hs', 'rgb', 'rgbw', 'rgbww', 'xy'].includes(m));
 const hasTemp = (s) => lightModes(s).includes('color_temp');
+const isDimmable = (s) => lightModes(s).some((m) => m !== 'onoff');
 const WHITES = [['Θερμό λευκό', 2700, '#f6cc7a'], ['Ουδέτερο λευκό', 4000, '#f6e7c4'], ['Ψυχρό λευκό', 6500, '#cfe2f7']];
 const COLORS = [
   ['Κόκκινο', [255, 60, 50]], ['Πορτοκαλί', [255, 140, 40]], ['Κίτρινο', [255, 210, 60]], ['Πράσινο', [70, 200, 90]],
@@ -286,29 +491,78 @@ function lampColor(s) {
   return !k || k < 3300 ? '#f6cc7a' : k < 5000 ? '#f6e7c4' : '#cfe2f7';
 }
 
-/* Ανοίγει τα έτοιμα χρώματα· αν το φως δεν έχει χρώμα, πέφτει στο παράθυρο του HA */
+/* Φωτεινότητα, λευκά και χρώματα· ό,τι δεν είναι ρυθμιζόμενο φως πέφτει στο παράθυρο του HA */
 function lightPopup(card) {
   const id = card._config.entity;
-  const s = card.st(id);
-  if (!hasColor(s) && !hasTemp(s)) return card.moreInfo(id);
-  openPopup((sheet, close) => {
-    const row = (title, items) => {
-      const p = document.createElement('p');
-      p.className = 'grp';
-      p.textContent = title;
-      const g = document.createElement('div');
-      g.className = 'sw';
-      items.forEach(([label, color, data]) => {
-        const b = document.createElement('button');
-        b.style.setProperty('--c', color);
-        b.setAttribute('aria-label', label);
-        b.addEventListener('click', () => { card.call('light', 'turn_on', { entity_id: id, ...data }); close(); });
-        g.appendChild(b);
-      });
-      sheet.append(p, g);
-    };
-    if (hasTemp(s)) row('Λευκό', WHITES.map(([n, k, c]) => [n, c, { color_temp_kelvin: k }]));
-    if (hasColor(s)) row('Χρώμα', COLORS.map(([n, rgb]) => [n, `rgb(${rgb.join(',')})`, { rgb_color: rgb }]));
+  const s0 = card.st(id);
+  if (!id.startsWith('light.') || !isDimmable(s0)) return card.moreInfo(id);
+  const turnOn = (data) => card.call('light', 'turn_on', { entity_id: id, ...data });
+  openPopup(card, {
+    icon: 'lightbulb',
+    size: 'sm',
+    accent: () => 'oklch(0.7 0.14 75)',
+    status: () => {
+      const s = card.st(id);
+      if (!card.available(id)) return 'Μη διαθέσιμο';
+      if (s.state !== 'on') return 'Σβηστό';
+      const b = s.attributes.brightness;
+      return b != null ? `Αναμμένο · ${Math.round((b / 255) * 100)}%` : 'Αναμμένο';
+    },
+    render: (p) => {
+      const s = card.st(id);
+      const on = s?.state === 'on';
+      const pct = on ? Math.max(1, Math.round(((s.attributes.brightness ?? 255) / 255) * 100)) : 0;
+      popSlider(popSection(p), p, { icon: 'light_mode', value: pct, set: (v) => turnOn({ brightness_pct: v }) });
+      if (hasTemp(s)) {
+        popSwatches(popSection(p, 'Λευκό'), WHITES.map(([label, k, color]) => ({ label, color, tap: () => turnOn({ color_temp_kelvin: k }) })));
+      }
+      if (hasColor(s)) {
+        popSwatches(popSection(p, 'Χρώμα'), COLORS.map(([label, rgb]) => ({ label, color: `rgb(${rgb.join(',')})`, tap: () => turnOn({ rgb_color: rgb }) })));
+      }
+      popChips(popSection(p), [{
+        label: on ? 'Σβήσιμο' : 'Άναμμα', icon: 'power_settings_new', sel: on,
+        tap: () => card.call('light', 'toggle', { entity_id: id }),
+      }]);
+    },
+  });
+}
+
+/* ── Κλίμα: popup με θερμοκρασία, λειτουργία, ανεμιστήρα και περσίδες ── */
+const HVAC = {
+  off: ['Κλειστό', 'power_settings_new'], heat: ['Θέρμανση', 'sunny'], cool: ['Ψύξη', 'ac_unit'],
+  heat_cool: ['Αυτόματο', 'hdr_auto'], auto: ['Αυτόματο', 'hdr_auto'], dry: ['Αφύγρανση', 'water_drop'], fan_only: ['Ανεμιστήρας', 'mode_fan'],
+};
+
+function climatePopup(card) {
+  const id = card._config.entity;
+  if (!card.available(id)) return card.moreInfo(id);
+  const set = (service, data) => card.call('climate', service, { entity_id: id, ...data });
+  openPopup(card, {
+    icon: 'thermostat',
+    size: 'md',
+    accent: () => card.$('.card').style.getPropertyValue('--acc') || 'var(--w-ink)',
+    status: () => {
+      const s = card.st(id);
+      const cur = s?.attributes?.current_temperature;
+      return [HVAC[s?.state]?.[0] || s?.state, cur != null && `χώρος ${fmt(cur, 1)}°`].filter(Boolean).join(' · ');
+    },
+    render: (p) => {
+      const s = card.st(id);
+      const a = s?.attributes || {};
+      const by = a.target_temp_step || 0.5;
+      const go = (dir) => () => set('set_temperature', { temperature: clamp(a.temperature + dir * by, a.min_temp ?? 5, a.max_temp ?? 35) });
+      if (a.temperature != null) popStepper(popSection(p), { text: `${fmt(a.temperature, by < 1 ? 1 : 0)}°`, dec: go(-1), inc: go(1) });
+      const chips = (title, list, cur, service, key) => {
+        if (!list?.length) return;
+        popChips(popSection(p, title), list.map((m) => ({
+          label: HVAC[m]?.[0] && key === 'hvac_mode' ? HVAC[m][0] : m, icon: key === 'hvac_mode' ? HVAC[m]?.[1] : undefined,
+          sel: cur === m, tap: () => set(service, { [key]: m }),
+        })));
+      };
+      chips('Λειτουργία', a.hvac_modes, s?.state, 'set_hvac_mode', 'hvac_mode');
+      chips('Ανεμιστήρας', a.fan_modes, a.fan_mode, 'set_fan_mode', 'fan_mode');
+      chips('Περσίδες', a.swing_modes, a.swing_mode, 'set_swing_mode', 'swing_mode');
+    },
   });
 }
 
@@ -360,6 +614,7 @@ const cssUrl = (u) => `url("${String(u).replace(/["\\\n]/g, '')}")`;
    Για δύο ίδιες κάρτες υπάρχει το προαιρετικό ταμπελάκι (label). */
 const TAG = '<span class="tag" hidden></span>';
 const LABEL = ['label', 'Ταμπελάκι, π.χ. «Σαλόνι» (προαιρετικό)', TEXT];
+const TITLE = ['title', 'Όνομα στο popup (προαιρετικό)', TEXT];
 
 /* ── Φως: ψηλή κάρτα, σύρσιμο πάνω-κάτω για φωτεινότητα, διακόπτης κάτω ── */
 class WallLightCard extends WallBaseCard {
@@ -389,7 +644,7 @@ class WallLightCard extends WallBaseCard {
 .on .rocker .ms{color:oklch(0.62 0.15 70);text-shadow:0 0 12px oklch(0.8 0.14 80 / .8)}
 `;
 
-  static getConfigForm() { return form([['entity', 'Φως', ent('light'), true], LABEL]); }
+  static getConfigForm() { return form([['entity', 'Φως', ent('light'), true], LABEL, TITLE]); }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'light') }; }
 
   getCardSize() { return 8; }
@@ -493,7 +748,7 @@ class WallSwitchCard extends WallBaseCard {
 `;
 
   static getConfigForm() {
-    return form([['entity', 'Συσκευή', ent(['light', 'switch', 'input_boolean', 'fan']), true], LABEL]);
+    return form([['entity', 'Συσκευή', ent(['light', 'switch', 'input_boolean', 'fan']), true], LABEL, TITLE]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'light') || firstEntity(hass, 'switch') }; }
   watched() { return [this._config.entity]; }
@@ -598,7 +853,7 @@ class WallLockCard extends WallBaseCard {
   static getConfigForm() {
     return form([
       ['entity', 'Κλειδαριά', ent('lock'), true],
-      LABEL,
+      LABEL, TITLE,
       ['battery_entity', 'Μπαταρία — εμφανίζεται μόνο όταν πέσει κάτω από 20% (προαιρετικό)', ent('sensor', 'battery')],
     ]);
   }
@@ -671,7 +926,7 @@ class WallOpenerCard extends WallBaseCard {
   static getConfigForm() {
     return form([
       ['entity', 'Θυροτηλέφωνο (lock)', ent('lock'), true],
-      LABEL,
+      LABEL, TITLE,
       ['rto_entity', 'Άνοιγμα στο κουδούνι (προαιρετικό)', ent(['switch', 'input_boolean', 'lock'])],
     ]);
   }
@@ -789,7 +1044,7 @@ class WallApplianceCard extends WallBaseCard {
     const action = ent(['button', 'input_button', 'script', 'switch']);
     return form([
       ['entity', 'Κατάσταση (τρέχει / σβηστό / τελείωσε)', ANY, true],
-      LABEL,
+      LABEL, TITLE,
       ['remaining_entity', 'Υπόλοιπος χρόνος', sensor],
       ['total_entity', 'Συνολικός χρόνος προγράμματος', sensor],
       ['program_entity', 'Πρόγραμμα', sensor],
@@ -913,7 +1168,7 @@ class WallClimateCard extends WallBaseCard {
   static getConfigForm() {
     return form([
       ['entity', 'Θερμοστάτης / κλιματιστικό', ent('climate'), true],
-      LABEL,
+      LABEL, TITLE,
       ['look', 'Μορφή', { select: { mode: 'dropdown', options: [
         { value: 'auto', label: 'Αυτόματα' }, { value: 'thermostat', label: 'Θερμοστάτης' }, { value: 'ac', label: 'Κλιματιστικό' },
       ] } }],
@@ -944,7 +1199,7 @@ class WallClimateCard extends WallBaseCard {
   }
 
   bind() {
-    this.tapMore();
+    this.tapMore(() => climatePopup(this));
     this.$('.pw').addEventListener('click', () => {
       const id = this._config.entity;
       if (this.available(id)) this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id });
@@ -1031,7 +1286,7 @@ class WallHeaterCard extends WallBaseCard {
   static getConfigForm() {
     return form([
       ['entity', 'Διακόπτης θερμοσίφωνα', ent(['switch', 'input_boolean']), true],
-      LABEL,
+      LABEL, TITLE,
       ['timer_entity', 'Χρονόμετρο (timer helper)', ent('timer')],
       ['default_minutes', 'Προεπιλεγμένη διάρκεια (λεπτά)', { number: { min: 5, max: 180, step: 5, mode: 'box' } }],
       ['max_minutes', 'Μέγιστη διάρκεια (λεπτά)', { number: { min: 10, max: 240, step: 5, mode: 'box' } }],
@@ -1153,7 +1408,7 @@ class WallPurifierCard extends WallBaseCard {
     const action = ent(['script', 'button', 'input_button']);
     return form([
       ['entity', 'Κατάσταση ή συσκευή (fan, διακόπτης, αισθητήρας)', ANY, true],
-      LABEL,
+      LABEL, TITLE,
       ['level_entity', 'Στάθμη λειτουργίας — μόνο ένδειξη (προαιρετικό)', ent(['input_select', 'select', 'sensor'])],
       ['pm25_entity', 'Αισθητήρας PM2.5 για το χρώμα του δαχτυλιδιού (προαιρετικό)', ent('sensor')],
       ['on_entity', 'Ενέργεια ανάμματος (προαιρετικό)', action],
@@ -1254,7 +1509,7 @@ class WallAirCard extends WallBaseCard {
     const sensor = ent('sensor');
     return form([
       ['entity', 'PM2.5', sensor, true],
-      LABEL,
+      LABEL, TITLE,
       ['co2_entity', 'CO₂ (προαιρετικό)', sensor],
       ['voc_entity', 'VOC (προαιρετικό)', sensor],
       ['pm10_entity', 'PM10 (προαιρετικό)', sensor],
@@ -1332,7 +1587,7 @@ class WallVacuumCard extends WallBaseCard {
   static getConfigForm() {
     return form([
       ['entity', 'Σκούπα', ent('vacuum'), true],
-      LABEL,
+      LABEL, TITLE,
       ['battery_entity', 'Μπαταρία (προαιρετικό)', ent('sensor', 'battery')],
       ['area_entity', 'Καθαρισμένη επιφάνεια (προαιρετικό)', ent('sensor')],
     ]);
@@ -1415,7 +1670,7 @@ class WallTvCard extends WallWideCard {
   static getConfigForm() {
     return form([
       ['entity', 'Τηλεόραση', ent('media_player'), true],
-      LABEL,
+      LABEL, TITLE,
       ['remote_entity', 'Χειριστήριο (προαιρετικό)', ent('remote')],
     ]);
   }
@@ -1508,7 +1763,7 @@ class WallMusicCard extends WallWideCard {
 .tag{left:10px;bottom:8px}
 `;
 
-  static getConfigForm() { return form([['entity', 'Ηχείο / player', ent('media_player'), true], LABEL]); }
+  static getConfigForm() { return form([['entity', 'Ηχείο / player', ent('media_player'), true], LABEL, TITLE]); }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'media_player') }; }
   watched() { return [this._config.entity]; }
 
@@ -1706,5 +1961,8 @@ register('wall-vacuum-card', WallVacuumCard, 'Wall · Σκούπα', 'Το ρο�
 register('wall-tv-card', WallTvCard, 'Wall · Τηλεόραση', 'Πλατιά κάρτα: οθόνη με ό,τι παίζει και τηλεχειριστήριο.');
 register('wall-music-card', WallMusicCard, 'Wall · Μουσική', 'Πλατιά κάρτα: πικάπ με το εξώφυλλο στον δίσκο.');
 register('wall-car-card', WallCarCard, 'Wall · Αυτοκίνητο', 'Πλατιά κάρτα: μπαταρία, αυτονομία, πινακίδα και γρήγορες ενέργειες.');
+
+/* Για τη σελίδα δοκιμής και για πειραματισμό από την κονσόλα */
+window.wallCards = { VERSION, openPopup, popSection, popChips, popSwatches, popSlider, popStepper };
 
 console.info(`%c WALL-CARDS %c v${VERSION} `, 'background:#1c2228;color:#fff;border-radius:4px 0 0 4px', 'background:#e1e6eb;color:#1c2228;border-radius:0 4px 4px 0');
