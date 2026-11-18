@@ -738,24 +738,27 @@ class WallLightCard extends WallBaseCard {
   }
 }
 
-/* ── Διακόπτης: πλήκτρο τοίχου· στα φώτα γεμίζει στο χρώμα της λάμπας ως τη φωτεινότητα ── */
+/* ── Διακόπτης: rocker που γέρνει αριστερά, κουκκίδες φωτεινότητας δεξιά, χρώμα λάμπας που έρχεται από δεξιά ──
+ * Πάτημα στο rocker = on/off. Σύρσιμο πάνω-κάτω οπουδήποτε στην κάρτα = φωτεινότητα (μόνο σε φώτα με ρύθμιση).
+ * Πάτημα στη δεξιά πλευρά χωρίς σύρσιμο = popup φωτός (φωτεινότητα, λευκά, χρώματα).
+ */
 class WallSwitchCard extends WallBaseCard {
   static css = `
 .card,.card.on{padding:0;border-radius:22px;color:#2d2a24;background:linear-gradient(180deg,#fdfdfb,#f1efea);
-  box-shadow:inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.05)}
-.key{position:absolute;left:50%;top:20px;width:112px;height:156px;margin-left:-56px;border-radius:16px;overflow:hidden;
-  touch-action:none;cursor:pointer;transition:box-shadow .2s;
-  background:linear-gradient(180deg,#ffffff,#eeece6);box-shadow:0 4px 8px rgba(40,45,55,.18),inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.06)}
-.on .key{box-shadow:inset 0 3px 7px rgba(0,0,0,.14),0 1px 0 #fff}
-.lvl{position:absolute;left:0;right:0;bottom:0;height:0;transition:height .12s;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--lamp,#f6cc7a) 70%,#fff),var(--lamp,#f6cc7a))}
-.ic{position:absolute;left:0;right:0;top:18px;text-align:center;font-size:34px;color:#8a8578;transition:color .3s}
-.on .ic{color:color-mix(in srgb,var(--lamp,#f6cc7a) 55%,#3a2a08)}
-.pc{position:absolute;left:0;right:0;bottom:12px;text-align:center;font:700 24px var(--w-font);letter-spacing:-.5px}
-.more{position:absolute;right:2px;top:2px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#a8a296;font-size:22px}
-.dot{width:28px;height:28px;border-radius:50%;background:var(--lamp,#d8d4ca);box-shadow:0 2px 4px rgba(0,0,0,.25),inset 0 0 0 3px #fff}
-.card:not(.on) .dot{background:#d8d4ca}
-.tag{left:50%;transform:translateX(-50%);bottom:12px}
+  box-shadow:inset 0 1px 0 #fff,inset 0 -3px 4px rgba(0,0,0,.05);touch-action:none}
+.wash{position:absolute;inset:0;opacity:0;transition:opacity .4s;
+  background:linear-gradient(270deg,color-mix(in srgb,var(--lamp,#f6cc7a) 75%,transparent),transparent 55%)}
+.on .wash{opacity:1}
+.rk{position:absolute;left:16px;top:22px;bottom:44px;width:88px;border-radius:14px;z-index:1;
+  background:#e9e6df;box-shadow:inset 0 2px 5px rgba(0,0,0,.18);perspective:300px}
+.rk b{position:absolute;inset:6px;border-radius:10px;transform:rotateX(-14deg);transition:transform .35s var(--w-spring),background .2s;
+  background:linear-gradient(180deg,#fff 0%,#f4f2ed 49%,#e3e0d8 50%,#f7f5f0 100%);box-shadow:0 6px 10px rgba(0,0,0,.18)}
+.on .rk b{transform:rotateX(14deg);background:linear-gradient(180deg,#e3e0d8 0%,#f7f5f0 50%,#fff 51%,#f4f2ed 100%)}
+.leds{position:absolute;right:26px;top:26px;bottom:48px;z-index:1;display:flex;flex-direction:column-reverse;justify-content:space-between;align-items:center}
+.leds span{width:8px;height:8px;border-radius:50%;background:rgba(45,42,36,.15);transition:background .15s}
+.leds span.lit{background:#2d2a24}
+.pc{position:absolute;right:14px;bottom:12px;z-index:1;font:700 16px var(--w-font)}
+.tag{left:18px;bottom:12px}
 `;
 
   static getConfigForm() {
@@ -767,47 +770,46 @@ class WallSwitchCard extends WallBaseCard {
   template() {
     return `
 <div class="card">
-  <div class="key" role="button" aria-label="Άναμμα/Σβήσιμο">
-    <div class="lvl"></div><span class="ic ms">power_settings_new</span><span class="pc"></span>
-  </div>
-  <button class="more" aria-label="Χρώμα και ρυθμίσεις"><span class="dot" hidden></span><span class="ms tn">tune</span></button>
+  <div class="wash"></div>
+  <button class="rk" aria-label="Άναμμα/Σβήσιμο"><b></b></button>
+  <div class="leds">${'<span></span>'.repeat(8)}</div>
+  <span class="pc"></span>
   ${TAG}
 </div>`;
   }
 
   bind() {
-    const key = this.$('.key');
-    this.$('.more').addEventListener('click', () => lightPopup(this));
-    /* Πάτημα = on/off. Σύρσιμο πάνω-κάτω (μόνο σε φώτα με ρύθμιση) = φωτεινότητα. */
-    key.addEventListener('pointerdown', (e0) => {
+    const card = this.$('.card');
+    card.addEventListener('pointerdown', (e0) => {
       const id = this._config.entity;
       if (!this.available(id)) return;
-      key.setPointerCapture(e0.pointerId);
+      card.setPointerCapture(e0.pointerId);
+      const onRocker = e0.composedPath().includes(this.$('.rk'));
       let moved = false;
       const move = (ev) => {
-        if (!this._dimmable || (!moved && Math.abs(ev.clientY - e0.clientY) < 8)) return;
+        if (!this._dimmable || (!moved && Math.abs(ev.clientY - e0.clientY) < 10)) return;
         moved = true;
-        const r = key.getBoundingClientRect();
-        this._drag = Math.round(clamp(((r.bottom - ev.clientY) / r.height) * 100, 1, 100));
+        const r = card.getBoundingClientRect();
+        this._drag = Math.round(clamp(((r.bottom - 30 - ev.clientY) / (r.height - 60)) * 100, 1, 100));
         this.paint(true, this._drag);
       };
       const up = (ev) => {
-        key.removeEventListener('pointermove', move);
-        key.removeEventListener('pointerup', up);
-        key.removeEventListener('pointercancel', up);
+        card.removeEventListener('pointermove', move);
+        card.removeEventListener('pointerup', up);
+        card.removeEventListener('pointercancel', up);
         if (moved) {
           const pct = this._drag;
           this._hold = { pct, until: Date.now() + 2500 };
           this.call('light', 'turn_on', { entity_id: id, brightness_pct: pct });
         } else if (ev.type === 'pointerup') {
-          this._hold = null;
-          this.call('homeassistant', 'toggle', { entity_id: id });
+          if (onRocker) { this._hold = null; this.call('homeassistant', 'toggle', { entity_id: id }); }
+          else lightPopup(this);
         }
         this._drag = null;
       };
-      key.addEventListener('pointermove', move);
-      key.addEventListener('pointerup', up);
-      key.addEventListener('pointercancel', up);
+      card.addEventListener('pointermove', move);
+      card.addEventListener('pointerup', up);
+      card.addEventListener('pointercancel', up);
     });
   }
 
@@ -817,10 +819,8 @@ class WallSwitchCard extends WallBaseCard {
     const card = this.$('.card');
     card.classList.toggle('unavail', !this.available(id));
     card.style.setProperty('--lamp', id.startsWith('light.') ? lampColor(s) : '#f6cc7a');
-    this._dimmable = id.startsWith('light.') && lightModes(s).some((m) => m !== 'onoff');
-    const pick = hasColor(s) || hasTemp(s);
-    this.$('.dot').hidden = !pick;
-    this.$('.tn').hidden = pick;
+    this._dimmable = id.startsWith('light.') && isDimmable(s);
+    this.$('.leds').hidden = !this._dimmable;
     this.label();
     if (this._drag != null) return;
     if (this._hold && Date.now() < this._hold.until) { this.paint(true, this._hold.pct); return; }
@@ -831,8 +831,9 @@ class WallSwitchCard extends WallBaseCard {
 
   paint(on, pct) {
     this.$('.card').classList.toggle('on', on);
-    this.$('.lvl').style.height = on ? pct + '%' : '0%';
     this.$('.pc').textContent = on && this._dimmable ? pct + '%' : '';
+    this.shadowRoot.querySelectorAll('.leds span').forEach((el, i) =>
+      el.classList.toggle('lit', on && (i + 1) * 12.5 <= Math.max(12.5, pct)));
   }
 }
 
@@ -1961,6 +1962,391 @@ class WallCarCard extends WallWideCard {
   }
 }
 
+/* ── Ιστορικό 24 ωρών: κοινή συνάρτηση για όσες κάρτες σχεδιάζουν καμπύλες ──
+ * Επιστρέφει { [entity_id]: [[ms, τιμή], …] }. Κρατά αποτέλεσμα για 10 λεπτά ανά σύνολο entities.
+ */
+const HISTORY_TTL = 10 * 60000;
+const historyCache = new Map();
+
+async function fetchHistory(hass, ids, hours = 24) {
+  ids = ids.filter(Boolean);
+  if (!ids.length || !hass.callWS) return {};
+  const key = ids.join(',');
+  const hit = historyCache.get(key);
+  if (hit && Date.now() - hit.at < HISTORY_TTL) return hit.data;
+  const res = await hass.callWS({
+    type: 'history/history_during_period',
+    start_time: new Date(Date.now() - hours * 3600000).toISOString(),
+    entity_ids: ids, minimal_response: true, no_attributes: true, significant_changes_only: true,
+  });
+  const data = {};
+  for (const id of ids) {
+    data[id] = (res?.[id] || [])
+      .map((p) => [p.lu != null ? p.lu * 1000 : new Date(p.last_updated || p.last_changed).getTime(), parseFloat(p.s ?? p.state)])
+      .filter(([t, v]) => !isNaN(t) && !isNaN(v));
+  }
+  historyCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+/* Ομαλή καμπύλη SVG (γραμμή + γέμισμα) από σημεία, μέσα σε πλαίσιο w×h· lo/hi = εύρος τιμών */
+function smoothPath(points, w, h, lo, hi, hours = 24) {
+  if (points.length < 2) return null;
+  const t0 = Date.now() - hours * 3600000;
+  const n = 48;
+  /* Δειγματοληψία σε σταθερά βήματα, για να μη χαλάει η καμπύλη από αραιά ή πυκνά σημεία */
+  const ys = [];
+  let j = 0;
+  for (let i = 0; i <= n; i++) {
+    const t = t0 + (i / n) * hours * 3600000;
+    while (j < points.length - 1 && points[j + 1][0] <= t) j++;
+    ys.push(points[j][1]);
+  }
+  const pad = (hi - lo) * 0.15 || 1;
+  const y = (v) => h - 6 - ((clamp(v, lo - pad, hi + pad) - (lo - pad)) / (hi - lo + 2 * pad)) * (h - 12);
+  const pts = ys.map((v, i) => [(i / n) * w, y(v)]);
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    const mx = (x0 + x1) / 2;
+    d += ` C${mx},${y0} ${mx},${y1} ${x1},${y1}`;
+  }
+  return { line: d, area: `${d} L${w},${h} L0,${h} Z` };
+}
+
+/* ── Δωμάτιο ή σπίτι (πλατιά): θερμοκρασία και υγρασία με ζώνη άνεσης και καμπύλη 24 ωρών ── */
+const ROOM_ICONS = { sofa: 'chair', bed: 'bed', kitchen: 'kitchen', bath: 'bathtub', home: 'home', desk: 'desk', child: 'child_care' };
+/* Απόχρωση ανά κατάσταση: χαμηλά / άνετα / ψηλά, για θερμοκρασία και υγρασία */
+const ROOM_TONES = {
+  t: { lo: ['#5b8fd6', '#e3eef9'], ok: ['#4a9c66', '#e6f1e7'], hi: ['#e08a45', '#fbe9d2'] },
+  h: { lo: ['#d09a2a', '#fbefd6'], ok: ['#4a9c66', '#e6f1e7'], hi: ['#c9562b', '#f9dccd'] },
+};
+
+class WallRoomCard extends WallWideCard {
+  static css = `
+.card,.card.on{padding:0;background:linear-gradient(90deg,var(--bt,#f5f3ef) 0%,#f6f4f0 50%,var(--bh,#f5f3ef) 100%);transition:background .6s}
+.chart{position:absolute;left:0;bottom:0;width:100%;height:42%;pointer-events:none}
+.fl{-webkit-mask-image:linear-gradient(90deg,#000 0%,#000 30%,transparent 62%);mask-image:linear-gradient(90deg,#000 0%,#000 30%,transparent 62%)}
+.fr{-webkit-mask-image:linear-gradient(270deg,#000 0%,#000 30%,transparent 62%);mask-image:linear-gradient(270deg,#000 0%,#000 30%,transparent 62%)}
+.chart path.ln{fill:none;stroke-width:2;stroke-opacity:.7;vector-effect:non-scaling-stroke}
+.chart path.ar{stroke:none}
+.rn{position:absolute;left:18px;top:14px;right:18px;display:flex;align-items:center;gap:8px;font:700 17px var(--w-font);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rn .ms{font-size:24px;flex:none}
+.m{position:absolute;top:50px;display:flex;flex-direction:column}
+.m.t{left:18px}
+.m.h{left:52%}
+.v{display:flex;align-items:center;gap:6px;font:400 46px var(--w-font);letter-spacing:-2px;line-height:1.05;white-space:nowrap}
+.v .ms{font-size:28px;letter-spacing:0;color:var(--c)}
+.m.alert .num{color:var(--c)}
+.z{position:relative;width:150px;max-width:100%;height:22px;margin-top:8px;color:var(--c)}
+.z s{position:absolute;left:0;right:0;top:10px;height:2px;border-radius:1px;background:rgba(28,34,40,.15)}
+.z b{position:absolute;top:8px;height:6px;border-radius:3px;background:rgba(79,165,108,.55)}
+.z i{position:absolute;top:0;width:0;height:0;margin-left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;
+  border-top:8px solid currentColor;transition:left .6s var(--w-spring)}
+`;
+
+  static getConfigForm() {
+    const icons = Object.keys(ROOM_ICONS).map((value) => ({
+      value, label: { sofa: 'Σαλόνι', bed: 'Υπνοδωμάτιο', kitchen: 'Κουζίνα', bath: 'Μπάνιο', home: 'Σπίτι', desk: 'Γραφείο', child: 'Παιδικό' }[value],
+    }));
+    const n = (min, max, step) => ({ number: { min, max, step, mode: 'box' } });
+    return form([
+      ['entity', 'Θερμοκρασία', ent('sensor', 'temperature'), true],
+      ['humidity_entity', 'Υγρασία', ent('sensor', 'humidity')],
+      ['name', 'Όνομα δωματίου', TEXT],
+      ['icon', 'Εικονίδιο', { select: { mode: 'dropdown', options: icons } }],
+      ['temp_min', 'Άνετη θερμοκρασία από (°)', n(10, 30, 0.5)],
+      ['temp_max', 'Άνετη θερμοκρασία έως (°)', n(10, 35, 0.5)],
+      ['hum_min', 'Άνετη υγρασία από (%)', n(10, 90, 1)],
+      ['hum_max', 'Άνετη υγρασία έως (%)', n(10, 95, 1)],
+    ]);
+  }
+  static getStubConfig() { return { entity: '', icon: 'sofa' }; }
+  watched() { return [this._config.entity, this._config.humidity_entity]; }
+
+  template() {
+    return `
+<div class="card">
+  <svg class="chart fl ct" viewBox="0 0 400 100" preserveAspectRatio="none"><defs><linearGradient id="gt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".42"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><path class="ar" fill="url(#gt)"/><path class="ln"/></svg>
+  <svg class="chart fr ch" viewBox="0 0 400 100" preserveAspectRatio="none"><defs><linearGradient id="gh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".42"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs><path class="ar" fill="url(#gh)"/><path class="ln"/></svg>
+  <div class="rn"><span class="ms"></span><span class="nm"></span></div>
+  <div class="m t"><span class="v"><span class="ms">device_thermostat</span><span class="num"></span></span>
+    <div class="z"><s></s><b></b><i></i></div></div>
+  <div class="m h"><span class="v"><span class="ms">water_drop</span><span class="num"></span></span>
+    <div class="z"><s></s><b></b><i></i></div></div>
+</div>`;
+  }
+
+  bind() { this.tapMore(); }
+
+  /* Μία μέτρηση: τιμή, ζώνη άνεσης πάνω σε σταθερή κλίμακα, απόχρωση */
+  metric(sel, id, kind, scaleLo, scaleHi, okLo, okHi, text) {
+    const box = this.$(sel);
+    const v = this.num(id);
+    box.hidden = !id;
+    if (!id) return null;
+    const state = isNaN(v) ? 'ok' : v < okLo ? 'lo' : v > okHi ? 'hi' : 'ok';
+    const [c, bg] = ROOM_TONES[kind][state];
+    const at = (x) => clamp(((x - scaleLo) / (scaleHi - scaleLo)) * 100, 0, 100);
+    box.style.setProperty('--c', c);
+    box.classList.toggle('alert', state !== 'ok');
+    box.querySelector('.num').textContent = isNaN(v) ? '—' : text(v);
+    box.querySelector('.z b').style.left = at(okLo) + '%';
+    box.querySelector('.z b').style.right = 100 - at(okHi) + '%';
+    box.querySelector('.z i').style.left = (isNaN(v) ? -50 : at(v)) + '%';
+    box.querySelector('.z i').hidden = isNaN(v);
+    return { c, bg };
+  }
+
+  update() {
+    const c = this._config;
+    const tLo = c.temp_min ?? 20, tHi = c.temp_max ?? 24, hLo = c.hum_min ?? 40, hHi = c.hum_max ?? 60;
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !this.available(c.entity));
+    this.$('.rn .ms').textContent = ROOM_ICONS[c.icon] || 'chair';
+    this.$('.nm').textContent = c.name || '';
+    const t = this.metric('.m.t', c.entity, 't', 14, 30, tLo, tHi, (v) => `${fmt(v, 1)}°`);
+    const h = this.metric('.m.h', c.humidity_entity, 'h', 20, 85, hLo, hHi, (v) => `${Math.round(v)}%`);
+    card.style.setProperty('--bt', t?.bg || '#f5f3ef');
+    card.style.setProperty('--bh', h?.bg || t?.bg || '#f5f3ef');
+    this._tones = { t: t?.c, h: h?.c };
+    this.paintCharts();
+    this.loadHistory();
+  }
+
+  async loadHistory() {
+    const c = this._config;
+    if (this._loading || (this._hist && Date.now() - this._histAt < HISTORY_TTL)) return;
+    this._loading = true;
+    try {
+      this._hist = await fetchHistory(this._hass, [c.entity, c.humidity_entity]);
+      this._histAt = Date.now();
+      this.paintCharts();
+    } catch (e) {
+      this._histAt = Date.now(); /* χωρίς ιστορικό η κάρτα δουλεύει κανονικά· ξαναδοκιμάζει σε 10 λεπτά */
+    } finally {
+      this._loading = false;
+    }
+  }
+
+  paintCharts() {
+    const c = this._config;
+    const draw = (sel, id, color, lo, hi) => {
+      const svg = this.$(sel);
+      const pts = this._hist?.[id] || [];
+      const now = this.num(id);
+      const p = smoothPath(isNaN(now) ? pts : [...pts, [Date.now(), now]], 400, 100, lo, hi);
+      svg.style.visibility = p ? 'visible' : 'hidden';
+      if (!p) return;
+      const [ar, ln] = svg.querySelectorAll('path');
+      ar.setAttribute('d', p.area);
+      svg.style.color = color;
+      ln.setAttribute('d', p.line);
+      ln.setAttribute('stroke', color);
+    };
+    /* Κάθε καμπύλη κλιμακώνεται στο δικό της 24ωρο εύρος, ώστε να φαίνεται η τάση */
+    const range = (id) => {
+      const vs = (this._hist?.[id] || []).map((p) => p[1]).concat(isNaN(this.num(id)) ? [] : [this.num(id)]);
+      return vs.length ? [Math.min(...vs), Math.max(...vs)] : [0, 1];
+    };
+    draw('.ct', c.entity, this._tones?.t || '#e08a45', ...range(c.entity));
+    if (c.humidity_entity) draw('.ch', c.humidity_entity, this._tones?.h || '#4a7fc8', ...range(c.humidity_entity));
+    else this.$('.ch').style.visibility = 'hidden';
+  }
+}
+
+/* ── Καιρός (πλατιά): ουρανός που αλλάζει με τις συνθήκες, πρόγνωση ημερών και insight ── */
+const WX = {
+  'clear-night': ['Αίθριος', 'clear_night', 'night'], sunny: ['Ηλιοφάνεια', 'sunny', 'sun'],
+  partlycloudy: ['Λίγα σύννεφα', 'partly_cloudy_day', 'sun cloud'], cloudy: ['Συννεφιά', 'cloud', 'cloud dull'],
+  fog: ['Ομίχλη', 'foggy', 'fog dull'], hail: ['Χαλάζι', 'weather_hail', 'cloud rain dull'],
+  lightning: ['Καταιγίδα', 'thunderstorm', 'cloud storm dull'], 'lightning-rainy': ['Καταιγίδα', 'thunderstorm', 'cloud rain storm dull'],
+  pouring: ['Δυνατή βροχή', 'rainy_heavy', 'cloud rain dull'], rainy: ['Βροχή', 'rainy', 'cloud rain dull'],
+  snowy: ['Χιόνι', 'weather_snowy', 'cloud snow dull'], 'snowy-rainy': ['Χιονόνερο', 'weather_mix', 'cloud snow rain dull'],
+  windy: ['Άνεμος', 'air', 'sun wind'], 'windy-variant': ['Άνεμος', 'air', 'cloud wind'], exceptional: ['Ακραία φαινόμενα', 'warning', 'cloud dull'],
+};
+const WX_DAYS = ['Κυρ', 'Δευ', 'Τρί', 'Τετ', 'Πέμ', 'Παρ', 'Σάβ'];
+const WET = ['rainy', 'pouring', 'lightning-rainy', 'snowy', 'snowy-rainy', 'hail'];
+
+/* Ένα σύντομο insight από την ωριαία πρόγνωση των επόμενων 12 ωρών */
+function weatherInsight(hourly, nowTemp) {
+  const next = (hourly || []).filter((f) => new Date(f.datetime) > Date.now()).slice(0, 12);
+  if (!next.length) return null;
+  const hh = (f) => `${pad2(new Date(f.datetime).getHours())}:00`;
+  const wet = next.find((f) => WET.includes(f.condition) || (f.precipitation_probability ?? 0) >= 50);
+  if (wet) {
+    const snow = String(wet.condition).startsWith('snow');
+    return ['umbrella', `${snow ? 'Χιόνι' : 'Βροχή'} από τις ${hh(wet)}`];
+  }
+  const frost = next.find((f) => f.temperature <= 0);
+  if (frost) return ['ac_unit', `Παγετός από τις ${hh(frost)}`];
+  if (nowTemp != null) {
+    const hot = next.reduce((a, f) => (f.temperature > a.temperature ? f : a));
+    const cold = next.reduce((a, f) => (f.temperature < a.temperature ? f : a));
+    if (hot.temperature - nowTemp >= 5) return ['trending_up', `Ανεβαίνει στους ${Math.round(hot.temperature)}° ως τις ${hh(hot)}`];
+    if (nowTemp - cold.temperature >= 5) return ['trending_down', `Πέφτει στους ${Math.round(cold.temperature)}° ως τις ${hh(cold)}`];
+  }
+  return null;
+}
+
+class WallWeatherCard extends WallWideCard {
+  static css = `
+.card,.card.on{padding:0;color:#fff;transition:background 1s;background:linear-gradient(180deg,var(--s1,#5f93cf) 0%,var(--s2,#9cc3ea) 60%,var(--s3,#d6e7f6) 100%)}
+.sky{position:absolute;left:0;top:0;bottom:0;width:52%;overflow:hidden;pointer-events:none;
+  -webkit-mask-image:linear-gradient(90deg,#000 70%,transparent);mask-image:linear-gradient(90deg,#000 70%,transparent)}
+.sky > *{position:absolute;opacity:0;transition:opacity 1s}
+.sun{left:56%;top:-36px;width:140px;height:140px;border-radius:50%;animation:wx-glow 6s ease-in-out infinite;
+  background:radial-gradient(circle,#fff7cf 0,#ffd968 35%,rgba(255,217,104,0) 70%)}
+.moon{left:62%;top:14px;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fffbe8,#dcd7c0);
+  box-shadow:0 0 24px rgba(255,250,220,.5)}
+.cl{border-radius:999px;background:rgba(255,255,255,.55);animation:wx-drift linear infinite}
+.dull .cl{background:rgba(235,240,245,.7)}
+.drops,.flakes{inset:0}
+.drops i,.flakes i{position:absolute;top:-10px;border-radius:2px;background:rgba(255,255,255,.75)}
+.drops i{width:2px;height:14px;animation:wx-rain 1s linear infinite}
+.flakes i{width:6px;height:6px;border-radius:50%;animation:wx-snow 4s linear infinite}
+.stars{inset:0;background-image:radial-gradient(1.5px 1.5px at 20% 30%,#fff,transparent),radial-gradient(1.5px 1.5px at 45% 18%,#fff,transparent),
+  radial-gradient(1px 1px at 70% 40%,#fff,transparent),radial-gradient(1px 1px at 30% 60%,#fff,transparent),radial-gradient(1.5px 1.5px at 85% 25%,#fff,transparent);
+  animation:wx-twinkle 4s ease-in-out infinite}
+.flash{inset:0;background:#fff;animation:wx-flash 7s linear infinite}
+.sun-on .sun,.moon-on .moon,.cloud-on .cl,.rain-on .drops,.snow-on .flakes,.night-on .stars{opacity:1}
+.storm-on .flash{opacity:1}
+@keyframes wx-glow{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.08);opacity:1}}
+@keyframes wx-drift{0%{transform:translateX(-120px)}100%{transform:translateX(260px)}}
+@keyframes wx-rain{0%{transform:translate(0,-20px)}100%{transform:translate(-12px,230px)}}
+@keyframes wx-snow{0%{transform:translate(0,-20px)}50%{transform:translate(8px,100px)}100%{transform:translate(-4px,230px)}}
+@keyframes wx-twinkle{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes wx-flash{0%,90%,94%,100%{opacity:0}91%,93%{opacity:.6}}
+.now{position:absolute;left:20px;top:16px;text-shadow:0 1px 6px rgba(0,40,90,.35)}
+.loc{font:600 15px var(--w-font);opacity:.9}
+.t{font:400 58px var(--w-font);letter-spacing:-3px;line-height:1}
+.lh{font:600 16px var(--w-font);margin-top:4px}
+.lh .lo{opacity:.85;margin-right:8px}
+.fc{position:absolute;right:14px;top:14px;bottom:70px;width:48%;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;color:var(--w-ink)}
+.fd{border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;
+  background:radial-gradient(120% 90% at 50% 45%,rgba(255,255,255,.95) 0%,rgba(255,255,255,.8) 55%,rgba(255,255,255,.35) 100%);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 0 18px 6px rgba(255,255,255,.3)}
+.fd .d{font:700 14px var(--w-font)}
+.fd .ms{font-size:28px;color:var(--ic,#6c7a86)}
+.fd .lo{font:600 13px var(--w-font);color:var(--w-muted)}
+.fd .hi{font:700 17px var(--w-font)}
+.tip{position:absolute;left:14px;right:14px;bottom:14px;height:44px;border-radius:16px;padding:0 14px;display:flex;align-items:center;gap:10px;
+  color:var(--w-ink);font:600 16px var(--w-font);white-space:nowrap;overflow:hidden;
+  background:radial-gradient(140% 120% at 50% 50%,rgba(255,255,255,.95),rgba(255,255,255,.7));box-shadow:0 0 16px 4px rgba(255,255,255,.3)}
+.tip .ms{font-size:24px;color:#3f73c4;flex:none}
+.tip span:last-child{overflow:hidden;text-overflow:ellipsis}
+.notip .fc{bottom:14px}
+`;
+
+  static getConfigForm() {
+    return form([
+      ['entity', 'Καιρός', ent('weather'), true],
+      ['show_location', 'Εμφάνιση τοποθεσίας', { boolean: {} }],
+      ['days', 'Ημέρες πρόγνωσης', { number: { min: 0, max: 5, step: 1, mode: 'slider' } }],
+      ['insight_entity', 'Δικό σου κείμενο insight, αντί για το αυτόματο (προαιρετικό)', ent(['sensor', 'input_text'])],
+    ]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'weather') }; }
+  watched() { return [this._config.entity, this._config.insight_entity, 'sun.sun']; }
+
+  template() {
+    const cl = [[34, 100, 30, '0s', 30], [70, 70, 22, '-18s', 44], [12, 80, 26, '-8s', 38]]
+      .map(([top, w, h, d, s]) => `<span class="cl" style="top:${top}px;width:${w}px;height:${h}px;animation-delay:${d};animation-duration:${s}s"></span>`).join('');
+    const drops = Array.from({ length: 14 }, (_, i) => `<i style="left:${(i * 7 + 3) % 100}%;animation-delay:${(i * 0.13) % 1}s"></i>`).join('');
+    const flakes = Array.from({ length: 10 }, (_, i) => `<i style="left:${(i * 11 + 5) % 100}%;animation-delay:${(i * 0.41) % 4}s"></i>`).join('');
+    return `
+<div class="card">
+  <div class="sky"><span class="stars"></span><span class="sun"></span><span class="moon"></span>${cl}
+    <span class="drops">${drops}</span><span class="flakes">${flakes}</span><span class="flash"></span></div>
+  <div class="now"><div class="loc" hidden></div><div class="t"></div><div class="lh"><span class="lo"></span><span class="hi"></span></div></div>
+  <div class="fc"></div>
+  <div class="tip"><span class="ms"></span><span class="tx"></span></div>
+</div>`;
+  }
+
+  bind() { this.tapMore(); }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (this._hass && this._config) this.subscribe();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unsubscribe();
+  }
+  unsubscribe() {
+    (this._unsubs || []).forEach((p) => p.then((u) => u && u()).catch(() => {}));
+    this._unsubs = null;
+  }
+  /* Η πρόγνωση δεν είναι attribute πια: έρχεται με συνδρομή, ημερήσια και ωριαία */
+  subscribe() {
+    const conn = this._hass?.connection;
+    if (this._unsubs || !conn?.subscribeMessage || !this._config?.entity) return;
+    const sub = (type, key) => conn.subscribeMessage((ev) => { this[key] = ev.forecast || []; this.update(); },
+      { type: 'weather/subscribe_forecast', forecast_type: type, entity_id: this._config.entity });
+    this._unsubs = [sub('daily', '_daily'), sub('hourly', '_hourly')].map((p) => p.catch(() => null));
+  }
+
+  update() {
+    this.subscribe();
+    const c = this._config;
+    const s = this.st(c.entity);
+    const a = s?.attributes || {};
+    const ok = this.available(c.entity);
+    const night = this.val('sun.sun') === 'below_horizon';
+    const cond = ok ? s.state : 'cloudy';
+    const fx = (WX[cond] || WX.cloudy)[2].split(' ');
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !ok);
+
+    /* Ουρανός: νύχτα σκούρος, συννεφιά/βροχή γκρίζος, αλλιώς γαλάζιος */
+    const dull = fx.includes('dull');
+    const sky = night ? ['#1d2b4a', '#33496f', '#5a6f93'] : dull ? ['#7d8a99', '#a9b4c0', '#d3dae1'] : ['#5f93cf', '#9cc3ea', '#d6e7f6'];
+    ['--s1', '--s2', '--s3'].forEach((k, i) => card.style.setProperty(k, sky[i]));
+    const sk = this.$('.sky');
+    sk.className = 'sky' + (dull ? ' dull' : '');
+    const on = (k, v) => sk.classList.toggle(k + '-on', !!v);
+    on('sun', fx.includes('sun') && !night);
+    on('moon', night && !dull);
+    on('night', night && !dull);
+    on('cloud', fx.includes('cloud'));
+    on('rain', fx.includes('rain'));
+    on('snow', fx.includes('snow'));
+    on('storm', fx.includes('storm'));
+
+    const loc = this.$('.loc');
+    loc.hidden = !c.show_location;
+    loc.textContent = [a.friendly_name, (WX[cond] || [cond])[0]].filter(Boolean).join(' · ');
+    this.$('.t').textContent = a.temperature != null ? `${Math.round(a.temperature)}°` : '—';
+
+    const days = this._daily || [];
+    const today = days[0];
+    this.$('.lo').textContent = today?.templow != null ? `↓ ${Math.round(today.templow)}°` : '';
+    this.$('.hi').textContent = today?.temperature != null ? `↑ ${Math.round(today.temperature)}°` : '';
+
+    /* Πρόγνωση: οι επόμενες ημέρες (χωρίς τη σημερινή) */
+    const n = c.days ?? 3;
+    const fc = this.$('.fc');
+    fc.hidden = !n;
+    fc.replaceChildren(...days.slice(1, n + 1).map((f) => {
+      const [, icon] = WX[f.condition] || WX.cloudy;
+      const d = el('div', 'fd');
+      const i = el('span', 'ms fill', icon);
+      d.style.setProperty('--ic', WET.includes(f.condition) ? '#3f73c4' : f.condition === 'sunny' ? '#e0a21f' : '#6c7a86');
+      d.append(el('span', 'd', WX_DAYS[new Date(f.datetime).getDay()]), i,
+        el('span', 'lo', f.templow != null ? `↓ ${Math.round(f.templow)}°` : ''), el('span', 'hi', `↑ ${Math.round(f.temperature)}°`));
+      return d;
+    }));
+
+    const custom = this.val(c.insight_entity);
+    const tip = custom ? ['info', custom] : weatherInsight(this._hourly, a.temperature);
+    card.classList.toggle('notip', !tip);
+    this.$('.tip').hidden = !tip;
+    if (tip) { this.$('.tip .ms').textContent = tip[0]; this.$('.tx').textContent = tip[1]; }
+  }
+}
+
 /* ───────────────────────── 3. Καταχώριση ───────────────────────── */
 
 function register(tag, cls, name, description) {
@@ -1972,7 +2358,7 @@ function register(tag, cls, name, description) {
 }
 
 register('wall-light-card', WallLightCard, 'Wall · Φως', 'Ψηλή κάρτα φωτός: σύρσιμο για φωτεινότητα, διακόπτης κάτω.');
-register('wall-switch-card', WallSwitchCard, 'Wall · Διακόπτης', 'Πλήκτρο τοίχου για φως, πρίζα ή ό,τι ανάβει και σβήνει.');
+register('wall-switch-card', WallSwitchCard, 'Wall · Διακόπτης', 'Rocker που γέρνει, κουκκίδες φωτεινότητας και το χρώμα της λάμπας.');
 register('wall-lock-card', WallLockCard, 'Wall · Κλειδαριά', 'Μεταλλική κλειδαριά με πόμολο που γυρίζει.');
 register('wall-opener-card', WallOpenerCard, 'Wall · Είσοδος', 'Θυροτηλέφωνο: άνοιγμα πόρτας και άνοιγμα στο κουδούνι.');
 register('wall-washer-card', WallWasherCard, 'Wall · Πλυντήριο', 'Πρόσοψη πλυντηρίου: πόρτα με νερό, χρόνος στην οθόνη.');
@@ -1986,6 +2372,8 @@ register('wall-vacuum-card', WallVacuumCard, 'Wall · Σκούπα', 'Το ρο�
 register('wall-tv-card', WallTvCard, 'Wall · Τηλεόραση', 'Πλατιά κάρτα: οθόνη με ό,τι παίζει και τηλεχειριστήριο.');
 register('wall-music-card', WallMusicCard, 'Wall · Μουσική', 'Πλατιά κάρτα: πικάπ με το εξώφυλλο στον δίσκο.');
 register('wall-car-card', WallCarCard, 'Wall · Αυτοκίνητο', 'Πλατιά κάρτα: μπαταρία, αυτονομία, πινακίδα και γρήγορες ενέργειες.');
+register('wall-room-card', WallRoomCard, 'Wall · Δωμάτιο', 'Πλατιά κάρτα: θερμοκρασία και υγρασία με ζώνη άνεσης και καμπύλη 24 ωρών· και για όλο το σπίτι.');
+register('wall-weather-card', WallWeatherCard, 'Wall · Καιρός', 'Πλατιά κάρτα: ουρανός που αλλάζει με τις συνθήκες, πρόγνωση και insight.');
 
 /* Για τη σελίδα δοκιμής και για πειραματισμό από την κονσόλα */
 window.wallCards = { VERSION, openPopup, popSection, popChips, popSwatches, popSlider, popStepper };

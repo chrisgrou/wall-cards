@@ -42,6 +42,8 @@ const states = {
   'vacuum.robo': S('docked', { battery_level: 100 }), 'sensor.area': S(0),
   'media_player.tv': S('playing', { friendly_name: 'Τηλεόραση', app_name: 'Netflix', media_title: 'Ντοκιμαντέρ', media_series_title: 'Σεζόν 2', is_volume_muted: false, media_duration: 3600, media_position: 650, media_position_updated_at: now() }),
   'media_player.music': S('playing', { friendly_name: 'Σαλόνι', app_name: 'Music Assistant', media_title: 'Το τρένο φεύγει στις 8', media_artist: 'Μίκης Θεοδωράκης', media_duration: 200, media_position: 76, media_position_updated_at: now() }),
+  'sensor.lr_t': S(25.1), 'sensor.lr_h': S(61), 'sensor.br_t': S(22.6), 'sensor.br_h': S(70), 'sensor.home_t': S(24.1), 'sensor.home_h': S(64),
+  'weather.home': S('partlycloudy', { friendly_name: 'Έδεσσα', temperature: 17 }), 'sun.sun': S('above_horizon'),
   'sensor.car': S(78), 'sensor.range': S(392, { unit_of_measurement: 'km' }), 'device_tracker.car': S('home'),
   'binary_sensor.charging': S('on'), 'lock.car': S('locked'), 'climate.car': S('off'), 'switch.charger': S('on'), 'button.find': S('unknown'),
 };
@@ -87,6 +89,27 @@ function react(domain, service, d) {
 }
 const hass = {
   states,
+  /* Ιστορικό 24 ωρών: ημιτονοειδής καμπύλη γύρω από την τωρινή τιμή, σε συμπιεσμένη μορφή όπως το HA */
+  async callWS(msg) {
+    if (msg.type !== 'history/history_during_period') return {};
+    const out = {};
+    for (const id of msg.entity_ids) {
+      const v = parseFloat(states[id]?.state);
+      out[id] = Array.from({ length: 49 }, (_, i) => ({ s: String(v + Math.sin(i / 8 + id.length) * (id.endsWith('_h') ? 6 : 1.5) - (id.endsWith('_h') ? (48 - i) / 8 : 0)), lu: (Date.now() - (48 - i) * 1800000) / 1000 }));
+    }
+    return out;
+  },
+  /* Πρόγνωση με συνδρομή, όπως το weather/subscribe_forecast */
+  connection: {
+    subscribeMessage(cb, msg) {
+      const day = 86400000, hour = 3600000, now = Date.now();
+      const forecast = msg.forecast_type === 'daily'
+        ? [['partlycloudy', 24, 11], ['cloudy', 21, 12], ['rainy', 18, 10], ['sunny', 23, 11], ['sunny', 25, 13]].map(([condition, temperature, templow], i) => ({ datetime: new Date(now + i * day).toISOString(), condition, temperature, templow }))
+        : Array.from({ length: 24 }, (_, i) => ({ datetime: new Date(now + (i + 1) * hour).toISOString(), condition: i >= 5 && i <= 8 ? 'rainy' : 'cloudy', temperature: 17 - i * 0.2, precipitation_probability: i >= 5 && i <= 8 ? 70 : 10 }));
+      setTimeout(() => cb({ forecast }), 50);
+      return Promise.resolve(() => {});
+    },
+  },
   callService(domain, service, data) {
     log(`${domain}.${service} ${JSON.stringify(data)}`);
     setTimeout(() => react(domain, service, data), 300);
@@ -124,6 +147,10 @@ add('wall-car-card', { entity: 'sensor.car', name: 'Model 3', range_entity: 'sen
 /* Ακραίες περιπτώσεις: entity που δεν υπάρχει, και κάρτα μόνο με το υποχρεωτικό πεδίο */
 add('wall-climate-card', { entity: 'climate.missing' });
 add('wall-car-card', { entity: 'sensor.car' }, 'wide');
+add('wall-weather-card', { entity: 'weather.home' }, 'wide');
+add('wall-room-card', { entity: 'sensor.home_t', humidity_entity: 'sensor.home_h', name: 'Σπίτι', icon: 'home' }, 'wide');
+add('wall-room-card', { entity: 'sensor.lr_t', humidity_entity: 'sensor.lr_h', name: 'Σαλόνι', icon: 'sofa' }, 'wide');
+add('wall-room-card', { entity: 'sensor.br_t', humidity_entity: 'sensor.br_h', name: 'Υπνοδωμάτιο', icon: 'bed' }, 'wide');
 push();
 window.__wall = { states, set, cards };
 
