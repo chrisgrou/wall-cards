@@ -282,7 +282,7 @@ const POPUP_CSS = `
   display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s,color .2s}
 .tabs button.sel{background:#fff;color:var(--w-ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .tabs .ms{font-size:20px}
-.pb{flex:1;min-height:0;overflow-y:auto;padding:4px 20px 22px;display:flex;flex-direction:column;gap:18px}
+.pb{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;padding:4px 20px 22px;display:flex;flex-direction:column;gap:18px}
 .grp{font:600 15px var(--w-font);color:var(--w-muted);margin:0 0 10px}
 .sw{display:flex;flex-wrap:wrap;gap:12px}
 .sw button{width:60px;height:60px;border-radius:50%;background:var(--c);box-shadow:0 3px 6px rgba(0,0,0,.2),inset 0 0 0 4px #fff;transition:transform .15s}
@@ -386,7 +386,10 @@ function openPopup(card, spec) {
   document.body.appendChild(host);
   p.refresh();
   aim();
-  requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add('in')));
+  /* Το aim() διάβασε ήδη το layout, οπότε η μετάβαση ξεκινά από τη θέση της κάρτας.
+     Χωρίς requestAnimationFrame: σε σελίδα που ο browser θεωρεί ανενεργή, δεν τρέχει ποτέ. */
+  sheet.getBoundingClientRect();
+  veil.classList.add('in');
   wake();
   card._popup = p;
   activePopup = p;
@@ -533,6 +536,12 @@ const HVAC = {
   heat_cool: ['Αυτόματο', 'hdr_auto'], auto: ['Αυτόματο', 'hdr_auto'], dry: ['Αφύγρανση', 'water_drop'], fan_only: ['Ανεμιστήρας', 'mode_fan'],
 };
 
+/* Ελληνικά για τις συνηθισμένες τιμές ανεμιστήρα/περσίδων· ό,τι λείπει εμφανίζεται όπως το δίνει το HA */
+const MODE_GR = {
+  auto: 'Αυτόματο', low: 'Χαμηλή', medium: 'Μεσαία', middle: 'Μεσαία', high: 'Υψηλή', quiet: 'Αθόρυβη', turbo: 'Turbo', diffuse: 'Διάχυτη',
+  off: 'Σταθερές', on: 'Κίνηση', vertical: 'Κάθετη', horizontal: 'Οριζόντια', both: 'Και οι δύο',
+};
+
 function climatePopup(card) {
   const id = card._config.entity;
   if (!card.available(id)) return card.moreInfo(id);
@@ -555,7 +564,7 @@ function climatePopup(card) {
       const chips = (title, list, cur, service, key) => {
         if (!list?.length) return;
         popChips(popSection(p, title), list.map((m) => ({
-          label: HVAC[m]?.[0] && key === 'hvac_mode' ? HVAC[m][0] : m, icon: key === 'hvac_mode' ? HVAC[m]?.[1] : undefined,
+          label: key === 'hvac_mode' ? HVAC[m]?.[0] || m : MODE_GR[String(m).toLowerCase()] || m, icon: key === 'hvac_mode' ? HVAC[m]?.[1] : undefined,
           sel: cur === m, tap: () => set(service, { [key]: m }),
         })));
       };
