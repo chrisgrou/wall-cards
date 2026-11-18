@@ -42,7 +42,9 @@ const BASE_CSS = `
   font-family:var(--w-font); color:var(--w-ink);
   -webkit-font-smoothing:antialiased;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Στην αφή: όχι «λάμψη» του Android πάνω στην κάρτα, όχι επιλογή κειμένου, όχι καθυστέρηση διπλού πατήματος */
+.card{-webkit-user-select:none;user-select:none;touch-action:manipulation}
 button{font:inherit;border:0;padding:0;cursor:pointer;color:inherit;background:none;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 .card{
@@ -1005,7 +1007,7 @@ const DOOR = (art) => `<div class="door"><div class="rim"></div><div class="glas
 class WallApplianceCard extends WallBaseCard {
   static css = `
 .strip{position:absolute;left:12px;right:12px;top:12px;height:44px;display:flex;align-items:center;gap:8px}
-.strip .lcd{flex:1;height:32px}
+.strip .lcd{flex:1;height:44px;cursor:pointer}
 .knob{width:44px;height:44px;font-size:24px}
 .drawer{width:54px;height:22px;border-radius:5px;background:linear-gradient(180deg,#dfe4e8,#f4f6f7);box-shadow:inset 0 2px 3px rgba(0,0,0,.2)}
 .vent{width:54px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
@@ -1030,7 +1032,7 @@ class WallApplianceCard extends WallBaseCard {
 .k-dryer.on .holes{animation-duration:1.6s}
 .k-dish{--ring:#2f9aa0}
 .band{position:absolute;left:0;right:0;top:0;height:50px;padding:0 10px 0 14px;display:flex;align-items:center;gap:8px;background:linear-gradient(180deg,#39424a,#252c32)}
-.band .lcd{flex:1;height:32px;background:#101a1c;color:#8fe0e6}
+.band .lcd{flex:1;height:44px;cursor:pointer;background:#101a1c;color:#8fe0e6}
 .handle{position:absolute;left:14px;right:14px;top:60px;height:12px;border-radius:6px;background:linear-gradient(180deg,#f6f8f9,#b9c0c6);box-shadow:0 3px 5px rgba(0,0,0,.25)}
 .win{position:absolute;left:22px;right:22px;top:86px;bottom:34px;border-radius:12px;background:#17313a;overflow:hidden;box-shadow:inset 0 4px 10px rgba(0,0,0,.6)}
 .win .fillw{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(110,200,205,.45);transition:height .8s}
@@ -1079,7 +1081,17 @@ class WallApplianceCard extends WallBaseCard {
     /* Πάτημα στην κάρτα: επιβεβαίωση όταν έχει τελειώσει, αλλιώς λεπτομέρειες */
     this.$('.card').addEventListener('click', (e) => {
       if (e.composedPath().some((n) => n.tagName === 'BUTTON')) return;
-      if (this._done) this.ack(); else this.moreInfo(this._config.entity);
+    this.$('.knob').addEventListener('click', () => this.trigger(this._action));
+    /* Πάτημα στην οθόνη: εναλλαγή ανάμεσα σε υπόλοιπο (−) και χρόνο που πέρασε (+) */
+    const lcd = this.$('.lcd');
+    lcd.setAttribute('role', 'button');
+    lcd.setAttribute('aria-label', 'Υπόλοιπο ή χρόνος που πέρασε');
+    lcd.addEventListener('click', (e) => {
+      if (!this._canFlip) return;
+      e.stopPropagation();
+      this._elapsed = !this._elapsed;
+      this.update();
+    });
     });
     this.$('.knob').addEventListener('click', () => this.trigger(this._action));
   }
@@ -1124,7 +1136,11 @@ class WallApplianceCard extends WallBaseCard {
     const rem = active ? toMinutes(this.st(c.remaining_entity)) : null;
     const total = active ? toMinutes(this.st(c.total_entity)) : null;
     const m = rem == null ? null : Math.round(rem);
-    this.$('.lcd').textContent = done ? 'ΤΕΛΟΣ' : m == null ? '--:--' : `${Math.floor(m / 60)}:${pad2(m % 60)}`;
+    /* Χρόνος που πέρασε = συνολικός − υπόλοιπο· χωρίς συνολικό χρόνο δεν γίνεται εναλλαγή */
+    this._canFlip = rem != null && total != null;
+    const shown = this._canFlip && this._elapsed ? Math.max(0, Math.round(total - rem)) : m;
+    const sign = !this._canFlip ? '' : this._elapsed ? '+' : '−';
+    this.$('.lcd').textContent = done ? 'ΤΕΛΟΣ' : shown == null ? '--:--' : `${sign}${Math.floor(shown / 60)}:${pad2(shown % 60)}`;
     const pct = done ? 100 : rem != null && total ? clamp((1 - rem / total) * 100, 0, 100) : 0;
     card.style.setProperty('--pct', pct + '%');
   }
@@ -1149,7 +1165,7 @@ class WallClimateCard extends WallBaseCard {
 .steps .pw{flex:none;width:44px;height:44px;border-radius:50%;font-size:22px;
   background:radial-gradient(circle at 35% 30%,#fff,#dfe3e6 45%,#aeb5bb);box-shadow:0 3px 6px rgba(0,0,0,.28),inset 0 1px 1px #fff}
 .on .steps .pw{color:#fff;background:radial-gradient(circle at 35% 30%,color-mix(in oklch,var(--acc) 55%,#fff),var(--acc))}
-.room{text-align:center;position:relative}
+.room{display:none}
 /* θερμοστάτης */
 .th .ring{position:relative;flex:none;width:140px;height:140px;margin:-6px auto 0;border-radius:50%;
   background:conic-gradient(from 225deg,var(--acc,#9aa4ad) 0 var(--deg,0deg),#c9cfd4 var(--deg,0deg) 270deg,transparent 270deg)}
@@ -1252,7 +1268,7 @@ class WallClimateCard extends WallBaseCard {
     this.label();
 
     const room = a.current_temperature != null ? `χώρος ${fmt(a.current_temperature, 1)}°` : '';
-    this.$('.room').textContent = !ok ? 'Μη διαθέσιμο' : !on && this._ac ? ['Κλειστό', room].filter(Boolean).join(' · ') : room;
+    this.$('.room').textContent = !ok ? 'Μη διαθέσιμο' : '';
 
     const held = this._hold && Date.now() < this._hold.until;
     if (!held) this._hold = null;
@@ -1297,7 +1313,7 @@ class WallHeaterCard extends WallBaseCard {
       ['entity', 'Διακόπτης θερμοσίφωνα', ent(['switch', 'input_boolean']), true],
       LABEL, TITLE,
       ['timer_entity', 'Χρονόμετρο (timer helper)', ent('timer')],
-      ['default_minutes', 'Προεπιλεγμένη διάρκεια (λεπτά)', { number: { min: 5, max: 180, step: 5, mode: 'box' } }],
+      ['default_minutes', 'Προεπιλεγμένη διάρκεια (λεπτά)', { number: { min: 1, max: 180, step: 1, mode: 'box' } }],
       ['max_minutes', 'Μέγιστη διάρκεια (λεπτά)', { number: { min: 10, max: 240, step: 5, mode: 'box' } }],
     ]);
   }
@@ -1313,8 +1329,8 @@ class WallHeaterCard extends WallBaseCard {
     <div class="dialr"><button class="kb pw ms fill" aria-label="On/Off"><span class="ptr"></span>power_settings_new</button></div>
     <span class="big"></span><span class="sub hint"></span>
     <div class="steps">
-      <button class="ms dn" aria-label="−5 λεπτά">remove</button>
-      <button class="ms up" aria-label="+5 λεπτά">add</button>
+      <button class="ms dn" aria-label="−1 λεπτό">remove</button>
+      <button class="ms up" aria-label="+1 λεπτό">add</button>
     </div>
   </div>
 </div>`;
@@ -1344,10 +1360,10 @@ class WallHeaterCard extends WallBaseCard {
       const left = this.left();
       if (left != null) {
         /* Όσο μετράει: ξεκινάμε ξανά το χρονόμετρο με τον νέο υπόλοιπο χρόνο */
-        const secs = clamp(left + dir * 300, 60, this.max() * 60);
+        const secs = clamp(left + dir * 60, 60, this.max() * 60);
         this.call('timer', 'start', { entity_id: this._config.timer_entity, duration: hms(secs) });
       } else {
-        this._dur = clamp(this._dur + dir * 5, 5, this.max());
+        this._dur = clamp(this._dur + dir, 1, this.max());
         this.update();
       }
     };
