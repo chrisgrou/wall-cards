@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.4.2';
+const VERSION = '0.5.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -1280,6 +1280,95 @@ class WallClimateCard extends WallBaseCard {
     const lo = a.min_temp ?? 5, hi = a.max_temp ?? 35;
     card.style.setProperty('--deg', (sp != null ? clamp((sp - lo) / (hi - lo), 0, 1) * 270 : 0) + 'deg');
     this.shadowRoot.querySelectorAll('.dn,.up').forEach((b) => (b.style.visibility = sp != null ? 'visible' : 'hidden'));
+  }
+}
+
+/* ── Λέβητας: λευκή πρόσοψη, γκρι πάνελ με οθόνη στόχου και −/+, ⏻ πάνω δεξιά ── */
+class WallBoilerCard extends WallBaseCard {
+  static css = `
+.card,.card.on{padding:0;background:linear-gradient(90deg,#e6e8ea,#fff 12%,#fff 88%,#e3e5e7)}
+.card:not(.on){background:linear-gradient(90deg,#dcdee0,#eceeef 12%,#eceeef 88%,#d9dbdd)}
+.glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 62%,rgba(255,140,60,.28),transparent 65%);opacity:0;transition:opacity .6s}
+.heating .glow{opacity:1}
+.pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;
+  display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
+.on .pw{color:#3d8fe6;text-shadow:0 0 8px rgba(61,143,230,.7)}
+.pn{position:absolute;left:0;right:0;bottom:0;height:44%;background:linear-gradient(180deg,#6b7075,#4d5256);
+  clip-path:ellipse(95% 100% at 50% 100%)}
+.lcd{position:absolute;left:50%;bottom:24%;width:46%;height:44px;transform:translateX(-50%);border-radius:6px;background:#1c2024;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;gap:4px;
+  color:#e9eef2;font:700 24px var(--w-font);letter-spacing:.5px}
+.card:not(.on) .lcd{color:#3a4045}
+.fl{font-size:18px;color:#ff9a57;width:0;opacity:0;transition:opacity .3s}
+.heating .fl{width:auto;opacity:1;animation:b-fk .7s ease-in-out infinite alternate}
+@keyframes b-fk{to{opacity:.55;transform:scaleY(1.12)}}
+.k{position:absolute;bottom:calc(24% + 5px);width:34px;height:34px;border:0;padding:0;border-radius:9px;display:grid;place-items:center;
+  font-size:22px;color:#e1e5e8;cursor:pointer;background:linear-gradient(180deg,#5d6267,#474b4f);
+  box-shadow:0 0 0 1px rgba(255,255,255,.18),0 2px 3px rgba(0,0,0,.35)}
+.k:active{transform:translateY(1px)}
+.dn{left:7%}.up{right:7%}
+.card:not(.on) .k{color:#7d8388}
+.tag{left:14px;top:14px}
+`;
+
+  static getConfigForm() {
+    return form([['entity', 'Λέβητας / θερμοστάτης', ent('climate'), true], LABEL, TITLE]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'climate') }; }
+  watched() { return [this._config.entity]; }
+
+  template() {
+    return `
+<div class="card">
+  <div class="glow"></div>
+  ${TAG}
+  <button class="pw ms" aria-label="On/Off">power_settings_new</button>
+  <div class="pn">
+    <button class="k dn ms" aria-label="Μείωση">remove</button>
+    <div class="lcd"><span class="fl ms fill">local_fire_department</span><span class="sp"></span></div>
+    <button class="k up ms" aria-label="Αύξηση">add</button>
+  </div>
+</div>`;
+  }
+
+  bind() {
+    this.tapMore(() => climatePopup(this));
+    this.$('.pw').addEventListener('click', () => {
+      const id = this._config.entity;
+      if (this.available(id)) this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id });
+    });
+    const step = (dir) => () => {
+      const id = this._config.entity;
+      const a = this.st(id)?.attributes || {};
+      const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : a.temperature;
+      if (!this.available(id) || cur == null) return;
+      const by = a.target_temp_step || 0.5;
+      const v = clamp(Math.round((cur + dir * by) / by) * by, a.min_temp ?? 5, a.max_temp ?? 35);
+      this._hold = { v, until: Date.now() + 3000 };
+      this.update();
+      this.call('climate', 'set_temperature', { entity_id: id, temperature: v });
+    };
+    this.$('.dn').addEventListener('click', step(-1));
+    this.$('.up').addEventListener('click', step(1));
+  }
+
+  update() {
+    const id = this._config.entity;
+    const ok = this.available(id);
+    const s = this.st(id);
+    const a = s?.attributes || {};
+    const on = ok && s.state !== 'off';
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !ok);
+    card.classList.toggle('on', on);
+    card.classList.toggle('heating', on && (a.hvac_action ? a.hvac_action === 'heating' : true));
+    this.label();
+    const held = this._hold && Date.now() < this._hold.until;
+    if (!held) this._hold = null;
+    const sp = held ? this._hold.v : a.temperature;
+    const dec = (a.target_temp_step || 0.5) < 1 && sp % 1 ? 1 : 0;
+    this.$('.sp').textContent = sp != null ? `${fmt(sp, dec)}°` : '—';
+    this.shadowRoot.querySelectorAll('.k').forEach((b) => (b.style.visibility = sp != null ? 'visible' : 'hidden'));
   }
 }
 
@@ -2676,6 +2765,7 @@ register('wall-washer-card', WallWasherCard, 'Wall · Πλυντήριο', 'Πρ
 register('wall-dryer-card', WallDryerCard, 'Wall · Στεγνωτήριο', 'Πρόσοψη στεγνωτηρίου: ζεστή πόρτα, χρόνος στην οθόνη.');
 register('wall-dishwasher-card', WallDishwasherCard, 'Wall · Πλυντήριο πιάτων', 'Πρόσοψη με χειρολαβή και παράθυρο με πιάτα.');
 register('wall-climate-card', WallClimateCard, 'Wall · Κλίμα', 'Στρογγυλός θερμοστάτης ή εσωτερική μονάδα κλιματιστικού.');
+register('wall-boiler-card', WallBoilerCard, 'Wall · Λέβητας', 'Λέβητας αερίου: πρόσοψη με οθόνη στόχου, −/+ και on/off.');
 register('wall-heater-card', WallHeaterCard, 'Wall · Θερμοσίφωνας', 'Κύλινδρος που ζεσταίνεται, με χρονοδιακόπτη.');
 register('wall-purifier-card', WallPurifierCard, 'Wall · Καθαριστής αέρα', 'Πύργος με φωτεινό δαχτυλίδι στο χρώμα της ποιότητας.');
 register('wall-air-card', WallAirCard, 'Wall · Ποιότητα αέρα', 'Επιτοίχιος αισθητήρας: PM2.5 με CO₂, VOC και PM10.');
