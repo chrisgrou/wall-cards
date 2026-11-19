@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.4.1';
+const VERSION = '0.4.2';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -1410,25 +1410,29 @@ const PUR_OFF = ['off', 'idle', 'standby', 'unavailable', 'unknown', ''];
 
 class WallPurifierCard extends WallBaseCard {
   static css = `
-.card{padding:0;--acc:oklch(0.58 0.13 var(--h,150));--tint:oklch(0.95 0.03 var(--h,150))}
-.tower{position:absolute;left:18px;top:18px;bottom:14px;width:88px;border-radius:26px 26px 14px 14px;
-  background:linear-gradient(90deg,#dfe4e7,#ffffff 45%,#d3d9dd);box-shadow:0 6px 12px rgba(30,60,40,.22)}
-.solo .tower{left:50%;margin-left:-44px}
-.halo{position:absolute;left:10px;right:10px;top:10px;height:22px;border-radius:50%;background:#20262b;
-  box-shadow:0 0 0 4px #b8c2cb;transition:box-shadow .4s}
-.on .halo{box-shadow:0 0 0 4px var(--glow,#e9eef2),0 0 10px var(--glow,#e9eef2)}
-.grille{position:absolute;left:12px;right:12px;top:48px;bottom:14px;border-radius:8px;
-  background:radial-gradient(circle,#8f989f 1.5px,transparent 2px) 0 0/8px 8px}
-.pw{position:absolute;left:50%;bottom:16px;width:48px;height:48px;margin-left:-24px;font-size:24px}
-.lv{position:absolute;right:16px;top:18px;bottom:14px;width:80px;border-radius:22px;background:#cdd6cf;box-shadow:inset 0 2px 5px rgba(0,0,0,.2)}
-.lv.live{cursor:pointer}
-.lvfill{position:absolute;left:4px;right:4px;bottom:4px;height:calc(var(--pos,0) * (100% - 48px) + 20px);border-radius:18px;
-  background:var(--acc);opacity:0;transition:height .4s,opacity .3s}
-.on .lvfill{opacity:.85}
-.thumb{position:absolute;left:4px;right:4px;height:40px;bottom:calc(var(--pos,0) * (100% - 48px) + 4px);border-radius:20px;
-  display:grid;place-items:center;padding:0 6px;font:700 14px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  background:linear-gradient(180deg,#ffffff,#e3e7ea);box-shadow:0 3px 6px rgba(0,0,0,.25),inset 0 1px 0 #fff;transition:bottom .4s var(--w-spring)}
-.tag{left:22px;top:52px;max-width:80px}
+/* Πρόσοψη καθαριστή: όλη η κάρτα είναι η λευκή μπροστινή πλευρά */
+.card,.card.on{padding:0;background:linear-gradient(180deg,#ffffff,#eef0f2)}
+.card:not(.on){background:linear-gradient(180deg,#eceeef,#dcdfe1)}
+.pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;
+  display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
+.on .pw{color:var(--q);text-shadow:0 0 8px color-mix(in srgb,var(--q) 70%,transparent)}
+.aq{position:absolute;left:50%;top:34%;width:64px;height:5px;margin-left:-32px;border-radius:3px;background:#d3d7da;transition:background .4s}
+.on .aq{background:var(--q);box-shadow:0 0 10px 2px color-mix(in srgb,var(--q) 60%,transparent);animation:p-br 2.8s ease-in-out infinite}
+@keyframes p-br{50%{box-shadow:0 0 4px 1px color-mix(in srgb,var(--q) 35%,transparent)}}
+.lvt{position:absolute;left:12px;right:12px;top:calc(34% + 14px);text-align:center;font:700 16px var(--w-font);color:#7a8187;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.on .lvt{color:var(--q)}
+.lvt.live{cursor:pointer}
+.per,.flow{position:absolute;left:14px;right:14px;top:56%;bottom:0}
+.per{background:radial-gradient(circle,#2f3438 1.3px,transparent 1.7px) 0 0/9px 9px;
+  -webkit-mask-image:linear-gradient(180deg,transparent,rgba(0,0,0,.25) 25%,#000 55%);mask-image:linear-gradient(180deg,transparent,rgba(0,0,0,.25) 25%,#000 55%)}
+.card:not(.on) .per{opacity:.6}
+.flow{opacity:0;background:linear-gradient(180deg,transparent,var(--q),transparent) 0 0/100% 60% no-repeat;
+  -webkit-mask-image:radial-gradient(circle,#000 1.3px,transparent 1.7px);-webkit-mask-size:9px 9px;
+  mask-image:radial-gradient(circle,#000 1.3px,transparent 1.7px);mask-size:9px 9px}
+.on .flow{opacity:.9;animation:p-flow 2.4s linear infinite}
+@keyframes p-flow{from{background-position:0 160%}to{background-position:0 -80%}}
+.tag{left:14px;top:14px}
 `;
 
   static getConfigForm() {
@@ -1448,11 +1452,10 @@ class WallPurifierCard extends WallBaseCard {
   template() {
     return `
 <div class="card">
-  <div class="tower"><div class="halo"></div><div class="grille"></div>
-    <button class="kb pw ms fill" aria-label="On/Off">power_settings_new</button>
-  </div>
   ${TAG}
-  <div class="lv"><div class="lvfill"></div><div class="thumb"></div></div>
+  <button class="pw ms" aria-label="On/Off">power_settings_new</button>
+  <div class="aq"></div><div class="lvt"></div>
+  <div class="per"></div><div class="flow"></div>
 </div>`;
   }
 
@@ -1476,38 +1479,29 @@ class WallPurifierCard extends WallBaseCard {
       if (this.direct()) this.call('homeassistant', 'toggle', { entity_id: c.entity });
       else this.trigger(this.isOn() ? c.off_entity : c.on_entity);
     });
-    this.$('.lv').addEventListener('click', (e) => {
-      const { list, live } = this.levels();
-      if (!live) return;
+    this.$('.lvt').addEventListener('click', (e) => {
+      const { list, cur, live } = this.levels();
+      if (!live || !list.length) return;
       e.stopPropagation();
-      const r = this.$('.lv').getBoundingClientRect();
-      const i = Math.round(clamp((r.bottom - e.clientY) / r.height, 0, 1) * (list.length - 1));
-      this.call('fan', 'set_preset_mode', { entity_id: this._config.entity, preset_mode: list[i] });
+      this.call('fan', 'set_preset_mode', { entity_id: this._config.entity, preset_mode: list[(list.indexOf(cur) + 1) % list.length] });
     });
   }
 
   update() {
     const c = this._config;
-    const ok = this.available(c.entity);
     const on = this.isOn();
     const pm = this.num(c.pm25_entity);
     const card = this.$('.card');
-    card.classList.toggle('unavail', !ok);
+    card.classList.toggle('unavail', !this.available(c.entity));
     card.classList.toggle('on', on);
-    card.style.setProperty('--h', isNaN(pm) ? 150 : airQuality(pm)[1]);
-    card.style.setProperty('--glow', isNaN(pm) ? '#e9eef2' : `oklch(0.72 0.15 ${airQuality(pm)[1]})`);
-    this.$('.pw').classList.toggle('lit', on);
+    /* Χωρίς αισθητήρα η λυχνία είναι μπλε, όπως στη συσκευή· με PM2.5 παίρνει το χρώμα της ποιότητας */
+    card.style.setProperty('--q', isNaN(pm) ? '#3d8fe6' : `oklch(0.66 0.15 ${airQuality(pm)[1]})`);
     this.$('.pw').hidden = !this.direct() && !c.on_entity && !c.off_entity;
     this.label();
-
     const { list, cur, live } = this.levels();
-    const i = list.indexOf(cur);
-    const lv = this.$('.lv');
-    lv.hidden = !list.length;
-    lv.classList.toggle('live', live);
-    card.classList.toggle('solo', !list.length);
-    card.style.setProperty('--pos', i > 0 && list.length > 1 ? i / (list.length - 1) : 0);
-    this.$('.thumb').textContent = i >= 0 ? cur : '—';
+    const t = this.$('.lvt');
+    t.textContent = list.includes(cur) ? cur : '';
+    t.classList.toggle('live', live);
   }
 }
 
