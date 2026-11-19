@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -2574,9 +2574,23 @@ class WallDehumidifierCard extends WallBaseCard {
 
   bind() {
     this.tapMore(() => this.popup());
-    this.$('.kb').addEventListener('click', () => {
-      if (this.available(this._config.entity)) this.call('humidifier', 'toggle', { entity_id: this._config.entity });
-    });
+    this.$('.kb').addEventListener('click', () => this.power());
+  }
+
+  /* Όταν το hygrostat είναι unavailable (π.χ. έπεσε ο αισθητήρας υγρασίας), η πρίζα συνεχίζει να δουλεύει: την ελέγχουμε απευθείας */
+  fallbackSwitch() {
+    const sw = this._config.running_entity;
+    return !this.available(this._config.entity) && sw && sw.startsWith('switch.') && this.available(sw) ? sw : null;
+  }
+  isOn() {
+    const sw = this.fallbackSwitch();
+    if (sw) return this.val(sw) === 'on';
+    return this.available(this._config.entity) && this.st(this._config.entity).state === 'on';
+  }
+  power() {
+    const sw = this.fallbackSwitch();
+    if (sw) this.call('homeassistant', 'toggle', { entity_id: sw });
+    else if (this.available(this._config.entity)) this.call('humidifier', 'toggle', { entity_id: this._config.entity });
   }
 
   current() {
@@ -2588,20 +2602,19 @@ class WallDehumidifierCard extends WallBaseCard {
   popup() {
     const c = this._config;
     const id = c.entity;
-    if (!this.available(id)) return this.moreInfo(id);
+    if (!this.available(id) && !this.fallbackSwitch()) return this.moreInfo(id);
     openPopup(this, {
       icon: 'water_drop', size: 'md', title: 'Αφυγραντήρας', accent: () => '#2f6fb5',
       status: () => {
-        const s = this.st(id);
         const cur = this.current();
         const room = this.val(c.room_entity);
         const w = this.num(c.power_entity);
-        return [s.state === 'on' ? 'Λειτουργεί' : 'Κλειστός', [room && roomInfo(room)[0], cur != null && `${Math.round(cur)}%`].filter(Boolean).join(' '),
+        return [this.isOn() ? 'Λειτουργεί' : 'Κλειστός', [room && roomInfo(room)[0], cur != null && `${Math.round(cur)}%`].filter(Boolean).join(' '),
           !isNaN(w) && w > 1 && `${Math.round(w)} W`].filter(Boolean).join(' · ');
       },
       render: (p) => {
-        const s = this.st(id);
-        const a = s.attributes;
+        const a = this.st(id)?.attributes || {};
+        const on = this.isOn();
         const step = 5;
         const go = (dir) => () => this.call('humidifier', 'set_humidity', {
           entity_id: id, humidity: clamp(Math.round((a.humidity + dir * step) / step) * step, a.min_humidity ?? 30, a.max_humidity ?? 80),
@@ -2620,8 +2633,8 @@ class WallDehumidifierCard extends WallBaseCard {
           }));
         }
         popChips(popSection(p), [{
-          label: s.state === 'on' ? 'Σβήσιμο' : 'Άναμμα', icon: 'power_settings_new', sel: s.state === 'on',
-          tap: () => this.call('humidifier', 'toggle', { entity_id: id }),
+          label: on ? 'Σβήσιμο' : 'Άναμμα', icon: 'power_settings_new', sel: on,
+          tap: () => this.power(),
         }]);
       },
     });
@@ -2630,8 +2643,8 @@ class WallDehumidifierCard extends WallBaseCard {
   update() {
     const c = this._config;
     const s = this.st(c.entity);
-    const ok = this.available(c.entity);
-    const on = ok && s.state === 'on';
+    const ok = this.available(c.entity) || !!this.fallbackSwitch();
+    const on = this.isOn();
     const w = this.num(c.power_entity);
     /* «Δουλεύει» = ο συμπιεστής τραβάει ρεύμα· αν δεν υπάρχει τέτοιο entity, αρκεί να είναι on */
     const run = on && (c.running_entity ? this.val(c.running_entity) === 'on' : isNaN(w) || w > 5);
