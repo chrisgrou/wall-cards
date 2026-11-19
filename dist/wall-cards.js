@@ -1375,28 +1375,37 @@ class WallBoilerCard extends WallBaseCard {
 /* ── Θερμοσίφωνας: κύλινδρος που ζεσταίνεται και μηχανικός χρονοδιακόπτης ── */
 class WallHeaterCard extends WallBaseCard {
   static css = `
-.card{--acc:var(--w-hot);--tint:oklch(0.95 0.03 50);padding:0}
-.tank{position:absolute;left:18px;top:20px;bottom:16px;width:70px;border-radius:30px;
-  background:linear-gradient(90deg,#d9dee2,#fbfcfc 40%,#cfd5da);box-shadow:0 6px 12px rgba(90,50,20,.22)}
-.tank::before,.tank::after{content:'';position:absolute;top:-10px;width:6px;height:12px;background:#b9c0c6}
-.tank::before{left:18px}.tank::after{right:18px}
-.well{position:absolute;left:8px;right:8px;top:12px;bottom:12px;border-radius:22px;background:#e9edf0;overflow:hidden;box-shadow:inset 0 2px 5px rgba(0,0,0,.25)}
-.hot{position:absolute;left:0;right:0;bottom:0;height:var(--fill,0%);background:linear-gradient(0deg,#d9502a,#f2a25c);transition:height 1s}
-.well i{position:absolute;bottom:-4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;opacity:0;
-  background:rgba(255,235,210,.8);animation:heat-rise 3.2s ease-in infinite}
-.card:not(.on) .well i{animation:none}
-.side{position:absolute;left:100px;right:12px;top:14px;bottom:12px;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
-.dialr{flex:none;width:84px;height:84px;border-radius:50%;position:relative;
-  background:repeating-conic-gradient(#8a939b 0 2deg,#f4f6f7 2deg 15deg);box-shadow:0 4px 8px rgba(0,0,0,.25)}
-.pw{position:absolute;inset:9px;font-size:22px}
-.on .pw{color:var(--w-hot)}
-.ptr{position:absolute;left:50%;top:4px;width:4px;height:16px;margin-left:-2px;border-radius:2px;background:var(--w-hot);
-  transform-origin:50% 29px;transform:rotate(var(--ang,0deg));transition:transform .5s}
-.big{font-size:26px;letter-spacing:-.5px}
-.hint{min-height:16px;font-size:12px}
-.steps{align-self:stretch;gap:6px}
-.steps button{font-size:22px}
-.tag{left:14px;bottom:6px}
+/* Όλη η κάρτα είναι το σώμα του θερμοσίφωνα· ο δακτύλιος είναι ο μηχανικός χρονοδιακόπτης */
+.card,.card.on{padding:0;background:linear-gradient(90deg,#d9dde0,#fff 30%,#fff 55%,#d4d8dc)}
+.card:not(.on){background:linear-gradient(90deg,#d2d5d8,#eceeef 30%,#eceeef 55%,#cdd1d4)}
+.hot{position:absolute;left:0;right:0;bottom:0;height:var(--fill,0%);transition:height 1s;
+  background:linear-gradient(0deg,rgba(217,80,42,.42),rgba(242,162,92,.3));
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 26px);mask-image:linear-gradient(180deg,transparent,#000 26px)}
+.card:not(.on) .hot{filter:grayscale(.8);opacity:.5}
+.hot i{position:absolute;bottom:-8px;width:10px;height:10px;border-radius:50%;background:rgba(255,200,160,.75);opacity:0}
+.on .hot i{animation:heat-rise 3.2s ease-in infinite}
+.pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;z-index:3;
+  display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
+.on .pw{color:#e0702a;text-shadow:0 0 8px rgba(224,112,42,.7)}
+.arc{position:absolute;left:50%;top:54%;width:65%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  background:conic-gradient(#e0702a 0 var(--ang,0deg),transparent 0);
+  -webkit-mask:radial-gradient(closest-side,transparent 90%,#000 91%);mask:radial-gradient(closest-side,transparent 90%,#000 91%)}
+.card:not(.on) .arc{background:conic-gradient(#9aa3ab 0 var(--ang,0deg),transparent 0)}
+.ring{position:absolute;left:50%;top:54%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;z-index:2;cursor:grab;touch-action:none;
+  background:radial-gradient(circle at 40% 30%,#fafbfb,#d5dadd 70%,#b8bfc4);box-shadow:0 6px 12px rgba(0,0,0,.25)}
+.ring.live{cursor:grabbing}
+.ticks{position:absolute;inset:0;border-radius:50%;transform:rotate(var(--ang,0deg));
+  background:repeating-conic-gradient(#8a939b 0 1.2deg,transparent 1.2deg var(--tick,6deg));
+  -webkit-mask:radial-gradient(closest-side,transparent 80%,#000 81%,#000 92%,transparent 93%);mask:radial-gradient(closest-side,transparent 80%,#000 81%,#000 92%,transparent 93%)}
+.ptr{position:absolute;inset:0;transform:rotate(var(--ang,0deg))}
+.ptr::after{content:'';position:absolute;left:50%;top:4%;width:6px;height:12%;margin-left:-3px;border-radius:3px;background:#e0702a}
+.card:not(.on) .ptr::after{background:#8f989f}
+.face{position:absolute;inset:20%;border-radius:50%;display:grid;place-items:center;text-align:center;
+  background:radial-gradient(circle at 40% 30%,#fff,#e8ebee);box-shadow:inset 0 1px 3px rgba(0,0,0,.12)}
+.big{display:block;font:800 28px var(--w-font);color:#2d2a24;line-height:1}
+.on .big{color:#c45a1e}
+.hint{display:block;font:700 12px var(--w-font);color:#8b9196;margin-top:2px}
+.tag{left:14px;top:14px}
 `;
 
   static getConfigForm() {
@@ -1414,16 +1423,11 @@ class WallHeaterCard extends WallBaseCard {
   template() {
     return `
 <div class="card">
-  <div class="tank"><div class="well"><div class="hot"></div><i style="left:32%"></i><i style="left:62%;animation-delay:1.4s"></i></div></div>
+  <div class="hot"><i style="left:22%"></i><i style="left:66%;animation-delay:1.3s"></i><i style="left:44%;animation-delay:2.3s"></i></div>
   ${TAG}
-  <div class="side">
-    <div class="dialr"><button class="kb pw ms fill" aria-label="On/Off"><span class="ptr"></span>power_settings_new</button></div>
-    <span class="big"></span><span class="sub hint"></span>
-    <div class="steps">
-      <button class="ms dn" aria-label="−1 λεπτό">remove</button>
-      <button class="ms up" aria-label="+1 λεπτό">add</button>
-    </div>
-  </div>
+  <button class="pw ms" aria-label="On/Off">power_settings_new</button>
+  <div class="arc"></div>
+  <div class="ring"><div class="ticks"></div><div class="ptr"></div><div class="face"><div><span class="big"></span><span class="hint"></span></div></div></div>
 </div>`;
   }
 
@@ -1447,19 +1451,55 @@ class WallHeaterCard extends WallBaseCard {
         else this.call('timer', 'start', { entity_id: c.timer_entity, duration: hms(this._dur * 60) });
       }
     });
-    const step = (dir) => () => {
-      const left = this.left();
-      if (left != null) {
-        /* Όσο μετράει: ξεκινάμε ξανά το χρονόμετρο με τον νέο υπόλοιπο χρόνο */
-        const secs = clamp(left + dir * 60, 60, this.max() * 60);
-        this.call('timer', 'start', { entity_id: this._config.timer_entity, duration: hms(secs) });
-      } else {
-        this._dur = clamp(this._dur + dir, 1, this.max());
-        this.update();
-      }
+    /* Περιστροφή του δακτυλίου: ένας πλήρης κύκλος = μέγιστη διάρκεια, κάθε γραμμούλα = 1 λεπτό */
+    const ring = this.$('.ring');
+    const angle = (e) => {
+      const r = ring.getBoundingClientRect();
+      return (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180) / Math.PI;
     };
-    this.$('.dn').addEventListener('click', step(-1));
-    this.$('.up').addEventListener('click', step(1));
+    const commit = (mins) => {
+      if (this.left() != null) this.call('timer', 'start', { entity_id: this._config.timer_entity, duration: hms(Math.max(1, mins) * 60) });
+      else this._dur = Math.max(1, mins);
+    };
+    ring.addEventListener('pointerdown', (e) => {
+      if (!this._config.timer_entity || !this.available(this._config.entity)) return;
+      ring.setPointerCapture(e.pointerId);
+      ring.classList.add('live');
+      let last = angle(e);
+      const left = this.left();
+      this._drag = left != null ? left / 60 : this._dur;
+      const move = (ev) => {
+        const a = angle(ev);
+        let d = a - last;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        last = a;
+        this._drag = clamp(this._drag + (d / 360) * this.max(), 0, this.max());
+        this.update();
+      };
+      const up = () => {
+        ring.removeEventListener('pointermove', move);
+        ring.classList.remove('live');
+        const mins = Math.max(1, Math.round(this._drag));
+        this._drag = null;
+        commit(mins);
+        this._hold = { mins, until: Date.now() + 2500 };
+        this.update();
+      };
+      ring.addEventListener('pointermove', move);
+      ring.addEventListener('pointerup', up, { once: true });
+      ring.addEventListener('pointercancel', up, { once: true });
+    });
+    ring.addEventListener('wheel', (e) => {
+      if (!this._config.timer_entity) return;
+      e.preventDefault();
+      const left = this.left();
+      const cur = left != null ? Math.ceil(left / 60) : this._dur;
+      const mins = clamp(cur + (e.deltaY < 0 ? 1 : -1), 1, this.max());
+      commit(mins);
+      this._hold = { mins, until: Date.now() + 2500 };
+      this.update();
+    }, { passive: false });
   }
 
   update() {
@@ -1470,26 +1510,31 @@ class WallHeaterCard extends WallBaseCard {
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('on', on);
+    card.style.setProperty('--tick', 360 / this.max() + 'deg');
     this.tick(left != null);
     this.label();
-    this.$('.steps').style.visibility = c.timer_entity ? 'visible' : 'hidden';
+    this.$('.ring').style.cursor = c.timer_entity ? '' : 'default';
 
-    let big, hint, frac, fill;
-    if (left != null) {
+    const held = this._hold && Date.now() < this._hold.until ? this._hold.mins : null;
+    if (held == null) this._hold = null;
+    let mins, hint, fill;
+    if (this._drag != null || held != null) {
+      mins = this._drag != null ? Math.round(this._drag) : held;
+      hint = on ? 'απομένουν' : 'διάρκεια';
+      fill = on ? 60 : 0;
+    } else if (left != null) {
       const total = (toMinutes({ state: this.st(c.timer_entity).attributes.duration || '' }) || this._dur) * 60;
-      big = `${Math.floor(left / 60)}:${pad2(left % 60)}`;
-      hint = `τέλος ${hhmm(new Date(this.st(c.timer_entity).attributes.finishes_at))}`;
-      frac = left / (this.max() * 60);
+      mins = Math.ceil(left / 60);
+      hint = 'απομένουν';
       fill = clamp((1 - left / total) * 100, 12, 100);
     } else if (on) {
-      big = 'On'; hint = ''; frac = 1; fill = 100;
+      mins = null; hint = ''; fill = 100;
     } else {
-      big = c.timer_entity ? `${this._dur}′` : 'Off'; hint = !ok ? 'Μη διαθέσιμος' : c.timer_entity ? 'διάρκεια' : '';
-      frac = c.timer_entity ? this._dur / this.max() : 0; fill = 0;
+      mins = c.timer_entity ? this._dur : null; hint = !ok ? 'Μη διαθέσιμος' : c.timer_entity ? 'διάρκεια' : ''; fill = 0;
     }
-    this.$('.big').textContent = big;
+    this.$('.big').textContent = mins != null ? `${mins}′` : on ? 'On' : 'Off';
     this.$('.hint').textContent = hint;
-    card.style.setProperty('--ang', clamp(frac, 0, 1) * 360 + 'deg');
+    card.style.setProperty('--ang', (mins != null ? clamp(mins / this.max(), 0, 1) * 360 : on ? 360 : 0) + 'deg');
     card.style.setProperty('--fill', fill + '%');
   }
 }
