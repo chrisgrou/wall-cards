@@ -2647,29 +2647,31 @@ function roomHumidity(hass, room) {
 
 class WallDehumidifierCard extends WallBaseCard {
   static css = `
-.card{padding:0;--acc:#2f6fb5;--tint:linear-gradient(180deg,#eef5fc,#dceaf7)}
-.card.on{background:linear-gradient(180deg,#eef5fc,#dceaf7);box-shadow:inset 0 0 0 3px #2f6fb5}
-.card.off{opacity:.78}
-.unit{position:absolute;left:22px;top:16px;bottom:14px;width:98px;border-radius:18px 18px 12px 12px;
-  background:linear-gradient(90deg,#e3e7ea,#ffffff 45%,#d9dee2);box-shadow:0 6px 12px rgba(30,50,70,.2)}
-.gr{position:absolute;left:10px;right:10px;top:10px;height:36px;border-radius:8px;opacity:.7;
-  background:repeating-linear-gradient(90deg,#9aa3ab 0 3px,transparent 3px 7px)}
-.unit .lcd{position:absolute;left:12px;right:12px;top:56px;height:44px;background:#16222e;color:#9fd4ff;font-size:22px}
-.off .unit .lcd{color:#4d5d6b}
-.tank{position:absolute;left:12px;right:12px;bottom:12px;height:46px;border-radius:8px;background:#e9eef2;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.2)}
-.tank i{position:absolute;left:0;right:0;bottom:0;height:40%;background:linear-gradient(180deg,#9cc8ee,#5d9ad6)}
-.mist{position:absolute;left:8px;right:8px;top:-6px;height:40px;pointer-events:none}
-.mist span{position:absolute;bottom:0;width:10px;height:10px;border-radius:50%;background:rgba(150,190,230,.6);opacity:0}
-.run .mist span{animation:d-up 2.6s ease-out infinite}
-@keyframes d-up{0%{transform:translateY(30px);opacity:0}40%{opacity:.8}100%{transform:translateY(-14px);opacity:0}}
-.side{position:absolute;left:132px;right:10px;top:18px;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:4px}
-.side .kb{width:48px;height:48px;font-size:24px}
-.tg{font:600 16px var(--w-font);color:var(--w-muted);margin-top:4px}
-.on .tg{color:#2f6fb5}
-.pw{font:600 15px var(--w-font);color:var(--w-muted)}
-.room{margin-top:auto;max-width:100%;font:600 13px var(--w-font);letter-spacing:.6px;text-transform:uppercase;color:var(--w-muted);
-  background:linear-gradient(180deg,#eef0f2,#cfd4d8);padding:2px 8px;border-radius:4px;box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.2);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Πρόσοψη αφυγραντήρα: πάνελ με οθόνη και πλήκτρα −/+, δοχείο με παραθυράκι νερού */
+.card,.card.on{padding:0;background:linear-gradient(90deg,#e4e7ea,#fff 18%,#fff 82%,#e1e4e7)}
+.card:not(.on){background:linear-gradient(90deg,#d8dbde,#eceeef 18%,#eceeef 82%,#d5d8db)}
+.pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;z-index:3;
+  display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
+.on .pw{color:#3d8fe6;text-shadow:0 0 8px rgba(61,143,230,.7)}
+.panel{position:absolute;left:8%;right:8%;top:34%;height:58px;border-radius:12px;background:linear-gradient(180deg,#f1f3f5,#e2e6e9);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.18),0 1px 0 #fff;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.key{width:44px;height:40px;border:0;padding:0;border-radius:8px;display:grid;place-items:center;font-size:22px;color:#5f676d;cursor:pointer;
+  background:linear-gradient(180deg,#fdfdfd,#e6e9ec);box-shadow:0 1px 2px rgba(0,0,0,.2),inset 0 -1px 0 rgba(0,0,0,.06)}
+.key:active{box-shadow:inset 0 1px 3px rgba(0,0,0,.25)}
+.seg{flex:none;width:86px;height:42px;border-radius:6px;background:#1b2229;box-shadow:inset 0 1px 4px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;gap:3px;font:600 28px ui-monospace,'Cascadia Mono',Consolas,monospace;
+  color:#7fc4ff;text-shadow:0 0 6px rgba(127,196,255,.6)}
+.seg small{font-size:14px;align-self:flex-end;margin-bottom:8px}
+.card:not(.on) .seg{color:#2c3a46;text-shadow:none}
+.setting .seg{color:#ffd27a;text-shadow:0 0 6px rgba(255,210,122,.6);animation:d-bl 1s steps(2) infinite}
+@keyframes d-bl{50%{opacity:.35}}
+.seam{position:absolute;left:0;right:0;top:72%;height:2px;background:linear-gradient(90deg,#c9ced2,#e3e6e9,#c9ced2);box-shadow:0 1px 0 #fff}
+.win{position:absolute;left:50%;top:calc(72% + 14px);width:10px;height:34px;margin-left:-5px;border-radius:5px;background:#dfe5ea;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.3);overflow:hidden}
+.win i{position:absolute;left:0;right:0;bottom:0;height:40%;background:linear-gradient(180deg,#9cc8ee,#5d9ad6)}
+.run .win i{animation:d-fill 6s ease-in-out infinite}
+@keyframes d-fill{50%{height:52%}}
+.tag{left:14px;top:14px}
 `;
 
   static getConfigForm() {
@@ -2688,21 +2690,35 @@ class WallDehumidifierCard extends WallBaseCard {
   template() {
     return `
 <div class="card">
-  <div class="unit">
-    <div class="mist"><span style="left:10%"></span><span style="left:45%;animation-delay:.8s"></span><span style="left:75%;animation-delay:1.6s"></span></div>
-    <div class="gr"></div><div class="lcd"></div><div class="tank"><i></i></div>
+  ${TAG}
+  <button class="pw ms" aria-label="On/Off">power_settings_new</button>
+  <div class="panel">
+    <button class="key dn ms" aria-label="Μείωση στόχου">remove</button>
+    <div class="seg"><span class="num"></span><small>%</small></div>
+    <button class="key up ms" aria-label="Αύξηση στόχου">add</button>
   </div>
-  <div class="side">
-    <button class="kb ms" aria-label="On/Off">power_settings_new</button>
-    <span class="tg"></span><span class="pw"></span>
-    <span class="room" hidden></span>
-  </div>
+  <div class="seam"></div><div class="win"><i></i></div>
 </div>`;
   }
 
   bind() {
     this.tapMore(() => this.popup());
-    this.$('.kb').addEventListener('click', () => this.power());
+    this.$('.pw').addEventListener('click', () => this.power());
+    /* −/+ : η οθόνη δείχνει τον στόχο να αναβοσβήνει για 3″ και μετά επιστρέφει στην υγρασία του χώρου */
+    const step = (dir) => () => {
+      const id = this._config.entity;
+      const a = this.st(id)?.attributes || {};
+      if (!this.available(id) || a.humidity == null) return;
+      const cur = this._set && Date.now() < this._set.until ? this._set.v : a.humidity;
+      const v = clamp(Math.round((cur + dir * 5) / 5) * 5, a.min_humidity ?? 30, a.max_humidity ?? 80);
+      this._set = { v, until: Date.now() + 3000 };
+      clearTimeout(this._setT);
+      this._setT = setTimeout(() => this.update(), 3100);
+      this.update();
+      this.call('humidifier', 'set_humidity', { entity_id: id, humidity: v });
+    };
+    this.$('.dn').addEventListener('click', step(-1));
+    this.$('.up').addEventListener('click', step(1));
   }
 
   /* Όταν το hygrostat είναι unavailable (π.χ. έπεσε ο αισθητήρας υγρασίας), η πρίζα συνεχίζει να δουλεύει: την ελέγχουμε απευθείας */
@@ -2774,21 +2790,20 @@ class WallDehumidifierCard extends WallBaseCard {
     const ok = this.available(c.entity) || !!this.fallbackSwitch();
     const on = this.isOn();
     const w = this.num(c.power_entity);
-    /* «Δουλεύει» = ο συμπιεστής τραβάει ρεύμα· αν δεν υπάρχει τέτοιο entity, αρκεί να είναι on */
     const run = on && (c.running_entity ? this.val(c.running_entity) === 'on' : isNaN(w) || w > 5);
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('on', on);
-    card.classList.toggle('off', ok && !on);
     card.classList.toggle('run', run);
-    this.$('.kb').classList.toggle('lit', on);
+    const setting = this._set && Date.now() < this._set.until;
+    if (!setting) this._set = null;
+    card.classList.toggle('setting', !!setting);
     const cur = this.current();
-    this.$('.lcd').textContent = cur != null && !isNaN(cur) ? `${Math.round(cur)}%` : '--';
-    this.$('.tg').textContent = s?.attributes?.humidity != null ? `→ ${s.attributes.humidity}%` : '';
-    this.$('.pw').textContent = run && !isNaN(w) ? `${Math.round(w)} W` : '';
-    const room = c.label || (this.val(c.room_entity) && roomInfo(this.val(c.room_entity))[0]);
-    this.$('.room').hidden = !room;
-    this.$('.room').textContent = room || '';
+    const v = setting ? this._set.v : cur;
+    this.$('.num').textContent = v != null && !isNaN(v) ? Math.round(v) : '--';
+    const canSet = this.available(c.entity) && s?.attributes?.humidity != null;
+    this.shadowRoot.querySelectorAll('.key').forEach((k) => (k.style.visibility = canSet ? 'visible' : 'hidden'));
+    this.label();
   }
 }
 
