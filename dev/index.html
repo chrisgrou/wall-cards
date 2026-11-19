@@ -43,6 +43,17 @@ const states = {
   'media_player.tv': S('playing', { friendly_name: 'Τηλεόραση', app_name: 'Netflix', media_title: 'Ντοκιμαντέρ', media_series_title: 'Σεζόν 2', is_volume_muted: false, media_duration: 3600, media_position: 650, media_position_updated_at: now() }),
   'media_player.music': S('playing', { friendly_name: 'Σαλόνι', app_name: 'Music Assistant', media_title: 'Το τρένο φεύγει στις 8', media_artist: 'Μίκης Θεοδωράκης', media_duration: 200, media_position: 76, media_position_updated_at: now() }),
   'sensor.lr_t': S(25.1), 'sensor.lr_h': S(61), 'sensor.br_t': S(22.6), 'sensor.br_h': S(70), 'sensor.home_t': S(24.1), 'sensor.home_h': S(64),
+  'person.chris': S('not_home', { friendly_name: 'Chris', latitude: 40.8008, longitude: 22.0475 }), 'sensor.chris_dist': S('337', { unit_of_measurement: 'm' }),
+  'sensor.chris_addr': S('Αριστοτέλους 12, Έδεσσα, Πέλλα 582 00, Ελλάδα'), 'binary_sensor.chris_drv': S('off'),
+  'person.ioanna': S('home', { friendly_name: 'Ioanna', latitude: 40.80, longitude: 22.04 }),
+  'humidifier.dehum': S('on', { humidity: 55, min_humidity: 30, max_humidity: 80, current_humidity: 64 }),
+  'sensor.dehum_h': S(64, { device_class: 'humidity', friendly_name: 'Dehumidifier Humidity' }),
+  'select.dehum_room': S('Bedroom', { options: ['Bedroom', 'Home', 'Kitchen', 'Living Room', 'Master Bedroom'] }),
+  'sensor.dehum_w': S(320, { unit_of_measurement: 'W' }),
+  'sensor.lrh': S(61, { device_class: 'humidity', friendly_name: 'Living Room Sensor Humidity' }),
+  'sensor.mbh': S(70, { device_class: 'humidity', friendly_name: 'Master Bedroom Sensor Humidity' }),
+  'sensor.bh': S('unavailable', { device_class: 'humidity', friendly_name: 'Bedroom Multisensor Humidity' }),
+  'sensor.hh': S(64, { device_class: 'humidity', friendly_name: 'Home Humidity' }),
   'weather.home': S('partlycloudy', { friendly_name: 'Έδεσσα', temperature: 17 }), 'sun.sun': S('above_horizon'),
   'sensor.car': S(78), 'sensor.range': S(392, { unit_of_measurement: 'km' }), 'device_tracker.car': S('home'),
   'binary_sensor.charging': S('on'), 'lock.car': S('locked'), 'climate.car': S('off'), 'switch.charger': S('on'), 'button.find': S('unknown'),
@@ -59,7 +70,8 @@ function react(domain, service, d) {
   if (service === 'toggle' && domain !== 'media_player') return flip();
   if (domain === 'homeassistant') return set(id, service === 'turn_on' ? 'on' : 'off');
   if (domain === 'light') return set(id, 'on', d.brightness_pct ? { brightness: Math.round(d.brightness_pct * 2.55) } : d.rgb_color ? { rgb_color: d.rgb_color, color_mode: 'hs' } : { color_temp_kelvin: d.color_temp_kelvin, color_mode: 'color_temp' });
-  if (domain === 'input_select') return set(id, d.option);
+  if (domain === 'input_select' || domain === 'select') return set(id, d.option);
+  if (domain === 'humidifier') return service === 'set_humidity' ? set(id, null, { humidity: d.humidity }) : set(id, cur.state === 'on' ? 'off' : 'on');
   if (domain === 'script') return set('binary_sensor.pur', id === 'script.pur_on' ? 'on' : 'off');
   if (domain === 'lock') return service === 'open' ? null : set(id, service === 'lock' ? 'locked' : 'unlocked');
   if (domain === 'button') {
@@ -148,6 +160,9 @@ add('wall-car-card', { entity: 'sensor.car', name: 'Model 3', range_entity: 'sen
 add('wall-climate-card', { entity: 'climate.missing' });
 add('wall-car-card', { entity: 'sensor.car' }, 'wide');
 add('wall-weather-card', { entity: 'weather.home' }, 'wide');
+add('wall-person-card', { entity: 'person.chris', distance_entity: 'sensor.chris_dist', address_entity: 'sensor.chris_addr', driving_entity: 'binary_sensor.chris_drv' }, 'wide');
+add('wall-person-card', { entity: 'person.ioanna' }, 'wide');
+add('wall-dehumidifier-card', { entity: 'humidifier.dehum', humidity_entity: 'sensor.dehum_h', room_entity: 'select.dehum_room', power_entity: 'sensor.dehum_w' });
 add('wall-room-card', { entity: 'sensor.home_t', humidity_entity: 'sensor.home_h', name: 'Σπίτι', icon: 'home' }, 'wide');
 add('wall-room-card', { entity: 'sensor.lr_t', humidity_entity: 'sensor.lr_h', name: 'Σαλόνι', icon: 'sofa' }, 'wide');
 add('wall-room-card', { entity: 'sensor.br_t', humidity_entity: 'sensor.br_h', name: 'Υπνοδωμάτιο', icon: 'bed' }, 'wide');

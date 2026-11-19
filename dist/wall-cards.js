@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -247,6 +247,7 @@ class WallWideCard extends WallBaseCard {
  *
  *   openPopup(card, {
  *     icon:   'lightbulb',               εικονίδιο κεφαλίδας
+ *     title:  'Αφυγραντήρας',          προεπιλεγμένος τίτλος (προαιρετικό)
  *     size:   'sm' | 'md' | 'lg',        πλάτος φύλλου
  *     accent: () => 'css χρώμα',         χρώμα έμφασης (προαιρετικό)
  *     status: () => 'Αναμμένο · 63%',    γραμμή κατάστασης κάτω από τον τίτλο
@@ -254,7 +255,7 @@ class WallWideCard extends WallBaseCard {
  *     render: (p, tab) => { … },         γεμίζει το p.body με popSection / popChips / popSlider …
  *   })
  *
- * Τίτλος: config.title → config.label → όνομα του entity.
+ * Τίτλος: config.title → spec.title → config.label → όνομα του entity.
  * Το σώμα ξαναχτίζεται όταν αλλάξει η κατάσταση της κάρτας (όχι όσο ο χρήστης σέρνει κάτι).
  * Κλείνει με το ✕, με πάτημα έξω, με Escape, ή μόνο του μετά από POPUP_IDLE_MS αδράνειας.
  * Ανοίγει και κλείνει «από» την κάρτα που το κάλεσε. Ένα popup τη φορά.
@@ -307,7 +308,7 @@ const POPUP_CSS = `
 `;
 
 let activePopup = null;
-const popTitle = (card) => card._config.title || card._config.label || card.friendly(card._config.entity);
+const popTitle = (card, spec) => card._config.title || spec?.title || card._config.label || card.friendly(card._config.entity);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 function openPopup(card, spec) {
@@ -353,7 +354,7 @@ function openPopup(card, spec) {
     /* Καλείται από την κάρτα σε κάθε αλλαγή κατάστασης */
     refresh() {
       $('.pi').textContent = spec.icon || 'tune';
-      $('.pn').textContent = popTitle(card);
+      $('.pn').textContent = popTitle(card, spec);
       $('.ps').textContent = spec.status?.() || '';
       if (spec.accent) sheet.style.setProperty('--acc', spec.accent());
       if (p.busy) return;
@@ -2347,6 +2348,309 @@ class WallWeatherCard extends WallWideCard {
   }
 }
 
+/* ── Χρόνος από τότε, στα ελληνικά: «12 λεπτά», «3 ώρες», «1 ημέρα» ── */
+function since(iso) {
+  if (!iso || isNaN(new Date(iso))) return '';
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000));
+  if (m < 1) return 'μόλις τώρα';
+  if (m < 60) return m === 1 ? '1 λεπτό' : `${m} λεπτά`;
+  const h = Math.round(m / 60);
+  if (h < 24) return h === 1 ? '1 ώρα' : `${h} ώρες`;
+  const d = Math.round(h / 24);
+  return d === 1 ? '1 ημέρα' : `${d} ημέρες`;
+}
+
+/* ── Άτομο (πλατιά): χάρτης στο φόντο, avatar με δαχτυλίδι κατάστασης, απόσταση και διεύθυνση ──
+ * Ο χάρτης έρχεται από το Geoapify (στατική εικόνα) μόνο αν οριστεί map_api_key· είναι η μόνη
+ * εξωτερική κλήση της βιβλιοθήκης πέρα από τις γραμματοσειρές. Ζητείται νέα εικόνα μόνο όταν
+ * η θέση αλλάξει πάνω από ~50 m, για να μη γεμίζει το όριο του δωρεάν λογαριασμού.
+ */
+const PERSON_TONE = { home: '#3f9d62', driving: '#2f6fb5', zone: '#7a5bc4', away: '#e09a1f' };
+const PERSON_BADGE = { home: 'home', driving: 'directions_car', zone: 'location_on', away: 'directions_walk' };
+
+class WallPersonCard extends WallWideCard {
+  static css = `
+.card,.card.on{padding:0;background:#eef0ec}
+.map{position:absolute;top:0;left:3%;width:140%;height:100%;object-fit:cover;opacity:0;transition:opacity .6s,filter .6s}
+.map.ok{opacity:1}
+.home .map{filter:saturate(.45) brightness(1.04)}
+.fade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(248,249,250,.97) 0%,rgba(248,249,250,.9) 38%,rgba(248,249,250,0) 72%)}
+.nomap .fade{background:linear-gradient(90deg,#f8f9fa,#eef1f4)}
+.pin{position:absolute;left:73%;top:52%;width:24px;height:24px;margin:-24px 0 0 -12px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+  background:var(--tone);box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.pin::after{content:'';position:absolute;inset:7px;border-radius:50%;background:#fff}
+.halo{position:absolute;left:73%;top:calc(52% - 12px);width:30px;height:30px;margin:-15px;border-radius:50%;background:var(--tone);opacity:0;
+  animation:p-halo 2s ease-out infinite}
+@keyframes p-halo{0%{transform:scale(.6);opacity:.55}100%{transform:scale(2.4);opacity:0}}
+.home .pin,.home .halo,.nomap .pin,.nomap .halo{display:none}
+.hm{position:absolute;left:73%;top:50%;width:42px;height:42px;margin:-21px;border-radius:50%;display:none;place-items:center;font-size:22px;
+  color:#fff;background:var(--tone);box-shadow:0 0 0 7px color-mix(in srgb,var(--tone) 25%,transparent)}
+.home:not(.nomap) .hm{display:grid}
+.av{position:absolute;left:20px;top:20px;width:88px;height:88px;border-radius:50%;padding:4px;background:var(--tone);
+  box-shadow:0 6px 14px rgba(30,40,50,.25);transition:background .4s}
+.av span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;border:3px solid #fff;color:#fff;font:600 32px var(--w-font);
+  background:linear-gradient(160deg,#a8b4bf,#6b7884) center/cover no-repeat}
+.bd{position:absolute;left:86px;top:86px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:18px;color:#fff;
+  background:var(--tone);border:3px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.2)}
+.ds{position:absolute;right:16px;top:16px;height:38px;padding:0 14px;border-radius:19px;display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.92);font:700 16px var(--w-font);box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.ds .ms{font-size:20px;color:var(--w-muted)}
+.tx{position:absolute;left:20px;bottom:16px;right:44%;display:flex;flex-direction:column;gap:2px;min-width:0}
+.st{font:700 20px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad{font:600 15px var(--w-font);color:var(--w-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+`;
+
+  static getConfigForm() {
+    return form([
+      ['entity', 'Άτομο', ent('person'), true],
+      ['distance_entity', 'Απόσταση από το σπίτι (προαιρετικό)', ent('sensor')],
+      ['address_entity', 'Διεύθυνση, π.χ. geocoded location του κινητού (προαιρετικό)', ent('sensor')],
+      ['driving_entity', 'Οδηγεί (προαιρετικό)', ent(['binary_sensor', 'input_boolean'])],
+      ['map_api_key', 'Κλειδί Geoapify για τον χάρτη (προαιρετικό)', { text: { type: 'password' } }],
+      ['map_style', 'Στυλ χάρτη', { select: { mode: 'dropdown', options: [
+        { value: 'positron', label: 'Ανοιχτόχρωμο' }, { value: 'osm-bright', label: 'Έντονο' }, { value: 'klokantech-basic', label: 'Βασικό' },
+      ] } }],
+      ['zoom', 'Ζουμ χάρτη', { number: { min: 12, max: 18, step: 1, mode: 'slider' } }],
+    ]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'person') }; }
+  watched() { const c = this._config; return [c.entity, c.distance_entity, c.address_entity, c.driving_entity]; }
+
+  template() {
+    return `
+<div class="card">
+  <img class="map" alt="">
+  <span class="halo"></span><span class="pin"></span><span class="hm ms fill">home</span>
+  <div class="fade"></div>
+  <div class="av"><span></span></div>
+  <span class="bd ms fill"></span>
+  <div class="ds" hidden><span class="ms">home</span><span class="dv"></span></div>
+  <div class="tx"><span class="st"></span><span class="ad"></span></div>
+</div>`;
+  }
+
+  bind() {
+    this.tapMore();
+    this.$('.map').addEventListener('load', () => this.$('.map').classList.add('ok'));
+    this.$('.map').addEventListener('error', () => this.$('.map').classList.remove('ok'));
+    /* Το «πριν από πόσο» αλλάζει με τον χρόνο, όχι μόνο με την κατάσταση */
+    this._clock = setInterval(() => this.isConnected && this._hass && this.update(), 60000);
+  }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._built = false; }
+
+  mapUrl(lat, lon) {
+    const c = this._config;
+    if (!c.map_api_key || lat == null || lon == null) return '';
+    /* Στρογγύλεμα ~50 m: η ίδια θέση δίνει την ίδια διεύθυνση εικόνας και ο browser την έχει ήδη */
+    const r = (v) => Math.round(v * 2000) / 2000;
+    const q = new URLSearchParams({
+      style: c.map_style || 'positron', width: '1154', height: '424', scaleFactor: '1',
+      center: `lonlat:${r(lon)},${r(lat)}`, zoom: String(c.zoom || 16), apiKey: c.map_api_key,
+    });
+    return `https://maps.geoapify.com/v1/staticmap?${q}`;
+  }
+
+  update() {
+    const c = this._config;
+    const s = this.st(c.entity);
+    const a = s?.attributes || {};
+    const ok = this.available(c.entity);
+    const driving = this.val(c.driving_entity) === 'on';
+    const home = s?.state === 'home';
+    const kind = driving ? 'driving' : home ? 'home' : !ok || s.state === 'not_home' ? 'away' : 'zone';
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !ok);
+    card.classList.toggle('home', home && !driving);
+    card.style.setProperty('--tone', PERSON_TONE[kind]);
+
+    const url = this.mapUrl(a.latitude, a.longitude);
+    card.classList.toggle('nomap', !url);
+    const img = this.$('.map');
+    if (url && img.getAttribute('src') !== url) { img.classList.remove('ok'); img.setAttribute('src', url); }
+    if (!url) img.removeAttribute('src');
+
+    const pic = this.$('.av span');
+    pic.style.backgroundImage = a.entity_picture ? cssUrl(a.entity_picture) : '';
+    pic.textContent = a.entity_picture ? '' : (a.friendly_name || '?').trim().charAt(0).toUpperCase();
+    this.$('.bd').textContent = PERSON_BADGE[kind];
+
+    const label = driving ? 'Οδηγεί' : home ? 'Σπίτι' : kind === 'zone' ? s.state : 'Εκτός';
+    const ago = since(driving ? this.st(c.driving_entity).last_changed || this.st(c.driving_entity).last_updated : s.last_changed || s.last_updated);
+    this.$('.st').textContent = ok ? [label, ago].filter(Boolean).join(' · ') : 'Άγνωστο';
+
+    /* Διεύθυνση: οι δύο πρώτες λέξεις-τμήματα (οδός, πόλη) αρκούν σε μια ματιά */
+    const addr = this.val(c.address_entity);
+    this.$('.ad').textContent = !home && addr ? addr.split(',').slice(0, 2).join(',').trim() : '';
+
+    const dist = this.st(c.distance_entity);
+    const dv = this.available(c.distance_entity) ? dist.state : '';
+    this.$('.ds').hidden = home || !dv;
+    if (dv) {
+      const n = parseFloat(dv);
+      const unit = dist.attributes?.unit_of_measurement || dv.replace(/[\d.,\s]/g, '') || 'm';
+      this.$('.dv').textContent = isNaN(n) ? dv
+        : unit === 'm' && n >= 1000 ? `${fmt(n / 1000, n < 10000 ? 1 : 0)} km` : `${fmt(n, unit === 'km' && n < 10 ? 1 : 0)} ${unit}`;
+    }
+  }
+}
+
+/* ── Αφυγραντήρας: φορητή συσκευή με οθόνη υγρασίας· popup με στόχο και δωμάτιο ── */
+const ROOM_GR = {
+  bedroom: ['Υπνοδωμάτιο', 'bed'], 'master bedroom': ['Κύριο υπνοδ.', 'king_bed'], 'living room': ['Σαλόνι', 'chair'],
+  kitchen: ['Κουζίνα', 'kitchen'], bathroom: ['Μπάνιο', 'bathtub'], home: ['Σπίτι', 'home'], office: ['Γραφείο', 'desk'],
+  'kids room': ['Παιδικό', 'child_care'], 'guest room': ['Ξενώνας', 'bed'],
+};
+const roomInfo = (o) => ROOM_GR[String(o).toLowerCase()] || [o, 'meeting_room'];
+
+/* Βρίσκει τον αισθητήρα υγρασίας ενός δωματίου από το όνομά του, π.χ. «Living Room» → «Living Room Sensor Humidity».
+   Προτιμά διαθέσιμους αισθητήρες και το πιο κοντινό όνομα («Bedroom» δεν πιάνει το «Master Bedroom»). */
+function roomHumidity(hass, room) {
+  const want = String(room).toLowerCase();
+  let best = null;
+  for (const [id, s] of Object.entries(hass.states)) {
+    if (!id.startsWith('sensor.') || s.attributes?.device_class !== 'humidity') continue;
+    const name = String(s.attributes.friendly_name || '').toLowerCase();
+    if (!name.startsWith(want) || id.includes('dehumidifier')) continue;
+    const score = (UNAVAILABLE.includes(s.state) ? 1000 : 0) + name.length;
+    if (!best || score < best.score) best = { id, score, s };
+  }
+  return best && !UNAVAILABLE.includes(best.s.state) ? parseFloat(best.s.state) : NaN;
+}
+
+class WallDehumidifierCard extends WallBaseCard {
+  static css = `
+.card{padding:0;--acc:#2f6fb5;--tint:linear-gradient(180deg,#eef5fc,#dceaf7)}
+.card.on{background:linear-gradient(180deg,#eef5fc,#dceaf7);box-shadow:inset 0 0 0 3px #2f6fb5}
+.card.off{opacity:.78}
+.unit{position:absolute;left:22px;top:16px;bottom:14px;width:98px;border-radius:18px 18px 12px 12px;
+  background:linear-gradient(90deg,#e3e7ea,#ffffff 45%,#d9dee2);box-shadow:0 6px 12px rgba(30,50,70,.2)}
+.gr{position:absolute;left:10px;right:10px;top:10px;height:36px;border-radius:8px;opacity:.7;
+  background:repeating-linear-gradient(90deg,#9aa3ab 0 3px,transparent 3px 7px)}
+.unit .lcd{position:absolute;left:12px;right:12px;top:56px;height:44px;background:#16222e;color:#9fd4ff;font-size:22px}
+.off .unit .lcd{color:#4d5d6b}
+.tank{position:absolute;left:12px;right:12px;bottom:12px;height:46px;border-radius:8px;background:#e9eef2;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.2)}
+.tank i{position:absolute;left:0;right:0;bottom:0;height:40%;background:linear-gradient(180deg,#9cc8ee,#5d9ad6)}
+.mist{position:absolute;left:8px;right:8px;top:-6px;height:40px;pointer-events:none}
+.mist span{position:absolute;bottom:0;width:10px;height:10px;border-radius:50%;background:rgba(150,190,230,.6);opacity:0}
+.run .mist span{animation:d-up 2.6s ease-out infinite}
+@keyframes d-up{0%{transform:translateY(30px);opacity:0}40%{opacity:.8}100%{transform:translateY(-14px);opacity:0}}
+.side{position:absolute;left:132px;right:10px;top:18px;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.side .kb{width:48px;height:48px;font-size:24px}
+.tg{font:600 16px var(--w-font);color:var(--w-muted);margin-top:4px}
+.on .tg{color:#2f6fb5}
+.pw{font:600 15px var(--w-font);color:var(--w-muted)}
+.room{margin-top:auto;max-width:100%;font:600 13px var(--w-font);letter-spacing:.6px;text-transform:uppercase;color:var(--w-muted);
+  background:linear-gradient(180deg,#eef0f2,#cfd4d8);padding:2px 8px;border-radius:4px;box-shadow:inset 0 1px 0 #fff,0 1px 1px rgba(0,0,0,.2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+`;
+
+  static getConfigForm() {
+    return form([
+      ['entity', 'Αφυγραντήρας (humidifier)', ent('humidifier'), true],
+      ['humidity_entity', 'Υγρασία που ακολουθεί (προαιρετικό)', ent('sensor', 'humidity')],
+      ['room_entity', 'Επιλογή δωματίου (select)', ent(['select', 'input_select'])],
+      ['running_entity', 'Ο συμπιεστής δουλεύει, π.χ. πρίζα (προαιρετικό)', ent(['switch', 'binary_sensor'])],
+      ['power_entity', 'Κατανάλωση (προαιρετικό)', ent('sensor', 'power')],
+      LABEL, TITLE,
+    ]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'humidifier') }; }
+  watched() { const c = this._config; return [c.entity, c.humidity_entity, c.room_entity, c.running_entity, c.power_entity]; }
+
+  template() {
+    return `
+<div class="card">
+  <div class="unit">
+    <div class="mist"><span style="left:10%"></span><span style="left:45%;animation-delay:.8s"></span><span style="left:75%;animation-delay:1.6s"></span></div>
+    <div class="gr"></div><div class="lcd"></div><div class="tank"><i></i></div>
+  </div>
+  <div class="side">
+    <button class="kb ms" aria-label="On/Off">power_settings_new</button>
+    <span class="tg"></span><span class="pw"></span>
+    <span class="room" hidden></span>
+  </div>
+</div>`;
+  }
+
+  bind() {
+    this.tapMore(() => this.popup());
+    this.$('.kb').addEventListener('click', () => {
+      if (this.available(this._config.entity)) this.call('humidifier', 'toggle', { entity_id: this._config.entity });
+    });
+  }
+
+  current() {
+    const c = this._config;
+    const v = this.num(c.humidity_entity);
+    return isNaN(v) ? this.st(c.entity)?.attributes?.current_humidity : v;
+  }
+
+  popup() {
+    const c = this._config;
+    const id = c.entity;
+    if (!this.available(id)) return this.moreInfo(id);
+    openPopup(this, {
+      icon: 'water_drop', size: 'md', title: 'Αφυγραντήρας', accent: () => '#2f6fb5',
+      status: () => {
+        const s = this.st(id);
+        const cur = this.current();
+        const room = this.val(c.room_entity);
+        const w = this.num(c.power_entity);
+        return [s.state === 'on' ? 'Λειτουργεί' : 'Κλειστός', [room && roomInfo(room)[0], cur != null && `${Math.round(cur)}%`].filter(Boolean).join(' '),
+          !isNaN(w) && w > 1 && `${Math.round(w)} W`].filter(Boolean).join(' · ');
+      },
+      render: (p) => {
+        const s = this.st(id);
+        const a = s.attributes;
+        const step = 5;
+        const go = (dir) => () => this.call('humidifier', 'set_humidity', {
+          entity_id: id, humidity: clamp(Math.round((a.humidity + dir * step) / step) * step, a.min_humidity ?? 30, a.max_humidity ?? 80),
+        });
+        if (a.humidity != null) popStepper(popSection(p, 'Στόχος υγρασίας'), { text: `${a.humidity}%`, dec: go(-1), inc: go(1) });
+        const sel = this.st(c.room_entity);
+        if (sel?.attributes?.options?.length) {
+          const domain = c.room_entity.split('.')[0];
+          popChips(popSection(p, 'Δωμάτιο'), sel.attributes.options.map((o) => {
+            const [label, icon] = roomInfo(o);
+            const h = roomHumidity(this._hass, o);
+            return {
+              label: isNaN(h) ? label : `${label}  ${Math.round(h)}%`, icon, sel: sel.state === o,
+              tap: () => this.call(domain, 'select_option', { entity_id: c.room_entity, option: o }),
+            };
+          }));
+        }
+        popChips(popSection(p), [{
+          label: s.state === 'on' ? 'Σβήσιμο' : 'Άναμμα', icon: 'power_settings_new', sel: s.state === 'on',
+          tap: () => this.call('humidifier', 'toggle', { entity_id: id }),
+        }]);
+      },
+    });
+  }
+
+  update() {
+    const c = this._config;
+    const s = this.st(c.entity);
+    const ok = this.available(c.entity);
+    const on = ok && s.state === 'on';
+    const w = this.num(c.power_entity);
+    /* «Δουλεύει» = ο συμπιεστής τραβάει ρεύμα· αν δεν υπάρχει τέτοιο entity, αρκεί να είναι on */
+    const run = on && (c.running_entity ? this.val(c.running_entity) === 'on' : isNaN(w) || w > 5);
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !ok);
+    card.classList.toggle('on', on);
+    card.classList.toggle('off', ok && !on);
+    card.classList.toggle('run', run);
+    this.$('.kb').classList.toggle('lit', on);
+    const cur = this.current();
+    this.$('.lcd').textContent = cur != null && !isNaN(cur) ? `${Math.round(cur)}%` : '--';
+    this.$('.tg').textContent = s?.attributes?.humidity != null ? `→ ${s.attributes.humidity}%` : '';
+    this.$('.pw').textContent = run && !isNaN(w) ? `${Math.round(w)} W` : '';
+    const room = c.label || (this.val(c.room_entity) && roomInfo(this.val(c.room_entity))[0]);
+    this.$('.room').hidden = !room;
+    this.$('.room').textContent = room || '';
+  }
+}
+
 /* ───────────────────────── 3. Καταχώριση ───────────────────────── */
 
 function register(tag, cls, name, description) {
@@ -2374,6 +2678,8 @@ register('wall-music-card', WallMusicCard, 'Wall · Μουσική', 'Πλατι
 register('wall-car-card', WallCarCard, 'Wall · Αυτοκίνητο', 'Πλατιά κάρτα: μπαταρία, αυτονομία, πινακίδα και γρήγορες ενέργειες.');
 register('wall-room-card', WallRoomCard, 'Wall · Δωμάτιο', 'Πλατιά κάρτα: θερμοκρασία και υγρασία με ζώνη άνεσης και καμπύλη 24 ωρών· και για όλο το σπίτι.');
 register('wall-weather-card', WallWeatherCard, 'Wall · Καιρός', 'Πλατιά κάρτα: ουρανός που αλλάζει με τις συνθήκες, πρόγνωση και insight.');
+register('wall-person-card', WallPersonCard, 'Wall · Άτομο', 'Πλατιά κάρτα: χάρτης, avatar με κατάσταση (σπίτι, εκτός, οδηγεί), απόσταση και διεύθυνση.');
+register('wall-dehumidifier-card', WallDehumidifierCard, 'Wall · Αφυγραντήρας', 'Φορητή συσκευή με οθόνη υγρασίας· popup με στόχο και επιλογή δωματίου.');
 
 /* Για τη σελίδα δοκιμής και για πειραματισμό από την κονσόλα */
 window.wallCards = { VERSION, openPopup, popSection, popChips, popSwatches, popSlider, popStepper };
