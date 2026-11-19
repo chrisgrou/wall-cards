@@ -35,7 +35,7 @@ const states = {
   'binary_sensor.dry': S('on'), 'sensor.dry_rem': S(65, { unit_of_measurement: 'min' }), 'sensor.dry_tot': S(100, { unit_of_measurement: 'min' }),
   'input_select.dish': S('finished', { options: ['on', 'off', 'finished'] }),
   'climate.boiler': S('heat', { friendly_name: 'Λέβητας', temperature: 22, current_temperature: 21.3, hvac_action: 'heating', target_temp_step: 0.5, min_temp: 5, max_temp: 30 }),
-  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'cool', 'heat', 'dry', 'fan_only'], fan_modes: ['auto', 'low', 'medium', 'high'], fan_mode: 'auto', swing_modes: ['off', 'vertical', 'horizontal', 'both'], swing_mode: 'vertical' }),
+  'climate.ac': S('cool', { friendly_name: 'Κλιματιστικό', temperature: 23, current_temperature: 24.7, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'cool', 'heat', 'dry', 'fan_only'], fan_modes: ['Auto', 'Silence', '1', '2', '3', '4', '5'], fan_mode: '3', swing_modes: ['off', 'vertical', 'horizontal', 'both'], swing_mode: 'vertical' }),
   'switch.heater': S('off'), 'timer.heater': S('idle', { duration: '0:15:00' }),
   'binary_sensor.pur': S('on'), 'input_select.pur': S('Medium', { options: ['Off', 'Sleep', 'Low', 'Medium', 'High'] }), 'script.pur_on': S('off'), 'script.pur_off': S('off'), 'sensor.pm25': S(8),
   'sensor.co2': S(640), 'sensor.voc': S('Χαμ.'), 'sensor.pm10': S(14),
@@ -146,6 +146,7 @@ add('wall-opener-card', { entity: 'lock.opener' });
 add('wall-air-card', { entity: 'sensor.pm25', co2_entity: 'sensor.co2', voc_entity: 'sensor.voc', pm10_entity: 'sensor.pm10' });
 add('wall-climate-card', { entity: 'climate.boiler' });
 add('wall-climate-card', { entity: 'climate.ac', label: 'Σαλόνι' });
+add('wall-ac-card', { entity: 'climate.ac' });
 add('wall-boiler-card', { entity: 'climate.boiler' });
 add('wall-heater-card', { entity: 'switch.heater', timer_entity: 'timer.heater' });
 add('wall-purifier-card', { entity: 'binary_sensor.pur', level_entity: 'input_select.pur', on_entity: 'script.pur_on', off_entity: 'script.pur_off' });

@@ -1283,6 +1283,147 @@ class WallClimateCard extends WallBaseCard {
   }
 }
 
+/* ── Κλιματιστικό: εσωτερική μονάδα με οθόνη και πτερύγιο, πάνελ με −/+ και πλήκτρο ανεμιστήρα, ⏻ πάνω δεξιά ── */
+class WallAcCard extends WallBaseCard {
+  static css = `
+.card,.card.on{padding:0;background:linear-gradient(180deg,#f4f5f6,#e6e9eb);--a:#3d8fe6;transition:background .5s}
+.card.on{background:linear-gradient(180deg,#f4f7fa 40%,color-mix(in srgb,var(--a) 22%,#eef1f3))}
+.card:not(.on){background:linear-gradient(180deg,#e8eaeb,#dcdfe1)}
+.card.heat{--a:#e0702a}
+.unit{position:absolute;left:0;right:0;top:0;height:46%;background:linear-gradient(180deg,#fff,#eef1f3);
+  box-shadow:0 6px 12px rgba(40,60,90,.18),inset 0 -1px 0 #d5dade}
+.vent{position:absolute;left:18px;top:26px;display:flex;flex-direction:column;gap:5px}
+.vent i{width:64px;height:2px;background:#d3d8dc}
+.led{position:absolute;left:18px;bottom:16px;width:28px;height:4px;border-radius:2px;background:#d3d8dc;transition:background .4s,box-shadow .4s}
+.on .led{background:var(--a);box-shadow:0 0 8px var(--a)}
+.seg{position:absolute;right:16px;bottom:18px;width:72px;height:34px;border-radius:5px;background:#1b2229;box-shadow:inset 0 1px 4px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;font:600 22px ui-monospace,'Cascadia Mono',Consolas,monospace;
+  color:var(--a);text-shadow:0 0 6px color-mix(in srgb,var(--a) 60%,transparent)}
+.card:not(.on) .seg{color:#2c3a46;text-shadow:none}
+.flap{position:absolute;left:10px;right:10px;bottom:-4px;height:10px;border-radius:3px;transform-origin:50% 0;transition:transform .6s;
+  background:linear-gradient(180deg,#f7f9fa,#cdd4da);box-shadow:0 2px 3px rgba(0,0,0,.2)}
+.on .flap{transform:perspective(60px) rotateX(-35deg)}
+.pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;z-index:3;
+  display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
+.on .pw{color:var(--a);text-shadow:0 0 8px color-mix(in srgb,var(--a) 70%,transparent)}
+.air{position:absolute;left:8%;right:8%;top:calc(46% + 8px);height:50px;opacity:0;transition:opacity .5s;
+  -webkit-mask-image:linear-gradient(180deg,#000 20%,transparent);mask-image:linear-gradient(180deg,#000 20%,transparent)}
+.air i{position:absolute;top:0;width:3px;height:100%;border-radius:2px;background:repeating-linear-gradient(180deg,var(--a) 0 8px,transparent 8px 16px);opacity:.8}
+.on .air{opacity:1}
+.on .air i{animation:ac-blow var(--sp,1s) linear infinite}
+@keyframes ac-blow{to{background-position:0 16px}}
+.keys{position:absolute;left:8%;right:8%;bottom:16px;height:56px;border-radius:12px;background:linear-gradient(180deg,#f1f3f5,#e2e6e9);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.18),0 1px 0 #fff;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
+.key{width:44px;height:40px;border:0;padding:0;border-radius:8px;display:grid;place-items:center;font-size:22px;color:#5f676d;cursor:pointer;
+  background:linear-gradient(180deg,#fdfdfd,#e6e9ec);box-shadow:0 1px 2px rgba(0,0,0,.2),inset 0 -1px 0 rgba(0,0,0,.06)}
+.key:active{box-shadow:inset 0 1px 3px rgba(0,0,0,.25)}
+.fan{position:relative;width:72px;display:flex;align-items:flex-end;justify-content:center;gap:3px;padding-bottom:10px;box-sizing:border-box}
+.fan b{width:6px;border-radius:1px;background:#c5cbd0}
+.on .fan b.l{background:var(--a)}
+.fan .sl{width:30px;height:3px;border-radius:2px}
+.fan .zz{position:absolute;left:50%;top:5px;transform:translateX(-50%);font:800 11px var(--w-font);letter-spacing:1px;color:#8b9196}
+.on .fan .zz{color:var(--a)}
+.fan .au{align-self:center;padding-top:10px;font:800 16px var(--w-font);letter-spacing:.5px;color:#8b9196}
+.on .fan .au{color:var(--a)}
+.tag{left:14px;top:8px}
+`;
+
+  static getConfigForm() {
+    return form([['entity', 'Κλιματιστικό', ent('climate'), true], LABEL, TITLE]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'climate') }; }
+  watched() { return [this._config.entity]; }
+
+  template() {
+    return `
+<div class="card">
+  <div class="unit"><div class="vent"><i></i><i></i><i></i></div><div class="led"></div><div class="seg"></div><div class="flap"></div></div>
+  ${TAG}
+  <button class="pw ms" aria-label="On/Off">power_settings_new</button>
+  <div class="air">${[10, 30, 50, 70, 90].map((l, i) => `<i style="left:${l}%;animation-delay:${(i * 0.17).toFixed(2)}s"></i>`).join('')}</div>
+  <div class="keys">
+    <button class="key dn ms" aria-label="Μείωση">remove</button>
+    <button class="key fan" aria-label="Ταχύτητα ανεμιστήρα"></button>
+    <button class="key up ms" aria-label="Αύξηση">add</button>
+  </div>
+</div>`;
+  }
+
+  bind() {
+    this.tapMore(() => climatePopup(this));
+    this.$('.pw').addEventListener('click', () => {
+      const id = this._config.entity;
+      if (this.available(id)) this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id });
+    });
+    const step = (dir) => () => {
+      const id = this._config.entity;
+      const a = this.st(id)?.attributes || {};
+      const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : a.temperature;
+      if (!this.available(id) || cur == null) return;
+      const by = a.target_temp_step || 0.5;
+      const v = clamp(Math.round((cur + dir * by) / by) * by, a.min_temp ?? 16, a.max_temp ?? 30);
+      this._hold = { v, until: Date.now() + 3000 };
+      this.update();
+      this.call('climate', 'set_temperature', { entity_id: id, temperature: v });
+    };
+    this.$('.dn').addEventListener('click', step(-1));
+    this.$('.up').addEventListener('click', step(1));
+    this.$('.fan').addEventListener('click', () => {
+      const id = this._config.entity;
+      const a = this.st(id)?.attributes || {};
+      const list = a.fan_modes || [];
+      if (!this.available(id) || !list.length) return;
+      const next = list[(list.indexOf(this._fan ?? a.fan_mode) + 1) % list.length];
+      this._fan = next;
+      this._fanUntil = Date.now() + 3000;
+      this.update();
+      this.call('climate', 'set_fan_mode', { entity_id: id, fan_mode: next });
+    });
+  }
+
+  /* Η ταχύτητα ως μπάρες: 1–5 = μπάρες, Silence = χαμηλή γραμμή με zZz, Auto = η λέξη Auto */
+  fanFace(mode, list) {
+    const m = String(mode || '').toLowerCase();
+    if (m === 'auto') return '<span class="au">Auto</span>';
+    if (m === 'silence' || m === 'quiet') return '<span class="zz">zZz</span><b class="sl l"></b>';
+    const nums = list.filter((x) => /^\d+$/.test(x));
+    const n = nums.length ? nums.length : 5;
+    const lvl = /^\d+$/.test(m) ? +m : ['low', 'medium', 'high'].indexOf(m) >= 0 ? Math.round(((['low', 'medium', 'high'].indexOf(m) + 1) / 3) * n) : 0;
+    return Array.from({ length: n }, (_, i) => `<b class="${i < lvl ? 'l' : ''}" style="height:${6 + i * Math.round(12 / Math.max(1, n - 1))}px"></b>`).join('');
+  }
+
+  update() {
+    const id = this._config.entity;
+    const ok = this.available(id);
+    const s = this.st(id);
+    const a = s?.attributes || {};
+    const on = ok && s.state !== 'off';
+    const heat = on && (a.hvac_action ? a.hvac_action === 'heating' : s.state === 'heat');
+    const card = this.$('.card');
+    card.classList.toggle('unavail', !ok);
+    card.classList.toggle('on', on);
+    card.classList.toggle('heat', heat);
+    this.label();
+    const held = this._hold && Date.now() < this._hold.until;
+    if (!held) this._hold = null;
+    const sp = held ? this._hold.v : a.temperature;
+    const dec = (a.target_temp_step || 0.5) < 1 && sp % 1 ? 1 : 0;
+    this.$('.seg').textContent = sp != null ? `${fmt(sp, dec)}°` : '--';
+    this.shadowRoot.querySelectorAll('.dn,.up').forEach((b) => (b.style.visibility = sp != null ? 'visible' : 'hidden'));
+    if (!(this._fanUntil && Date.now() < this._fanUntil)) this._fan = null;
+    const list = a.fan_modes || [];
+    const mode = this._fan ?? a.fan_mode;
+    const fan = this.$('.fan');
+    fan.hidden = !list.length;
+    const face = this.fanFace(mode, list);
+    if (fan._face !== face) { fan.innerHTML = face; fan._face = face; }
+    /* Πιο γρήγορος αέρας σε μεγαλύτερη ταχύτητα */
+    const m = String(mode || '').toLowerCase();
+    const lvl = /^\d+$/.test(m) ? +m : m === 'silence' ? 0.5 : 3;
+    card.style.setProperty('--sp', (1.6 - lvl * 0.2).toFixed(2) + 's');
+  }
+}
+
 /* ── Λέβητας: λευκή πρόσοψη, γκρι πάνελ με οθόνη στόχου και −/+, ⏻ πάνω δεξιά ── */
 class WallBoilerCard extends WallBaseCard {
   static css = `
@@ -2825,6 +2966,7 @@ register('wall-washer-card', WallWasherCard, 'Wall · Πλυντήριο', 'Πρ
 register('wall-dryer-card', WallDryerCard, 'Wall · Στεγνωτήριο', 'Πρόσοψη στεγνωτηρίου: ζεστή πόρτα, χρόνος στην οθόνη.');
 register('wall-dishwasher-card', WallDishwasherCard, 'Wall · Πλυντήριο πιάτων', 'Πρόσοψη με χειρολαβή και παράθυρο με πιάτα.');
 register('wall-climate-card', WallClimateCard, 'Wall · Κλίμα', 'Στρογγυλός θερμοστάτης ή εσωτερική μονάδα κλιματιστικού.');
+register('wall-ac-card', WallAcCard, 'Wall · Κλιματιστικό', 'Εσωτερική μονάδα με οθόνη, −/+ θερμοκρασίας και πλήκτρο ταχύτητας ανεμιστήρα.');
 register('wall-boiler-card', WallBoilerCard, 'Wall · Λέβητας', 'Λέβητας αερίου: πρόσοψη με οθόνη στόχου, −/+ και on/off.');
 register('wall-heater-card', WallHeaterCard, 'Wall · Θερμοσίφωνας', 'Κύλινδρος που ζεσταίνεται, με χρονοδιακόπτη.');
 register('wall-purifier-card', WallPurifierCard, 'Wall · Καθαριστής αέρα', 'Πύργος με φωτεινό δαχτυλίδι στο χρώμα της ποιότητας.');
