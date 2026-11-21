@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.5.0';
+const VERSION = '0.5.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -1553,13 +1553,15 @@ class WallHeaterCard extends WallBaseCard {
     return form([
       ['entity', 'Διακόπτης θερμοσίφωνα', ent(['switch', 'input_boolean']), true],
       LABEL, TITLE,
-      ['timer_entity', 'Χρονόμετρο (timer helper)', ent('timer')],
+      ['duration_entity', 'Διάρκεια (input_number) — μαζί με τον input_boolean και το αυτοματισμό σου', ent('input_number')],
+      ['finish_entity', 'Ώρα τέλους (input_datetime), για την αντίστροφη μέτρηση', ent('input_datetime')],
+      ['timer_entity', 'ή: Χρονόμετρο (timer helper), αν δεν έχεις τα παραπάνω', ent('timer')],
       ['default_minutes', 'Προεπιλεγμένη διάρκεια (λεπτά)', { number: { min: 1, max: 180, step: 1, mode: 'box' } }],
       ['max_minutes', 'Μέγιστη διάρκεια (λεπτά)', { number: { min: 10, max: 240, step: 5, mode: 'box' } }],
     ]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'switch') }; }
-  watched() { return [this._config.entity, this._config.timer_entity]; }
+  watched() { const c = this._config; return [c.entity, c.timer_entity, c.duration_entity, c.finish_entity]; }
 
   template() {
     return `
@@ -1573,12 +1575,26 @@ class WallHeaterCard extends WallBaseCard {
   }
 
   /* Δευτερόλεπτα που απομένουν στο χρονόμετρο, ή null αν δεν μετράει */
+  hasTimer() { return !!(this._config.timer_entity || this._config.duration_entity); }
+  /* Όταν υπάρχουν duration_entity + finish_entity, τη διάρκεια και το σβήσιμο τα κάνει ο αυτοματισμός του HA (ο input_boolean είναι η «πρόθεση») */
+  helperMode() { return !!this._config.duration_entity; }
+  dur() {
+    const d = this.num(this._config.duration_entity);
+    return this.helperMode() && !isNaN(d) ? Math.round(d) : this._dur;
+  }
   left() {
+    const c = this._config;
+    if (c.finish_entity) {
+      const f = this.st(c.finish_entity);
+      const ts = f?.attributes?.timestamp;
+      if (this.val(c.entity) !== 'on' || ts == null) return null;
+      return Math.max(0, Math.round(ts - Date.now() / 1000));
+    }
     const t = this.st(this._config.timer_entity);
     if (!t || t.state !== 'active' || !t.attributes.finishes_at) return null;
     return Math.max(0, Math.round((new Date(t.attributes.finishes_at) - Date.now()) / 1000));
   }
-  max() { return this._config.max_minutes || 30; }
+  max() { const m = this.st(this._config.duration_entity)?.attributes?.max; return m || this._config.max_minutes || 30; }
 
   bind() {
     this._dur = this._config.default_minutes || 15;
@@ -1587,9 +1603,9 @@ class WallHeaterCard extends WallBaseCard {
       if (!this.available(c.entity)) return;
       const on = this.val(c.entity) === 'on';
       this.call('homeassistant', on ? 'turn_off' : 'turn_on', { entity_id: c.entity });
-      if (c.timer_entity) {
+      if (!this.helperMode() && c.timer_entity) {
         if (on) this.call('timer', 'cancel', { entity_id: c.timer_entity });
-        else this.call('timer', 'start', { entity_id: c.timer_entity, duration: hms(this._dur * 60) });
+        else this.call('timer', 'start', { entity_id: c.timer_entity, duration: hms(this.dur() * 60) });
       }
     });
     /* Περιστροφή του δακτυλίου: ένας πλήρης κύκλος = μέγιστη διάρκεια, κάθε γραμμούλα = 1 λεπτό */
@@ -1599,16 +1615,23 @@ class WallHeaterCard extends WallBaseCard {
       return (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180) / Math.PI;
     };
     const commit = (mins) => {
+      const c = this._config;
+      if (this.helperMode()) {
+        /* Σε λειτουργία: μετακινούμε την ώρα τέλους (το watchdog του HA τη διαβάζει)· σε αναμονή: αλλάζουμε τη διάρκεια */
+        if (this.left() != null && c.finish_entity) this.call('input_datetime', 'set_datetime', { entity_id: c.finish_entity, timestamp: Math.round(Date.now() / 1000 + Math.max(1, mins) * 60) });
+        else this.call('input_number', 'set_value', { entity_id: c.duration_entity, value: Math.max(1, mins) });
+        return;
+      }
       if (this.left() != null) this.call('timer', 'start', { entity_id: this._config.timer_entity, duration: hms(Math.max(1, mins) * 60) });
       else this._dur = Math.max(1, mins);
     };
     ring.addEventListener('pointerdown', (e) => {
-      if (!this._config.timer_entity || !this.available(this._config.entity)) return;
+      if (!this.hasTimer() || !this.available(this._config.entity)) return;
       ring.setPointerCapture(e.pointerId);
       ring.classList.add('live');
       let last = angle(e);
       const left = this.left();
-      this._drag = left != null ? left / 60 : this._dur;
+      this._drag = left != null ? left / 60 : this.dur();
       const move = (ev) => {
         const a = angle(ev);
         let d = a - last;
@@ -1632,10 +1655,10 @@ class WallHeaterCard extends WallBaseCard {
       ring.addEventListener('pointercancel', up, { once: true });
     });
     ring.addEventListener('wheel', (e) => {
-      if (!this._config.timer_entity) return;
+      if (!this.hasTimer()) return;
       e.preventDefault();
       const left = this.left();
-      const cur = left != null ? Math.ceil(left / 60) : this._dur;
+      const cur = left != null ? Math.ceil(left / 60) : this.dur();
       const mins = clamp(cur + (e.deltaY < 0 ? 1 : -1), 1, this.max());
       commit(mins);
       this._hold = { mins, until: Date.now() + 2500 };
@@ -1654,7 +1677,7 @@ class WallHeaterCard extends WallBaseCard {
     card.style.setProperty('--tick', 360 / this.max() + 'deg');
     this.tick(left != null);
     this.label();
-    this.$('.ring').style.cursor = c.timer_entity ? '' : 'default';
+    this.$('.ring').style.cursor = this.hasTimer() ? '' : 'default';
 
     const held = this._hold && Date.now() < this._hold.until ? this._hold.mins : null;
     if (held == null) this._hold = null;
@@ -1664,14 +1687,14 @@ class WallHeaterCard extends WallBaseCard {
       hint = on ? 'απομένουν' : 'διάρκεια';
       fill = on ? 60 : 0;
     } else if (left != null) {
-      const total = (toMinutes({ state: this.st(c.timer_entity).attributes.duration || '' }) || this._dur) * 60;
+      const total = this.helperMode() ? Math.max(left, this.dur() * 60) : (toMinutes({ state: this.st(c.timer_entity)?.attributes?.duration || '' }) || this._dur) * 60;
       mins = Math.ceil(left / 60);
       hint = 'απομένουν';
       fill = clamp((1 - left / total) * 100, 12, 100);
     } else if (on) {
       mins = null; hint = ''; fill = 100;
     } else {
-      mins = c.timer_entity ? this._dur : null; hint = !ok ? 'Μη διαθέσιμος' : c.timer_entity ? 'διάρκεια' : ''; fill = 0;
+      mins = this.hasTimer() ? this.dur() : null; hint = !ok ? 'Μη διαθέσιμος' : this.hasTimer() ? 'διάρκεια' : ''; fill = 0;
     }
     this.$('.big').textContent = mins != null ? `${mins}′` : on ? 'On' : 'Off';
     this.$('.hint').textContent = hint;
