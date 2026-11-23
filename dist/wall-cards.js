@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.5.1';
+const VERSION = '0.5.2';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -2826,7 +2826,8 @@ class WallDehumidifierCard extends WallBaseCard {
   display:flex;align-items:center;justify-content:center;gap:3px;font:600 28px ui-monospace,'Cascadia Mono',Consolas,monospace;
   color:#7fc4ff;text-shadow:0 0 6px rgba(127,196,255,.6)}
 .seg small{font-size:14px;align-self:flex-end;margin-bottom:8px}
-.card:not(.on) .seg{color:#2c3a46;text-shadow:none}
+.card:not(.run) .seg{color:#2c3a46;text-shadow:none}
+.card.on:not(.run) .seg{color:#4f7ea8}
 .setting .seg{color:#ffd27a;text-shadow:0 0 6px rgba(255,210,122,.6);animation:d-bl 1s steps(2) infinite}
 @keyframes d-bl{50%{opacity:.35}}
 .seam{position:absolute;left:0;right:0;top:72%;height:2px;background:linear-gradient(90deg,#c9ced2,#e3e6e9,#c9ced2);box-shadow:0 1px 0 #fff}
@@ -2954,7 +2955,8 @@ class WallDehumidifierCard extends WallBaseCard {
     const ok = this.available(c.entity) || !!this.fallbackSwitch();
     const on = this.isOn();
     const w = this.num(c.power_entity);
-    const run = on && (c.running_entity ? this.val(c.running_entity) === 'on' : isNaN(w) || w > 5);
+    /* Λειτουργεί = πραγματική κατανάλωση (ή η πρίζα)· το «on» του hygrostat σημαίνει μόνο ότι είναι οπλισμένος */
+    const run = on && (!isNaN(w) ? w > 5 : c.running_entity ? this.val(c.running_entity) === 'on' : true);
     const card = this.$('.card');
     card.classList.toggle('unavail', !ok);
     card.classList.toggle('on', on);
