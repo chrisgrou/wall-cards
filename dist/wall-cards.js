@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.5.2';
+const VERSION = '0.5.3';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -1306,12 +1306,6 @@ class WallAcCard extends WallBaseCard {
 .pw{position:absolute;right:10px;top:8px;width:48px;height:48px;border:0;background:none;padding:0;cursor:pointer;z-index:3;
   display:grid;place-items:center;font-size:26px;color:#7a8187;transition:color .3s,text-shadow .3s}
 .on .pw{color:var(--a);text-shadow:0 0 8px color-mix(in srgb,var(--a) 70%,transparent)}
-.air{position:absolute;left:8%;right:8%;top:calc(46% + 8px);height:50px;opacity:0;transition:opacity .5s;
-  -webkit-mask-image:linear-gradient(180deg,#000 20%,transparent);mask-image:linear-gradient(180deg,#000 20%,transparent)}
-.air i{position:absolute;top:0;width:3px;height:100%;border-radius:2px;background:repeating-linear-gradient(180deg,var(--a) 0 8px,transparent 8px 16px);opacity:.8}
-.on .air{opacity:1}
-.on .air i{animation:ac-blow var(--sp,1s) linear infinite}
-@keyframes ac-blow{to{background-position:0 16px}}
 .keys{position:absolute;left:8%;right:8%;bottom:16px;height:56px;border-radius:12px;background:linear-gradient(180deg,#f1f3f5,#e2e6e9);
   box-shadow:inset 0 1px 3px rgba(0,0,0,.18),0 1px 0 #fff;display:flex;align-items:center;justify-content:space-between;padding:0 8px}
 .key{width:44px;height:40px;border:0;padding:0;border-radius:8px;display:grid;place-items:center;font-size:22px;color:#5f676d;cursor:pointer;
@@ -1336,11 +1330,10 @@ class WallAcCard extends WallBaseCard {
 
   template() {
     return `
-<div class="card">
+<div class="card">${fxHTML()}
   <div class="unit"><div class="vent"><i></i><i></i><i></i></div><div class="led"></div><div class="seg"></div><div class="flap"></div></div>
   ${TAG}
   <button class="pw ms" aria-label="On/Off">power_settings_new</button>
-  <div class="air">${[10, 30, 50, 70, 90].map((l, i) => `<i style="left:${l}%;animation-delay:${(i * 0.17).toFixed(2)}s"></i>`).join('')}</div>
   <div class="keys">
     <button class="key dn ms" aria-label="Μείωση">remove</button>
     <button class="key fan" aria-label="Ταχύτητα ανεμιστήρα"></button>
@@ -1417,10 +1410,11 @@ class WallAcCard extends WallBaseCard {
     fan.hidden = !list.length;
     const face = this.fanFace(mode, list);
     if (fan._face !== face) { fan.innerHTML = face; fan._face = face; }
-    /* Πιο γρήγορος αέρας σε μεγαλύτερη ταχύτητα */
-    const m = String(mode || '').toLowerCase();
-    const lvl = /^\d+$/.test(m) ? +m : m === 'silence' ? 0.5 : 3;
-    card.style.setProperty('--sp', (1.6 - lvl * 0.2).toFixed(2) + 's');
+    /* Θερμότητα (ή ψύχος) όπως στην κάρτα θερμοστάτη */
+    const fx = this.$('.fx');
+    fx.classList.toggle('show', on);
+    fx.classList.toggle('cool', !heat);
+    fx.classList.toggle('heat', heat);
   }
 }
 
