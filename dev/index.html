@@ -129,7 +129,11 @@ const hass = {
   },
 };
 const push = () => cards.forEach((c) => (c.hass = hass));
+/* ?only=wall-ac-card,wall-heater-card : μόνο αυτές οι κάρτες, χωρίς φόντο (για τα mockups του dashboard) */
+const only = new URLSearchParams(location.search).get('only')?.split(',');
+if (only) { document.body.style.cssText = 'background:transparent;padding:0;min-height:0'; logEl.style.display = 'none'; document.head.insertAdjacentHTML('beforeend', '<style>body>button{display:none}</style>'); }
 const add = (tag, config, cls) => {
+  if (only && (!only.includes(tag) || cards.some((c) => c.localName === tag))) return;
   const el = document.createElement(tag);
   el.setConfig(config);
   if (cls) el.className = cls;

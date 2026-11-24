@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.5.3';
+const VERSION = '0.6.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -2967,6 +2967,955 @@ class WallDehumidifierCard extends WallBaseCard {
   }
 }
 
+/* ═════════════════════ 2β. Wall v2: ήσυχες κάρτες για τη σελίδα του tablet ═════════════════════
+   Κοινό θέμα (φωτεινό/σκούρο) και στιλ (A απαλό / B γεμάτο χρώμα). Το θέμα το ορίζει η wall-layout για όλες,
+   ή η κάθε κάρτα με theme/style στη δική της ρύθμιση. */
+
+const V2 = { theme: 'auto', style: 'A' };
+
+const V2_CSS = `
+:host{box-shadow:none;border-radius:20px}
+.card.v2{
+  --bg:#eef1f4;--box:#fff;--ink:#1c2228;--mut:#5f6b76;--faint:#9aa4ad;--line:#e6eaee;--chip:#eef1f4;
+  --sh:0 1px 3px rgba(0,0,0,.05),0 6px 16px rgba(40,50,60,.06);--ok:#3f8a5c;--nav:#1f6b4f;--accent:#2f5fa8;
+  min-height:0;height:100%;padding:12px 14px;border-radius:20px;background:var(--box);color:var(--ink);
+  box-shadow:var(--sh);justify-content:flex-start;transition:background .4s,color .4s}
+.card.v2.dark{--bg:#0f1316;--box:#1b2127;--ink:#e9eef2;--mut:#93a0ab;--faint:#5f6b76;--line:#2a323a;--chip:#252d35;--sh:0 1px 2px rgba(0,0,0,.4);--ok:#6cc08e;--accent:#8fb5ef}
+.v2 .lbl{font:800 11px var(--w-font);letter-spacing:.6px;color:var(--faint);text-transform:uppercase}
+.v2 .mut{color:var(--mut)}
+.v2 .ms{font-size:22px}
+.v2 .btn{height:36px;min-width:36px;padding:0 10px;border-radius:11px;border:1.5px solid color-mix(in srgb,var(--ink) 20%,transparent);
+  display:grid;place-items:center;font:700 14px var(--w-font);color:var(--mut);background:var(--box);transition:transform .1s}
+.v2 .btn:active{transform:scale(.94)}
+.v2 .btn.ms{font-family:'Material Symbols Rounded';font-weight:400;font-size:20px;padding:0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+`;
+
+class Wall2Card extends WallBaseCard {
+  static css2 = '';
+  static get css() { return V2_CSS + this.css2; }
+  set hass(hass) {
+    super.hass = hass;
+    if (this._built) this.applyTheme();
+  }
+  get hass() { return this._hass; }
+  applyTheme() {
+    const c = this._config, card = this.$('.card');
+    if (!card) return;
+    const theme = c.theme || V2.theme;
+    const dark = theme === 'dark' || (theme === 'auto' && !!this._hass?.themes?.darkMode);
+    card.classList.add('v2');
+    card.classList.toggle('dark', dark);
+    card.classList.toggle('styleB', (c.style || V2.style) === 'B');
+  }
+  setConfig(config) {
+    if (!config) throw new Error('Λείπει η ρύθμιση');
+    this._config = config;
+    this._built = false;
+    this._sig = null;
+    if (this._hass) this.hass = this._hass;
+  }
+}
+
+/* ── Συσκευή (template 1×1): εικονίδιο, ⏻, όνομα, τιμή, γραμμή, −/+ ή πρόοδος ── */
+const TILE_KINDS = {
+  climate: { icon: 'heat', color: '#e0702a', anim: 'wave' },
+  humidifier: { icon: 'water_drop', color: '#3d7fe0', anim: 'drop' },
+  fan: { icon: 'mode_fan', color: '#2f86d9', anim: 'spin' },
+  vacuum: { icon: 'robot_2', color: '#7a5fd0', anim: 'roam' },
+  light: { icon: 'lightbulb', color: '#e0a020', anim: 'glow' },
+  switch: { icon: 'power', color: '#2f9a76', anim: 'pulse' },
+  input_boolean: { icon: 'toggle_on', color: '#2f9a76', anim: 'pulse' },
+  sensor: { icon: 'sensors', color: '#2f9a76', anim: 'pulse' },
+  binary_sensor: { icon: 'sensors', color: '#2f9a76', anim: 'pulse' },
+  input_select: { icon: 'local_laundry_service', color: '#2f9a76', anim: 'wob' },
+};
+const ANIMS = ['wave', 'drop', 'spin', 'roam', 'glow', 'pulse', 'wob', 'flame'];
+const VAC = { cleaning: 'Καθαρίζει', docked: 'Στη βάση', returning: 'Επιστρέφει', paused: 'Σε παύση', idle: 'Σε αναμονή', error: 'Σφάλμα' };
+const DONE = ['done', 'finished', 'complete', 'completed', 'end', 'τέλος'];
+const OFFS = ['off', 'idle', 'docked', 'standby', 'paused', 'none', 'closed', 'locked'];
+
+class WallTileCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:11px 11px 10px;cursor:pointer;--a:#7a858f}
+.ico{font-size:30px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
+.pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
+.nm{margin-top:auto;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v{font:800 25px var(--w-font);letter-spacing:-.8px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
+.s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft{display:flex;gap:6px;margin-top:6px}.ft .btn{flex:1;font:500 20px var(--w-font);height:32px}
+.pg{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.pg i{display:block;height:100%;width:0;background:var(--a);border-radius:3px;transition:width 1s}
+.on .ico,.on .pw{color:var(--a)}
+.card.v2.on{background:linear-gradient(160deg,var(--box) 35%,color-mix(in srgb,var(--a) 18%,var(--box)))}
+.on .ft .btn{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
+.styleB.on{background:var(--a)!important;color:#fff}
+.styleB.on :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)}
+.styleB.on .ft .btn{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.55);color:#fff}
+.styleB.on .pg{background:rgba(255,255,255,.3)}.styleB.on .pg i{background:#fff}
+.card.v2.att{background:var(--a);color:#fff;animation:attn 1.2s ease-out 1}
+.att :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)!important}
+.styleB.att{box-shadow:0 0 0 3px var(--box),0 0 0 6px var(--a)}
+@keyframes attn{30%{transform:scale(1.04)}}
+.card.v2.unavail{opacity:.5}
+.on.a-flame .ico{animation:flick 1.6s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes flick{25%{transform:scale(1.06,.95)}50%{transform:scale(.96,1.05)}}
+.on.a-spin .ico{animation:spin 2.6s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.on.a-wob .ico{animation:wob .5s ease-in-out infinite}@keyframes wob{25%{transform:translate(-1px,1px)}75%{transform:translate(1px,-1px)}}
+.on.a-drop .ico{animation:drop 1.8s ease-in infinite}@keyframes drop{0%{transform:translateY(-4px);opacity:.3}40%{opacity:1}100%{transform:translateY(4px);opacity:.3}}
+.on.a-wave .ico{animation:wave 2.2s ease-in-out infinite}@keyframes wave{50%{transform:translateY(-3px)}}
+.on.a-roam .ico{animation:roam 4s ease-in-out infinite}@keyframes roam{25%{transform:translateX(-3px) rotate(-8deg)}75%{transform:translateX(3px) rotate(8deg)}}
+.on.a-pulse .ico{animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}
+.on.a-glow .ico{animation:glw 2.4s ease-in-out infinite}@keyframes glw{50%{filter:drop-shadow(0 0 6px var(--a))}}
+`;
+  static getConfigForm() {
+    return form([
+      ['entity', 'Συσκευή', ANY, true],
+      ['name', 'Όνομα', TEXT], ['icon', 'Εικονίδιο (Material Symbols, π.χ. heat)', TEXT],
+      ['color', 'Χρώμα όταν λειτουργεί (π.χ. #e0702a)', TEXT],
+      ['animation', 'Κίνηση εικονιδίου', { select: { mode: 'dropdown', options: ['', ...ANIMS].map((v) => ({ value: v, label: v || 'αυτόματα' })) } }],
+      ['value_entity', 'Τιμή από άλλο entity (προαιρετικό)', ANY],
+      ['secondary_entity', 'Δεύτερη γραμμή από entity (προαιρετικό)', ANY],
+      ['power_entity', 'Κατανάλωση W: «λειτουργεί» πάνω από 5 W (προαιρετικό)', ent('sensor')],
+      ['remaining_entity', 'Χρόνος που απομένει (λεπτά ή timestamp)', ANY],
+      ['total_entity', 'Συνολική διάρκεια σε λεπτά, για την πρόοδο', ANY],
+      ['progress_entity', 'Πρόοδος 0–100 (προαιρετικό)', ANY],
+      ['finish_entity', 'Ώρα τέλους (input_datetime) για χρονοδιακόπτη', ent('input_datetime')],
+      ['duration_entity', 'Διάρκεια (input_number) για χρονοδιακόπτη', ent('input_number')],
+      ['humidity_entity', 'Υγρασία χώρου (για αφυγραντήρα)', ent('sensor')],
+      ['attention_entity', 'Θέλει προσοχή: entity (προαιρετικό)', ANY],
+      ['attention_state', 'Θέλει προσοχή: κατάσταση (π.χ. done)', TEXT],
+      ['attention_text', 'Θέλει προσοχή: κείμενο (π.χ. Τελείωσε)', TEXT],
+      ['power_button', 'Κουμπί ⏻', { select: { mode: 'dropdown', options: [{ value: '', label: 'αυτόματα' }, { value: 'show', label: 'ναι' }, { value: 'hide', label: 'όχι' }] } }],
+    ]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'climate') || firstEntity(hass, 'switch') }; }
+  getGridOptions() { return { columns: 3, rows: 2, min_columns: 3, min_rows: 2 }; }
+  watched() {
+    const c = this._config;
+    return [c.entity, c.value_entity, c.secondary_entity, c.power_entity, c.remaining_entity, c.total_entity, c.progress_entity,
+      c.finish_entity, c.duration_entity, c.humidity_entity, c.attention_entity];
+  }
+  template() {
+    return `<div class="card"><span class="ms fill ico"></span><button class="ms pw" aria-label="On/Off">power_settings_new</button>
+  <div class="nm"></div><div class="v"></div><div class="s" hidden></div>
+  <div class="ft" hidden><button class="btn dn">−</button><button class="btn up">+</button></div><div class="pg" hidden><i></i></div></div>`;
+  }
+  domain() { return (this._config.entity || '').split('.')[0]; }
+  kind() { return TILE_KINDS[this.domain()] || TILE_KINDS.sensor; }
+  bind() {
+    this.tapMore(() => this.open());
+    this.$('.pw').addEventListener('click', () => this.power());
+    this.$('.dn').addEventListener('click', () => this.step(-1));
+    this.$('.up').addEventListener('click', () => this.step(1));
+  }
+  open() {
+    const c = this._config, d = this.domain();
+    if (this.$('.card').classList.contains('att') && c.attention_entity) { this._ack = this.st(c.attention_entity)?.last_changed; this.update(); return; }
+    if (d === 'climate') return climatePopup(this);
+    if (d === 'light') return lightPopup(this);
+    this.moreInfo(c.entity);
+  }
+  power() {
+    const c = this._config, d = this.domain(), id = c.entity;
+    if (!this.available(id)) return;
+    if (d === 'climate') return this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id });
+    if (d === 'vacuum') return this.call('vacuum', this.val(id) === 'cleaning' ? 'return_to_base' : 'start', { entity_id: id });
+    if (d === 'humidifier') return this.call('humidifier', 'toggle', { entity_id: id });
+    this.call('homeassistant', 'toggle', { entity_id: id });
+  }
+  step(dir) {
+    const c = this._config, d = this.domain(), id = c.entity, a = this.st(id)?.attributes || {};
+    if (!this.available(id)) return;
+    if (d === 'climate') {
+      const by = a.target_temp_step || 0.5;
+      const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : a.temperature;
+      if (cur == null) return;
+      const v = clamp(Math.round((cur + dir * by) / by) * by, a.min_temp ?? 7, a.max_temp ?? 35);
+      this._hold = { v, until: Date.now() + 3000 }; this.update();
+      return this.call('climate', 'set_temperature', { entity_id: id, temperature: v });
+    }
+    if (d === 'humidifier') {
+      const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : a.humidity;
+      if (cur == null) return;
+      const v = clamp(Math.round((cur + dir * 5) / 5) * 5, a.min_humidity ?? 30, a.max_humidity ?? 80);
+      this._hold = { v, until: Date.now() + 3000 }; this.update();
+      return this.call('humidifier', 'set_humidity', { entity_id: id, humidity: v });
+    }
+    if (d === 'input_number' || d === 'number') {
+      const v = clamp(+this.val(id) + dir * (a.step || 1), a.min ?? -1e9, a.max ?? 1e9);
+      return this.call(d, 'set_value', { entity_id: id, value: v });
+    }
+  }
+  /* Λεπτά που απομένουν: από ώρα τέλους ή από entity λεπτών/timestamp */
+  minutesLeft() {
+    const c = this._config;
+    if (c.finish_entity && this.val(c.entity) === 'on') {
+      const ts = this.st(c.finish_entity)?.attributes?.timestamp;
+      if (ts != null) return Math.max(0, (ts * 1000 - Date.now()) / 60000);
+    }
+    if (c.remaining_entity && this.available(c.remaining_entity)) {
+      const s = this.st(c.remaining_entity);
+      if (s.attributes.device_class === 'timestamp' || /T\d\d:/.test(s.state)) return Math.max(0, (new Date(s.state) - Date.now()) / 60000);
+      const m = toMinutes(s);
+      if (m != null) return m;
+    }
+    return null;
+  }
+  update() {
+    const c = this._config, d = this.domain(), k = this.kind(), id = c.entity;
+    const s = this.st(id), a = s?.attributes || {}, ok = this.available(id), st = this.val(id);
+    const card = this.$('.card');
+    card.style.setProperty('--a', c.color || (d === 'climate' && ['cool', 'dry'].includes(st) ? '#2f86d9' : k.color));
+    ANIMS.forEach((n) => card.classList.toggle('a-' + n, (c.animation || k.anim) === n));
+    const w = this.num(c.power_entity);
+    let on = ok && !OFFS.includes(st);
+    if (d === 'climate') on = ok && st !== 'off';
+    if (!isNaN(w)) on = on && w > 5;
+    if (d === 'input_select' || d === 'sensor') on = ok && !OFFS.includes(st) && !DONE.includes(st.toLowerCase()) && st !== '0';
+    const attState = c.attention_entity ? this.val(c.attention_entity) : '';
+    let att = !!c.attention_entity && (c.attention_state ? attState === c.attention_state : DONE.includes(attState.toLowerCase()));
+    if (att && this._ack && this._ack === this.st(c.attention_entity)?.last_changed) att = false;
+    card.classList.toggle('on', on && !att);
+    card.classList.toggle('att', att);
+    card.classList.toggle('unavail', !ok);
+    this.$('.ico').textContent = c.icon || (d === 'climate' && ['cool', 'dry'].includes(st) ? 'ac_unit' : k.icon);
+    this.$('.nm').textContent = c.name || a.friendly_name || id;
+    const pwMode = c.power_button || (['climate', 'humidifier', 'fan', 'vacuum', 'switch', 'light', 'input_boolean'].includes(d) ? 'show' : 'hide');
+    this.$('.pw').hidden = pwMode === 'hide';
+
+    const held = this._hold && Date.now() < this._hold.until;
+    if (!held) this._hold = null;
+    let v = '', sub = '', steps = false, prog = null;
+    const left = this.minutesLeft();
+    if (!ok) v = '<small>μη διαθέσιμο</small>';
+    else if (d === 'climate') {
+      const t = held ? this._hold.v : a.temperature;
+      v = t != null ? `${fmt(t, t % 1 ? 1 : 0)}°` : '—';
+      if (!on) v += '<small> σβηστό</small>';
+      sub = a.current_temperature != null && on ? `χώρος ${fmt(a.current_temperature, 1)}°` : '';
+      steps = t != null;
+    } else if (d === 'humidifier') {
+      const cur = this.num(c.humidity_entity);
+      const now = isNaN(cur) ? a.current_humidity : cur;
+      const t = held ? this._hold.v : a.humidity;
+      v = `${now != null ? Math.round(now) + '%' : '—'}<small> → ${t ?? '—'}</small>`;
+      sub = on ? '' : st === 'on' ? 'σε αναμονή' : 'σβηστός';
+      steps = t != null;
+    } else if (d === 'vacuum') {
+      v = VAC[st] || st; sub = a.battery_level != null ? `μπαταρία ${a.battery_level}%` : '';
+    } else if (d === 'input_number' || d === 'number') {
+      v = `${st}<small> ${a.unit_of_measurement || ''}</small>`; steps = true;
+    } else if (left != null && on) {
+      v = left >= 60 ? `${Math.floor(left / 60)}:${pad2(left % 60)}` : `${Math.ceil(left)}′<small> απομένουν</small>`;
+    } else if (c.value_entity) {
+      const vs = this.st(c.value_entity);
+      v = vs ? `${vs.state}<small> ${vs.attributes.unit_of_measurement || ''}</small>` : '—';
+    } else if (['switch', 'light', 'input_boolean', 'fan'].includes(d)) {
+      v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '<small>σβηστό</small>';
+      if (d === 'switch' && c.duration_entity && !on) v = `${Math.round(this.num(c.duration_entity))}′<small> διάρκεια</small>`;
+    } else v = `${st}<small> ${a.unit_of_measurement || ''}</small>`;
+    if (att) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
+    if (c.secondary_entity && !att) { const ss = this.st(c.secondary_entity); if (ss) sub = `${ss.state} ${ss.attributes.unit_of_measurement || ''}`.trim(); }
+
+    /* Πρόοδος */
+    if (c.progress_entity) prog = this.num(c.progress_entity);
+    else if (left != null && on) {
+      const total = c.total_entity ? toMinutes(this.st(c.total_entity)) : c.duration_entity ? this.num(c.duration_entity) : null;
+      if (total) prog = clamp(100 - (left / total) * 100, 0, 100);
+    }
+    this.$('.v').innerHTML = v;
+    this.$('.s').textContent = sub; this.$('.s').hidden = !sub;
+    this.$('.ft').hidden = !steps || prog != null;
+    const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
+    if (!pg.hidden) pg.firstElementChild.style.width = `${prog}%`;
+    this.tick(left != null && on);
+  }
+}
+
+/* ── Ώρα, μήνας και ατζέντα ── */
+const MONTHS = ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
+const DAYS_FULL = ['Κυριακή', 'Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'];
+const CAL_COLORS = ['#2f5fa8', '#b0548a', '#3f9a62', '#c98a1e', '#7a5fd0'];
+
+class WallTodayCard extends Wall2Card {
+  static css2 = `
+.clock{font:700 52px var(--w-font);letter-spacing:-2px;line-height:1}
+.date{font:600 15px var(--w-font);color:var(--mut);margin-top:2px}
+.mon{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;text-align:center;font:600 13px var(--w-font);margin-top:10px}
+.mon .h{color:var(--faint);font-size:11px;font-weight:700}
+.mon .d{position:relative;height:24px;display:grid;place-items:center;color:var(--ink)}
+.mon .d.t{background:var(--ink);color:var(--box);border-radius:8px}
+.mon .d i{position:absolute;bottom:0;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%}
+.ag{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.ev{display:flex;align-items:center;gap:10px;font:600 14px var(--w-font);min-width:0}
+.ev .k{width:4px;height:24px;border-radius:2px;flex:none}
+.ev b{font:700 13px var(--w-font);color:var(--mut);min-width:66px;flex:none}
+.ev span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.none{font:600 13px var(--w-font);color:var(--faint);font-style:italic}
+`;
+  static getConfigForm() {
+    return form([['calendars', 'Ημερολόγια', { entity: { multiple: true, filter: { domain: 'calendar' } } }],
+      ['events', 'Πόσα επόμενα γεγονότα', { number: { min: 0, max: 6, mode: 'box' } }],
+      ['show_month', 'Δείξε τον μήνα', { boolean: {} }]]);
+  }
+  static getStubConfig() { return { calendars: [], show_month: true }; }
+  getGridOptions() { return { columns: 6, rows: 5 }; }
+  watched() { return [...(this._config.calendars || [])]; }
+  template() { return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`; }
+  bind() { this._clock = setInterval(() => this.clock(), 15000); }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._clock = null; }
+  connectedCallback() { super.connectedCallback(); if (this._built && !this._clock) this.bind(); }
+  clock() {
+    const n = new Date();
+    this.$('.clock').textContent = hhmm(n);
+    this.$('.date').textContent = `${DAYS_FULL[n.getDay()]} ${n.getDate()} ${MONTHS[n.getMonth()]}`;
+    if (this._day !== n.getDate()) { this._day = n.getDate(); this._fetched = 0; this.load(); }
+  }
+  async load() {
+    const cals = this._config.calendars || [];
+    if (!cals.length || !this._hass?.callApi || Date.now() - (this._fetched || 0) < 600000) return this.render();
+    this._fetched = Date.now();
+    const n = new Date(), start = new Date(n.getFullYear(), n.getMonth(), 1), end = new Date(n.getFullYear(), n.getMonth() + 2, 1);
+    const all = [];
+    await Promise.all(cals.map(async (id, i) => {
+      try {
+        const evs = await this._hass.callApi('GET', `calendars/${id}?start=${start.toISOString()}&end=${end.toISOString()}`);
+        evs.forEach((e) => all.push({ id, color: CAL_COLORS[i % CAL_COLORS.length], title: e.summary, start: new Date(e.start.dateTime || e.start.date + 'T00:00'), allDay: !e.start.dateTime }));
+      } catch (e) { /* ημερολόγιο που δεν απαντά */ }
+    }));
+    this._events = all.sort((x, y) => x.start - y.start);
+    this.render();
+  }
+  render() {
+    const c = this._config, n = new Date(), evs = this._events || [];
+    const mon = this.$('.mon');
+    mon.hidden = c.show_month === false;
+    if (!mon.hidden) {
+      const first = new Date(n.getFullYear(), n.getMonth(), 1), days = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+      const dots = {};
+      evs.forEach((e) => { if (e.start.getMonth() === n.getMonth()) dots[e.start.getDate()] ??= e.color; });
+      const cells = ['Δ', 'Τ', 'Τ', 'Π', 'Π', 'Σ', 'Κ'].map((d) => `<span class="h">${d}</span>`);
+      for (let i = 0; i < (first.getDay() + 6) % 7; i++) cells.push('<span></span>');
+      for (let d = 1; d <= days; d++) cells.push(`<span class="d${d === n.getDate() ? ' t' : ''}">${d}${dots[d] ? `<i style="background:${dots[d]}"></i>` : ''}</span>`);
+      mon.innerHTML = cells.join('');
+    }
+    const today0 = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    const next = evs.filter((e) => (e.allDay ? e.start >= today0 : e.start >= n)).slice(0, c.events ?? 2);
+    const label = (e) => {
+      const dd = Math.round((new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate()) - today0) / 864e5);
+      const day = dd === 0 ? '' : dd === 1 ? 'Αύριο ' : `${WX_DAYS[e.start.getDay()]} `;
+      return day + (e.allDay ? (dd === 0 ? 'Σήμερα' : '') : hhmm(e.start));
+    };
+    this.$('.ag').innerHTML = next.length
+      ? next.map((e) => `<div class="ev"><span class="k" style="background:${e.color}"></span><b>${label(e).trim()}</b><span>${e.title}</span></div>`).join('')
+      : `<div class="none">${(c.calendars || []).length ? 'Τίποτα για τις επόμενες μέρες' : 'Πρόσθεσε ημερολόγια στη ρύθμιση'}</div>`;
+  }
+  update() { this.clock(); this.load(); }
+}
+
+/* ── Καιρός: ουρανός με κίνηση, τρέχουσες συνθήκες, 3 ημέρες (χαμηλή → υψηλή) ── */
+class WallSkyCard extends Wall2Card {
+  static css2 = `
+.card.v2{color:#fff;background:linear-gradient(180deg,var(--s1,#5c7fa6),var(--s2,#9db6cf));padding:14px 16px;cursor:pointer}
+.sky{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.cl{position:absolute;width:120px;height:40px;border-radius:40px;background:rgba(255,255,255,.7);animation:drift 40s linear infinite}
+.cl::before,.cl::after{content:'';position:absolute;background:inherit;border-radius:50%}
+.cl::before{width:56px;height:56px;left:18px;top:-26px}.cl::after{width:42px;height:42px;left:60px;top:-18px}
+@keyframes drift{from{transform:translateX(-170px)}to{transform:translateX(420px)}}
+.dull .cl{background:rgba(220,226,232,.7)}
+.sun{position:absolute;right:24px;top:14px;width:52px;height:52px;border-radius:50%;background:#ffd35c;box-shadow:0 0 40px 10px rgba(255,210,90,.55);animation:sunp 6s ease-in-out infinite}
+@keyframes sunp{50%{box-shadow:0 0 52px 14px rgba(255,210,90,.7)}}
+.moon{position:absolute;right:26px;top:16px;width:44px;height:44px;border-radius:50%;box-shadow:-10px 4px 0 0 #f4efd8;transform:rotate(-20deg)}
+.star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:tw 3s ease-in-out infinite}
+@keyframes tw{50%{opacity:.2}}
+.drop{position:absolute;top:-12px;width:1.5px;height:12px;background:rgba(255,255,255,.6);animation:rain .9s linear infinite}
+@keyframes rain{to{transform:translateY(240px)}}
+.flake{position:absolute;top:-8px;width:5px;height:5px;border-radius:50%;background:#fff;animation:snow 5s linear infinite}
+@keyframes snow{to{transform:translate(18px,240px)}}
+.sky>*{display:none}.sun-on .sun,.moon-on .moon,.night-on .star,.cloud-on .cl,.rain-on .drop,.snow-on .flake{display:block}
+.z{position:relative}
+.now{display:flex;align-items:flex-start;gap:12px}
+.t{font:500 56px var(--w-font);letter-spacing:-3px;line-height:.95;text-shadow:0 1px 6px rgba(0,0,0,.2)}
+.d{font:700 14px var(--w-font);line-height:1.35;padding-top:6px;text-shadow:0 1px 4px rgba(0,0,0,.25)}
+.d small{display:block;font:600 12px var(--w-font);opacity:.9}
+.fc{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.fc>div{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:12px;background:rgba(255,255,255,.18);backdrop-filter:blur(4px);font:700 12px var(--w-font);line-height:1.25}
+.fc .ms{font-size:22px}.fc b{font:800 13px var(--w-font)}.fc small{opacity:.85;font-weight:600}
+`;
+  static getConfigForm() { return form([['entity', 'Καιρός', ent('weather'), true], ['days', 'Ημέρες πρόγνωσης', { number: { min: 0, max: 5, mode: 'box' } }]]); }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'weather') }; }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  watched() { return [this._config.entity, 'sun.sun']; }
+  template() {
+    const stars = Array.from({ length: 22 }, (_, i) => `<i class="star" style="left:${(i * 37) % 100}%;top:${(i * 23) % 45}%;animation-delay:${(i % 5) * 0.6}s"></i>`).join('');
+    const drops = Array.from({ length: 24 }, (_, i) => `<i class="drop" style="left:${(i * 41) % 100}%;animation-delay:${(i % 9) * 0.1}s"></i>`).join('');
+    const flakes = Array.from({ length: 14 }, (_, i) => `<i class="flake" style="left:${(i * 29) % 100}%;animation-delay:${(i % 7) * 0.7}s"></i>`).join('');
+    return `<div class="card"><div class="sky"><div class="sun"></div><div class="moon"></div>${stars}
+  <div class="cl" style="top:30px"></div><div class="cl" style="top:70px;animation-delay:-20s;opacity:.6"></div>${drops}${flakes}</div>
+  <div class="z now"><div class="t"></div><div class="d"><span class="cond"></span><small class="lh"></small></div></div><div class="z fc"></div></div>`;
+  }
+  bind() { this.tapMore(); }
+  connectedCallback() { super.connectedCallback(); if (this._hass && this._config) this.subscribe(); }
+  disconnectedCallback() { super.disconnectedCallback(); (this._unsub || []).forEach((p) => p.then((u) => u && u()).catch(() => {})); this._unsub = null; }
+  subscribe() {
+    const conn = this._hass?.connection;
+    if (this._unsub || !conn?.subscribeMessage) return;
+    const sub = (type, key) => conn.subscribeMessage((ev) => { this[key] = ev.forecast || []; this.update(); },
+      { type: 'weather/subscribe_forecast', forecast_type: type, entity_id: this._config.entity });
+    this._unsub = [sub('daily', '_daily'), sub('hourly', '_hourly')].map((p) => p.catch(() => null));
+  }
+  update() {
+    this.subscribe();
+    const s = this.st(this._config.entity), a = s?.attributes || {}, ok = this.available(this._config.entity);
+    const night = this.val('sun.sun') === 'below_horizon', cond = ok ? s.state : 'cloudy';
+    const fx = (WX[cond] || WX.cloudy)[2].split(' '), dull = fx.includes('dull'), card = this.$('.card');
+    const sky = night ? ['#1d2a44', '#3d5274'] : dull ? ['#7d8a99', '#b3bdc8'] : ['#4f86c6', '#a8cbea'];
+    card.style.setProperty('--s1', sky[0]); card.style.setProperty('--s2', sky[1]);
+    const sk = this.$('.sky');
+    sk.className = 'sky' + (dull ? ' dull' : '');
+    [['sun', fx.includes('sun') && !night], ['moon', night && !dull], ['night', night && !dull], ['cloud', fx.includes('cloud') || dull],
+      ['rain', fx.includes('rain')], ['snow', fx.includes('snow')]].forEach(([k, v]) => sk.classList.toggle(k + '-on', v));
+    this.$('.t').textContent = a.temperature != null ? `${Math.round(a.temperature)}°` : '—';
+    const days = this._daily || [], today = days[0];
+    const tip = weatherInsight(this._hourly, a.temperature);
+    this.$('.cond').textContent = (WX[cond] || [cond])[0];
+    this.$('.lh').textContent = [today?.templow != null ? `Ε ${Math.round(today.templow)}°` : '', today ? `Μ ${Math.round(today.temperature)}°` : '', tip?.[1] || ''].filter(Boolean).join(' · ');
+    this.$('.fc').innerHTML = days.slice(1, (this._config.days ?? 3) + 1).map((f) =>
+      `<div><span class="ms fill">${(WX[f.condition] || WX.cloudy)[1]}</span><span>${WX_DAYS[new Date(f.datetime).getDay()]}<br>${f.templow != null ? `<small>${Math.round(f.templow)}°</small> ` : ''}<b>${Math.round(f.temperature)}°</b></span></div>`).join('');
+  }
+}
+
+/* ── Συνθήκες σπιτιού: θερμοκρασία, υγρασία, CO₂/VOC, τάση, 24ωρο ── */
+const CO2_LEVELS = [[800, '#3f9a62'], [1200, '#d9a21f'], [Infinity, '#d9573b']];
+class WallHomeCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:14px 16px 0;cursor:pointer}
+.top{display:flex;justify-content:space-between;align-items:flex-start}
+.t{font:500 52px var(--w-font);letter-spacing:-3px;line-height:.95}
+.h{text-align:right}.h b{font:600 26px var(--w-font);letter-spacing:-1px;color:#3d8fe6}
+.tr{display:inline-flex;align-items:center;gap:2px;margin-top:4px;padding:2px 7px 2px 4px;border-radius:9px;font:800 11px var(--w-font);white-space:nowrap}
+.tr .ms{font-size:15px}.tr.dn{background:color-mix(in srgb,#3d8fe6 16%,var(--box));color:#2f6fb5}.tr.up{background:color-mix(in srgb,#e0702a 16%,var(--box));color:#c0602a}
+.aq{display:flex;gap:8px;margin-top:8px}
+.aq>div{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 6px;border-radius:11px;background:var(--chip);font:700 12px var(--w-font);color:var(--mut)}
+.aq i{width:8px;height:8px;border-radius:50%}.aq b{color:var(--ink);font-weight:800}
+svg{flex:1;width:calc(100% + 32px);margin:4px -16px 0;min-height:24px;display:block}
+.tl{fill:none;stroke:#e0702a;stroke-width:2.5}.ta{fill:url(#gt)}.hl{fill:none;stroke:#3d8fe6;stroke-width:2;stroke-dasharray:4 4;opacity:.8}
+`;
+  static getConfigForm() {
+    return form([['entity', 'Θερμοκρασία σπιτιού', ent('sensor', 'temperature'), true], ['humidity_entity', 'Υγρασία', ent('sensor', 'humidity')],
+      ['co2_entity', 'CO₂ (προαιρετικό)', ent('sensor')], ['voc_entity', 'VOC (προαιρετικό)', ent('sensor')],
+      ['temperature_trend_entity', 'Τάση θερμοκρασίας (Derivative, °C/h)', ent('sensor')], ['humidity_trend_entity', 'Τάση υγρασίας (Derivative, %/h)', ent('sensor')]]);
+  }
+  static getStubConfig() { return { entity: '' }; }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  watched() { const c = this._config; return [c.entity, c.humidity_entity, c.co2_entity, c.voc_entity, c.temperature_trend_entity, c.humidity_trend_entity]; }
+  template() {
+    return `<div class="card"><div class="top"><div><div class="t"></div><span class="tr dn tt" hidden></span></div><div class="h"><b></b><br><span class="tr up th" hidden></span></div></div>
+  <div class="aq" hidden></div>
+  <svg viewBox="0 0 300 42" preserveAspectRatio="none"><defs><linearGradient id="gt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0702a" stop-opacity=".22"/><stop offset="1" stop-color="#e0702a" stop-opacity="0"/></linearGradient></defs>
+  <path class="ta"/><path class="tl"/><path class="hl"/></svg></div>`;
+  }
+  bind() { this.tapMore(); }
+  trend(elm, id, unit, lim) {
+    const v = this.num(id);
+    elm.hidden = isNaN(v) || Math.abs(v) < lim;
+    if (elm.hidden) return;
+    elm.classList.toggle('dn', v < 0); elm.classList.toggle('up', v >= 0);
+    elm.innerHTML = `<span class="ms">${v < 0 ? 'south_east' : 'north_east'}</span>${v > 0 ? '+' : '−'}${fmt(Math.abs(v), unit === '°' ? 1 : 0)}${unit}/ώρα`;
+  }
+  async update() {
+    const c = this._config;
+    const t = this.num(c.entity), h = this.num(c.humidity_entity);
+    this.$('.t').textContent = isNaN(t) ? '—' : `${fmt(t, 1)}°`;
+    this.$('.h b').textContent = isNaN(h) ? '' : `${Math.round(h)}%`;
+    this.trend(this.$('.tt'), c.temperature_trend_entity, '°', 0.5);
+    this.trend(this.$('.th'), c.humidity_trend_entity, '%', 4);
+    const co2 = this.num(c.co2_entity), voc = this.st(c.voc_entity);
+    const aq = this.$('.aq');
+    const parts = [];
+    if (!isNaN(co2)) parts.push(`<div><i style="background:${CO2_LEVELS.find(([m]) => co2 < m)[1]}"></i>CO₂ <b>${Math.round(co2)}</b></div>`);
+    if (voc && this.available(c.voc_entity)) parts.push(`<div><i style="background:#3f9a62"></i>VOC <b>${voc.state}</b></div>`);
+    aq.hidden = !parts.length; aq.innerHTML = parts.join('');
+    const data = await fetchHistory(this._hass, [c.entity, c.humidity_entity]);
+    const tp = data[c.entity] || [], hp = data[c.humidity_entity] || [];
+    const range = (p) => { const v = p.map((x) => x[1]); return [Math.min(...v), Math.max(...v)]; };
+    if (tp.length > 1) { const [lo, hi] = range(tp); const p = smoothPath(tp, 300, 42, lo, hi); this.$('.tl').setAttribute('d', p.line); this.$('.ta').setAttribute('d', p.area); }
+    if (hp.length > 1) { const [lo, hi] = range(hp); this.$('.hl').setAttribute('d', smoothPath(hp, 300, 42, lo, hi).line); }
+  }
+}
+
+/* ── Άτομο (2×½): αχνός χάρτης, κατάσταση· «Έρχεται» = πράσινη πλοήγηση με πρόοδο ── */
+const tileUrl = (lat, lon, z, dark) => {
+  const n = 2 ** z, x = Math.floor(((lon + 180) / 360) * n);
+  const y = Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n);
+  return `https://basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/${z}/${x}/${y}@2x.png`;
+};
+const ZONE_GR = { home: 'Σπίτι', not_home: 'Εκτός' };
+class WallPersonTile extends Wall2Card {
+  static css2 = `
+.card.v2{flex-direction:row;align-items:center;gap:12px;padding:0 14px;cursor:pointer}
+.map{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.5}
+.fade{position:absolute;inset:0;background:linear-gradient(90deg,var(--box) 40%,transparent 90%)}
+.z{position:relative}
+.av{width:42px;height:42px;border-radius:50%;color:#fff;display:grid;place-items:center;font:700 16px var(--w-font);flex:none;background-size:cover;background-position:center}
+.pn{font:700 14px var(--w-font)}.pst{font:800 20px var(--w-font);white-space:nowrap}.pst small{font:600 12px var(--w-font);color:var(--mut);margin-left:6px}
+.home .pst{color:var(--ok)}
+.coming{background:var(--nav)!important;color:#fff}.coming .fade{background:linear-gradient(90deg,var(--nav) 45%,transparent 92%)}.coming .map{opacity:.3}
+.eta{position:absolute;right:14px;top:50%;transform:translateY(-60%);text-align:right;font:800 26px var(--w-font);line-height:1}.eta small{display:block;font:600 12px var(--w-font);opacity:.85;white-space:nowrap}
+.sim{position:absolute;left:14px;right:14px;bottom:9px;height:5px;border-radius:3px;background:rgba(255,255,255,.3)}.sim i{display:block;height:100%;background:#fff;border-radius:3px;transition:width 2s}
+.delay{display:inline-flex;align-items:center;gap:3px;margin-left:8px;padding:1px 7px;border-radius:9px;background:#ffc15e;color:#4a3000;font:800 11px var(--w-font);vertical-align:middle}.delay .ms{font-size:14px}
+`;
+  static getConfigForm() {
+    return form([['entity', 'Άτομο', ent('person'), true], ['name', 'Όνομα', TEXT], ['color', 'Χρώμα (π.χ. #2f5fa8)', TEXT],
+      ['driving_entity', 'Οδηγεί (binary_sensor)', ent('binary_sensor')], ['direction_entity', 'Κατεύθυνση (proximity: towards)', ent('sensor')],
+      ['distance_entity', 'Απόσταση από το σπίτι (km)', ent('sensor')], ['eta_entity', 'Χρόνος για το σπίτι (λεπτά)', ent('sensor')],
+      ['usual_minutes', 'Συνηθισμένος χρόνος (λεπτά) για ένδειξη καθυστέρησης', { number: { min: 0, max: 600, mode: 'box' } }]]);
+  }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'person') }; }
+  getGridOptions() { return { columns: 6, rows: 1 }; }
+  watched() { const c = this._config; return [c.entity, c.driving_entity, c.direction_entity, c.distance_entity, c.eta_entity]; }
+  template() {
+    return `<div class="card"><div class="map"></div><div class="fade"></div><div class="z av"></div>
+  <div class="z"><div class="pn"></div><div class="pst"></div></div><div class="eta" hidden></div><div class="sim" hidden><i></i></div></div>`;
+  }
+  bind() { this.tapMore(); }
+  update() {
+    const c = this._config, s = this.st(c.entity), a = s?.attributes || {}, card = this.$('.card');
+    const name = c.name || a.friendly_name || '';
+    const av = this.$('.av');
+    av.style.background = a.entity_picture ? cssUrl(a.entity_picture) + ' center/cover' : (c.color || '#2f5fa8');
+    av.textContent = a.entity_picture ? '' : name.slice(0, 1);
+    this.$('.pn').textContent = name;
+    const st = s?.state, home = st === 'home';
+    const driving = this.val(c.driving_entity) === 'on';
+    const towards = !c.direction_entity || this.val(c.direction_entity) === 'towards';
+    const km = this.num(c.distance_entity), eta = this.num(c.eta_entity);
+    const coming = !home && driving && towards;
+    card.classList.toggle('home', home); card.classList.toggle('coming', coming);
+    if (a.latitude != null) {
+      const key = `${a.latitude.toFixed(3)},${a.longitude.toFixed(3)},${card.classList.contains('dark')}`;
+      if (key !== this._mapKey) { this._mapKey = key; this.$('.map').style.backgroundImage = cssUrl(tileUrl(a.latitude, a.longitude, 15, card.classList.contains('dark'))); }
+    }
+    const pst = this.$('.pst'), etaEl = this.$('.eta'), sim = this.$('.sim');
+    etaEl.hidden = sim.hidden = !coming;
+    if (coming) {
+      const late = c.usual_minutes && !isNaN(eta) && eta > c.usual_minutes + 4 ? Math.round(eta - c.usual_minutes) : 0;
+      pst.innerHTML = `Έρχεται${late ? `<span class="delay"><span class="ms fill">traffic</span>+${late}′</span>` : ''}`;
+      const arr = !isNaN(eta) ? new Date(Date.now() + eta * 60000) : null;
+      etaEl.innerHTML = `${arr ? hhmm(arr) : ''}<small>${[!isNaN(eta) ? `σε ${Math.round(eta)}′` : '', !isNaN(km) ? `${fmt(km, km < 10 ? 1 : 0)} km` : ''].filter(Boolean).join(' · ')}</small>`;
+      if (!isNaN(km)) { this._d0 = Math.max(this._d0 || 0, km); sim.firstElementChild.style.width = `${clamp(100 - (km / this._d0) * 100, 3, 100)}%`; }
+    } else {
+      this._d0 = 0;
+      const zone = ZONE_GR[st] || this.st(`zone.${st}`)?.attributes?.friendly_name || st || '—';
+      const since2 = s?.last_changed ? `από ${hhmm(new Date(s.last_changed))}` : '';
+      pst.innerHTML = `${zone}<small>${[home ? '' : !isNaN(km) ? `${fmt(km, 0)} km` : '', since2].filter(Boolean).join(' · ')}</small>`;
+    }
+  }
+}
+
+/* ── Αυτοκίνητο (2×½): μπαταρία/αυτονομία ή καύσιμο, και η φθηνότερη τιμή καυσίμου ── */
+class WallCarTile extends Wall2Card {
+  static css2 = `
+.card.v2{flex-direction:row;align-items:center;gap:10px;padding:0 12px;cursor:pointer}
+.ci{font-size:28px!important;color:var(--c,#7a858f)}.cx{flex:1;min-width:0}
+.n{font:700 13px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.n small{font-weight:600;color:var(--mut)}
+.bat{height:5px;border-radius:3px;background:var(--line);margin-top:5px;overflow:hidden}.bat i{display:block;height:100%;background:#3f9a62;border-radius:3px}
+.cv{font:800 18px var(--w-font);text-align:right;line-height:1.05;white-space:nowrap}.cv small{display:block;font:600 11px var(--w-font);color:var(--mut)}
+.fuel{display:flex;align-items:center;gap:4px;font:600 12px var(--w-font);color:var(--mut);margin-top:3px;white-space:nowrap;overflow:hidden}.fuel .ms{font-size:16px}.fuel b{color:var(--ink);font-weight:800}
+.chg{color:#3f9a62}
+`;
+  static getConfigForm() {
+    return form([['entity', 'Μπαταρία ή καύσιμο (%) ή location', ANY, true], ['name', 'Όνομα', TEXT], ['color', 'Χρώμα εικονιδίου', TEXT],
+      ['electric', 'Ηλεκτρικό', { boolean: {} }], ['range_entity', 'Αυτονομία (km)', ent('sensor')], ['status_entity', 'Κατάσταση/θέση', ANY],
+      ['charging_entity', 'Φορτίζει (binary_sensor)', ent('binary_sensor')], ['climate_entity', 'Κλιματισμός (προθέρμανση)', ent('climate')],
+      ['price_entity', 'Φθηνότερη τιμή καυσίμου (sensor)', ent('sensor')], ['price_label', 'Ετικέτα τιμής (π.χ. πετρέλαιο)', TEXT]]);
+  }
+  static getStubConfig() { return { entity: '' }; }
+  getGridOptions() { return { columns: 6, rows: 1 }; }
+  watched() { const c = this._config; return [c.entity, c.range_entity, c.status_entity, c.charging_entity, c.climate_entity, c.price_entity]; }
+  template() {
+    return `<div class="card"><span class="ms fill ci"></span><div class="cx"><div class="n"></div><div class="bat" hidden><i></i></div><div class="fuel" hidden></div></div>
+  <div class="cv"></div><button class="btn ms pre" hidden>mode_heat</button></div>`;
+  }
+  bind() {
+    this.tapMore();
+    this.$('.pre').addEventListener('click', () => { const id = this._config.climate_entity; this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id }); });
+  }
+  update() {
+    const c = this._config, s = this.st(c.entity);
+    this.$('.card').style.setProperty('--c', c.color || (c.electric ? '#c0392b' : '#5f6b76'));
+    this.$('.ci').textContent = c.electric ? 'electric_car' : 'directions_car';
+    const status = this.st(c.status_entity);
+    const where = status ? (ZONE_GR[status.state] || this.st(`zone.${status.state}`)?.attributes?.friendly_name || status.state) : '';
+    this.$('.n').innerHTML = `${c.name || this.friendly(c.entity)}${where ? ` <small>· ${where}</small>` : ''}`;
+    const pct = s?.attributes?.unit_of_measurement === '%' ? this.num(c.entity) : NaN;
+    const bat = this.$('.bat'); bat.hidden = isNaN(pct);
+    if (!bat.hidden) bat.firstElementChild.style.width = `${pct}%`;
+    const rng = this.num(c.range_entity);
+    this.$('.cv').innerHTML = isNaN(pct) ? '' : `${Math.round(pct)}%${!isNaN(rng) ? `<small>${Math.round(rng)} km</small>` : ''}`;
+    const price = this.st(c.price_entity), fuel = this.$('.fuel');
+    fuel.hidden = !price || !this.available(c.price_entity);
+    if (!fuel.hidden) fuel.innerHTML = `<span class="ms">local_gas_station</span>${c.price_label || 'Φθηνότερο'} <b>${fmt(+price.state, 3)} ${price.attributes.unit_of_measurement || '€'}</b>${price.attributes.station || price.attributes.name ? ` · ${price.attributes.station || price.attributes.name}` : ''}`;
+    const pre = this.$('.pre'); pre.hidden = !c.climate_entity;
+    if (!pre.hidden) pre.classList.toggle('chg', this.val(c.climate_entity) !== 'off');
+    this.$('.ci').classList.toggle('chg', this.val(c.charging_entity) === 'on');
+  }
+}
+
+/* ── Κάτοψη: εικόνα (ή placeholder), λάμπες, χώροι, και στις γωνίες κλειδαριές, κατανάλωση, κάμερες ── */
+class WallPlanCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:0;background:linear-gradient(180deg,color-mix(in srgb,var(--box) 70%,var(--bg)),var(--bg))}
+.img{position:absolute;inset:0;background-size:contain;background-repeat:no-repeat;background-position:center}
+svg.ph{position:absolute;inset:0;width:100%;height:100%}
+.fl{fill:#fbfcfd;stroke:#c9d1d8}.wl{fill:#e3e8ed;stroke:#c9d1d8}.in{stroke:#c9d1d8;fill:none}
+.dark .fl{fill:#222a31;stroke:#36404a}.dark .wl{fill:#1a2026;stroke:#36404a}.dark .in{stroke:#36404a}
+.rm{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;font:700 13px var(--w-font);background:color-mix(in srgb,var(--box) 92%,transparent);padding:5px 10px;border-radius:11px;box-shadow:var(--sh);cursor:pointer;white-space:nowrap}
+.rm .t{font:600 12px var(--w-font);color:var(--mut);display:flex;gap:6px}.cold{color:#3d8fe6!important}.warm{color:#e0702a!important}
+.bulb{position:absolute;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--box);color:var(--faint);box-shadow:var(--sh);transition:all .4s}
+.bulb .ms{font-size:21px}
+.bulb.on{background:#ffd76a;color:#6b4a00;box-shadow:0 0 0 7px rgba(255,215,106,.3),0 0 30px rgba(255,200,80,.75)}
+.glow{position:absolute;transform:translate(-50%,-50%);width:220px;height:150px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,215,106,.5),transparent);pointer-events:none;opacity:0;transition:opacity .6s}
+.glow.on{opacity:1}
+.corner{position:absolute;display:flex;gap:8px}.tl{left:12px;top:12px}.tr{right:12px;top:12px}.bl{left:12px;bottom:12px}.br{right:12px;bottom:12px}
+.chip{display:flex;align-items:center;gap:6px;height:38px;padding:0 12px 0 9px;border-radius:12px;background:color-mix(in srgb,var(--box) 94%,transparent);box-shadow:var(--sh);font:700 13px var(--w-font);color:var(--ink)}
+.chip .ms{font-size:19px;color:var(--faint)}.chip b{font-weight:800}.chip small{font:600 11px var(--w-font);color:var(--mut)}
+.chip.ok .ms{color:var(--ok)}.chip.bad{background:#d9573b;color:#fff}.chip.bad .ms{color:#fff}
+.cam{position:relative;width:120px;height:72px;border-radius:12px;background:#2b333a center/cover;box-shadow:var(--sh);overflow:hidden}
+.cam span{position:absolute;left:8px;bottom:6px;font:700 11px var(--w-font);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+`;
+  static getConfigForm() {
+    return form([['image', 'Εικόνα κάτοψης (URL, προαιρετικό)', TEXT],
+      ['locks', 'Κλειδαριές (πάνω αριστερά)', { entity: { multiple: true, filter: [{ domain: 'lock' }, { domain: 'binary_sensor' }] } }],
+      ['energy', 'Κατανάλωση (πάνω δεξιά)', { entity: { multiple: true, filter: { domain: 'sensor' } } }],
+      ['cameras', 'Κάμερες (κάτω αριστερά)', { entity: { multiple: true, filter: { domain: 'camera' } } }]]);
+  }
+  static getStubConfig() { return { rooms: [], lights: [] }; }
+  getGridOptions() { return { columns: 12, rows: 6 }; }
+  watched() {
+    const c = this._config;
+    return [...(c.lights || []).map((l) => l.entity), ...(c.rooms || []).flatMap((r) => [r.temperature, r.humidity]),
+      ...(c.locks || []), ...(c.energy || []).map((e) => e.entity || e), ...(c.cameras || [])];
+  }
+  template() {
+    const c = this._config;
+    const ph = c.image ? `<div class="img" style="background-image:${cssUrl(c.image)}"></div>` : `<svg class="ph" viewBox="0 0 900 560" preserveAspectRatio="xMidYMid meet">
+   <path class="fl" stroke-width="2" d="M150 280 L450 130 L750 280 L450 430 Z"/><path class="wl" stroke-width="2" d="M150 280 L150 315 L450 465 L750 315 L750 280 L450 430 Z"/>
+   <path class="in" stroke-width="2" d="M300 205 L600 355 M375 168 L225 243 M525 393 L675 318 M450 430 L450 465"/></svg>`;
+    const rooms = (c.rooms || []).map((r, i) => `<div class="rm" data-i="${i}" style="left:${r.x}%;top:${r.y}%">${r.name}<span class="t"></span></div>`).join('');
+    const lights = (c.lights || []).map((l, i) => `<div class="glow" data-g="${i}" style="left:${l.x}%;top:${l.y}%"></div><button class="bulb" data-l="${i}" style="left:${l.x}%;top:${l.y}%"><span class="ms fill">lightbulb</span></button>`).join('');
+    return `<div class="card">${ph}${lights}${rooms}<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div></div>`;
+  }
+  bind() {
+    const c = this._config;
+    this.shadowRoot.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-l]'); if (b) return this.call('homeassistant', 'toggle', { entity_id: c.lights[b.dataset.l].entity });
+      const r = e.target.closest('[data-i]'); if (r) return this.moreInfo(c.rooms[r.dataset.i].temperature);
+      const m = e.target.closest('[data-id]'); if (m) {
+        const id = m.dataset.id;
+        if (id.startsWith('lock.')) return this.call('lock', this.val(id) === 'locked' ? 'unlock' : 'lock', { entity_id: id });
+        return this.moreInfo(id);
+      }
+    });
+    let t;
+    this.shadowRoot.addEventListener('pointerdown', (e) => { const b = e.target.closest('[data-l]'); if (b) t = setTimeout(() => this.moreInfo(c.lights[b.dataset.l].entity), 550); });
+    this.shadowRoot.addEventListener('pointerup', () => clearTimeout(t));
+  }
+  update() {
+    const c = this._config;
+    (c.lights || []).forEach((l, i) => {
+      const on = this.val(l.entity) === 'on';
+      this.$(`[data-l="${i}"]`).classList.toggle('on', on);
+      this.$(`[data-g="${i}"]`).classList.toggle('on', on);
+    });
+    (c.rooms || []).forEach((r, i) => {
+      const t = this.num(r.temperature), h = this.num(r.humidity);
+      this.$(`[data-i="${i}"] .t`).innerHTML = [!isNaN(t) ? `<i class="${t < (r.cold ?? 19.5) ? 'cold' : t > (r.warm ?? 24) ? 'warm' : ''}">${fmt(t, 1)}°</i>` : '',
+        !isNaN(h) ? `<i class="${h > (r.humid ?? 60) ? 'warm' : ''}">${Math.round(h)}%</i>` : ''].join('');
+    });
+    this.$('.tl').innerHTML = (c.locks || []).map((id) => {
+      const st = this.val(id), locked = st === 'locked' || st === 'off';
+      return `<button class="chip ${locked ? 'ok' : st === 'unlocked' || st === 'on' || st === 'open' ? 'bad' : ''}" data-id="${id}"><span class="ms fill">${id.startsWith('lock.') ? (locked ? 'lock' : 'lock_open') : 'door_front'}</span>${this.friendly(id)}</button>`;
+    }).join('');
+    this.$('.tr').innerHTML = (c.energy || []).map((e) => {
+      const id = e.entity || e, s = this.st(id); if (!s) return '';
+      const ic = e.icon || (s.attributes.device_class === 'water' ? 'water_drop' : s.attributes.device_class === 'gas' ? 'local_fire_department' : 'bolt');
+      const col = e.color || { bolt: '#e0a020', water_drop: '#3d8fe6', local_fire_department: '#e46a2c' }[ic] || '#7a858f';
+      return `<button class="chip" data-id="${id}"><span class="ms fill" style="color:${col}">${ic}</span><b>${fmt(+s.state, +s.state < 10 ? 1 : 0)} ${s.attributes.unit_of_measurement || ''}</b>${e.name ? `<small>${e.name}</small>` : ''}</button>`;
+    }).join('');
+    const bl = this.$('.bl');
+    if (!this._camT || Date.now() - this._camT > 10000) {
+      this._camT = Date.now();
+      bl.innerHTML = (c.cameras || []).map((id) => {
+        const s = this.st(id), tok = s?.attributes?.access_token;
+        return `<button class="cam" data-id="${id}" style="background-image:${tok ? cssUrl(`/api/camera_proxy/${id}?token=${tok}&t=${this._camT}`) : 'none'}"><span>${this.friendly(id)}</span></button>`;
+      }).join('');
+    }
+  }
+}
+
+/* ── Ειδοποιήσεις: ως 4 θέσεις, η πιο επείγουσα έντονη ── */
+class WallNoticeCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:12px}
+.hd{display:flex;align-items:center;gap:8px;font:800 14px var(--w-font);margin-bottom:2px}.hd .ms{font-size:20px;color:var(--faint)}
+.hd small{font:800 11px var(--w-font);color:var(--mut);background:var(--chip);border-radius:8px;padding:1px 7px}
+.n{display:flex;align-items:center;gap:10px;height:44px;padding:0 6px 0 10px;border-radius:13px;background:color-mix(in srgb,var(--n) 10%,var(--box));margin-top:6px;cursor:pointer}
+.n .ms{font-size:21px;color:var(--n)}.n .tx{flex:1;min-width:0;font:700 13px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.n .tx small{display:block;font:600 11px var(--w-font);color:var(--mut)}
+.n.hot{background:var(--n);color:#fff}.n.hot .ms,.n.hot small{color:rgba(255,255,255,.9)}
+.n.empty{background:none;border:1.5px dashed var(--line);color:var(--faint);justify-content:center;font:700 12px var(--w-font);cursor:default}
+`;
+  static getConfigForm() { return form([['slots', 'Θέσεις', { number: { min: 1, max: 6, mode: 'box' } }], ['title', 'Τίτλος', TEXT]]); }
+  static getStubConfig() { return { slots: 4, items: [] }; }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  watched() { return [...(this._config.items || []).map((i) => i.entity), ...Object.keys(this._hass?.states || {}).filter((k) => k.startsWith('persistent_notification.'))]; }
+  template() { return `<div class="card"><div class="hd"><span class="ms">notifications</span><span class="ttl"></span><small></small></div><div class="list"></div></div>`; }
+  bind() {
+    this.$('.list').addEventListener('click', (e) => {
+      const n = e.target.closest('[data-id]'); if (!n) return;
+      const it = (this._config.items || [])[n.dataset.i];
+      if (it?.tap) this.trigger(it.tap); else this.moreInfo(n.dataset.id);
+    });
+  }
+  active() {
+    return (this._config.items || []).map((it, i) => {
+      const s = this.st(it.entity); if (!s) return null;
+      const v = s.state, n = parseFloat(v);
+      const hit = it.state != null ? [].concat(it.state).map(String).includes(v) : it.above != null ? n > it.above : it.below != null ? n < it.below : v === 'on';
+      return hit ? { ...it, i, when: s.last_changed } : null;
+    }).filter(Boolean).sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
+  }
+  update() {
+    const c = this._config, list = this.active(), slots = c.slots ?? 4;
+    this.$('.ttl').textContent = c.title || 'Ειδοποιήσεις';
+    this.$('.hd small').textContent = list.length || '';
+    this.$('.hd small').hidden = !list.length;
+    const rows = list.slice(0, slots).map((it) => {
+      const s = this.st(it.entity), txt = (it.text || '{state}').replace('{state}', s.state).replace('{name}', this.friendly(it.entity));
+      return `<div class="n${it.urgent ? ' hot' : ''}" data-id="${it.entity}" data-i="${it.i}" style="--n:${it.color || '#2f5fa8'}"><span class="ms fill">${it.icon || 'info'}</span><div class="tx">${txt}<small>${it.subtitle || since(it.when)}</small></div></div>`;
+    });
+    while (rows.length < slots) rows.push(`<div class="n empty">${rows.length ? '' : 'Όλα ήσυχα'}</div>`);
+    this.$('.list').innerHTML = rows.join('');
+  }
+}
+
+/* ── Λίστα ψωνιών (todo) ── */
+class WallShopCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:12px}
+.hd{display:flex;align-items:center;gap:8px;font:800 14px var(--w-font);margin-bottom:4px}.hd .ms{font-size:20px;color:var(--faint)}
+.hd small{font:800 11px var(--w-font);color:var(--mut);background:var(--chip);border-radius:8px;padding:1px 7px}
+.add{margin-left:auto;color:var(--accent)}
+.it{display:flex;align-items:center;gap:10px;min-height:32px;font:600 14px var(--w-font);border-top:1px solid var(--line);cursor:pointer}
+.cb{width:20px;height:20px;border-radius:6px;border:2px solid var(--faint);flex:none;display:grid;place-items:center}
+.done .cb{background:#3f9a62;border-color:#3f9a62}.done .cb::after{content:'';width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.done span:last-child{color:var(--faint);text-decoration:line-through}
+.more{font:600 12px var(--w-font);color:var(--mut);padding-top:6px}
+`;
+  static getConfigForm() { return form([['entity', 'Λίστα', ent('todo'), true], ['max', 'Πόσα να φαίνονται', { number: { min: 1, max: 12, mode: 'box' } }]]); }
+  static getStubConfig(hass) { return { entity: firstEntity(hass, 'todo') }; }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  watched() { return [this._config.entity]; }
+  template() { return `<div class="card"><div class="hd"><span class="ms fill">shopping_cart</span><span class="ttl"></span><small></small><button class="btn ms add">add</button></div><div class="list"></div></div>`; }
+  bind() {
+    this.$('.add').addEventListener('click', () => {
+      const v = prompt('Τι χρειάζεται;');
+      if (v && v.trim()) this.call('todo', 'add_item', { entity_id: this._config.entity, item: v.trim() });
+    });
+    this.$('.list').addEventListener('click', (e) => {
+      const r = e.target.closest('[data-uid]'); if (!r) return;
+      this.call('todo', 'update_item', { entity_id: this._config.entity, item: r.dataset.uid, status: r.classList.contains('done') ? 'needs_action' : 'completed' });
+    });
+  }
+  async update() {
+    const c = this._config;
+    this.$('.ttl').textContent = c.title || 'Ψώνια';
+    let items = [];
+    try { items = (await this._hass.callWS({ type: 'todo/item/list', entity_id: c.entity }))?.items || []; } catch (e) { /* μη διαθέσιμη λίστα */ }
+    const open = items.filter((i) => i.status === 'needs_action'), done = items.filter((i) => i.status === 'completed').slice(0, 2);
+    const show = [...open, ...done].slice(0, c.max ?? 3);
+    this.$('.hd small').textContent = open.length;
+    this.$('.list').innerHTML = show.map((i) => `<div class="it${i.status === 'completed' ? ' done' : ''}" data-uid="${i.uid}"><span class="cb"></span><span>${i.summary}</span></div>`).join('')
+      + (open.length > show.length ? `<div class="more">+${open.length - show.filter((i) => i.status !== 'completed').length} ακόμα</div>` : '')
+      + (!items.length ? '<div class="more">Η λίστα είναι άδεια</div>' : '');
+  }
+}
+
+/* ── Μουσική και τηλεόραση: ό,τι παίζει τώρα, και κάτω οι υπόλοιπες πηγές ── */
+class WallMediaCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:12px;gap:10px}
+.now{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center}
+.art{width:52px;height:52px;border-radius:12px;background:linear-gradient(140deg,#c0653a,#6b2d1a) center/cover;display:grid;place-items:center;color:#fff}
+.mt{min-width:0}.mt b{display:block;font:800 14px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mt small{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap}
+.mp{height:4px;border-radius:2px;background:var(--line);margin-top:7px;overflow:hidden}.mp i{display:block;height:100%;background:#c0653a;width:0}
+.mc{display:flex;justify-content:space-around;align-items:center}.mc button .ms{font-size:28px;color:var(--mut)}
+.mc .pp{width:44px;height:44px;border-radius:50%;background:#c0653a;color:#fff;display:grid;place-items:center}.mc .pp .ms{color:#fff;font-size:26px}
+.src{display:flex;gap:6px}.src button{flex:1;height:36px;border-radius:11px;border:1.5px solid color-mix(in srgb,var(--ink) 16%,transparent);display:flex;align-items:center;justify-content:center;gap:6px;font:700 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden}
+.src button.on{border-color:#c0653a;color:#c0653a}.src .ms{font-size:18px}
+`;
+  static getConfigForm() { return form([['entities', 'Ηχεία και τηλεοράσεις', { entity: { multiple: true, filter: { domain: 'media_player' } } }]]); }
+  static getStubConfig(hass) { return { entities: [firstEntity(hass, 'media_player')].filter(Boolean) }; }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  setConfig(c) { if (!c?.entities?.length) throw new Error('Χρειάζεται τουλάχιστον ένα media_player'); super.setConfig(c); }
+  watched() { return this._config.entities; }
+  template() {
+    return `<div class="card"><div class="now"><div class="art"><span class="ms fill">music_note</span></div><div class="mt"><b></b><small></small><div class="mp"><i></i></div></div></div>
+  <div class="mc"><button class="prev"><span class="ms fill">skip_previous</span></button><button class="pp"><span class="ms fill">play_arrow</span></button><button class="next"><span class="ms fill">skip_next</span></button></div>
+  <div class="src"></div></div>`;
+  }
+  cur() {
+    const ids = this._config.entities;
+    return ids.find((id) => this.val(id) === 'playing') || (this._pick && ids.includes(this._pick) ? this._pick : null) || ids.find((id) => ['paused', 'on', 'idle'].includes(this.val(id))) || ids[0];
+  }
+  bind() {
+    const go = (svc) => () => this.call('media_player', svc, { entity_id: this.cur() });
+    this.$('.prev').addEventListener('click', go('media_previous_track'));
+    this.$('.next').addEventListener('click', go('media_next_track'));
+    this.$('.pp').addEventListener('click', go('media_play_pause'));
+    this.$('.art').addEventListener('click', () => this.moreInfo(this.cur()));
+    this.$('.src').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-id]'); if (!b) return;
+      this._pick = b.dataset.id;
+      if (this.val(b.dataset.id) === 'off') this.call('media_player', 'turn_on', { entity_id: b.dataset.id });
+      this.update();
+    });
+  }
+  update() {
+    const id = this.cur(), s = this.st(id), a = s?.attributes || {}, st = s?.state;
+    const art = this.$('.art');
+    art.style.backgroundImage = a.entity_picture ? cssUrl(a.entity_picture) : '';
+    art.querySelector('.ms').hidden = !!a.entity_picture;
+    art.querySelector('.ms').textContent = (a.device_class === 'tv' || /tv/i.test(id)) ? 'tv' : 'music_note';
+    this.$('.mt b').textContent = a.media_title || (st === 'off' ? 'Σβηστό' : a.source || this.friendly(id));
+    this.$('.mt small').textContent = [a.media_artist || a.app_name, a.friendly_name].filter(Boolean).join(' · ');
+    const p = mediaProgress(s);
+    this.$('.mp i').style.width = p != null ? `${p}%` : '0';
+    this.$('.pp .ms').textContent = st === 'playing' ? 'pause' : 'play_arrow';
+    this.$('.src').innerHTML = this._config.entities.map((e) => {
+      const ss = this.st(e), tv = ss?.attributes?.device_class === 'tv' || /tv/i.test(e);
+      return `<button data-id="${e}" class="${e === id && ss?.state !== 'off' ? 'on' : ''}"><span class="ms${ss?.state === 'playing' ? ' fill' : ''}">${tv ? 'tv' : 'speaker'}</span>${(ss?.attributes?.friendly_name || e).split(' ')[0]}</button>`;
+    }).join('');
+    this.tick(st === 'playing');
+  }
+}
+
+/* ── Γρήγορες ενέργειες ── */
+class WallActionsCard extends Wall2Card {
+  static css2 = `
+:host{box-shadow:none}
+.card.v2{padding:0;background:none;box-shadow:none;display:grid;gap:8px;grid-template-columns:var(--cols,1fr)}
+button{border-radius:14px;background:var(--box);box-shadow:var(--sh);display:flex;align-items:center;gap:8px;padding:0 12px;font:700 13px var(--w-font);color:var(--ink);min-height:44px}
+button .ms{font-size:22px;color:var(--accent)}
+`;
+  static getConfigForm() { return form([['columns', 'Στήλες', { number: { min: 1, max: 6, mode: 'box' } }]]); }
+  static getStubConfig() { return { items: [] }; }
+  getGridOptions() { return { columns: 3, rows: 4 }; }
+  watched() { return []; }
+  template() {
+    return `<div class="card" style="--cols:repeat(${this._config.columns || 1},1fr)">${(this._config.items || []).map((it, i) =>
+      `<button data-i="${i}"><span class="ms">${it.icon || 'play_arrow'}</span>${it.name || ''}</button>`).join('')}</div>`;
+  }
+  bind() { this.$('.card').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) this.trigger(this._config.items[b.dataset.i].entity); }); }
+  update() {}
+}
+
+/* ── Διάταξη της σελίδας: sidebar αριστερά, κέντρο, δεξιά στήλη, με ομάδες καρτών ──
+   Κάθε περιοχή είναι λίστα από κάρτες ή ομάδες { group: 'ΚΛΙΜΑ', columns: 2, cards: [...] }. */
+class WallLayoutCard extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    V2.theme = config.theme || 'auto';
+    V2.style = config.style || 'A';
+    this._built = false;
+    if (this._hass) this.build();
+  }
+  set hass(hass) {
+    this._hass = hass;
+    if (!this._built) this.build();
+    (this._cards || []).forEach((c) => { c.hass = hass; });
+    const dark = V2.theme === 'dark' || (V2.theme === 'auto' && !!hass.themes?.darkMode);
+    this.shadowRoot?.querySelector('.page')?.classList.toggle('dark', dark);
+  }
+  async build() {
+    this._built = true;
+    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
+    ensureFonts();
+    const c = this._config, u = c.unit || 148;
+    this.shadowRoot.innerHTML = `<style>
+:host{display:block}
+.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || '100vh'};display:grid;grid-template-columns:${c.columns || '340px 1fr 330px'};background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
+.page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
+.area{display:flex;flex-direction:column;gap:10px;padding:14px 16px;min-height:0;min-width:0;overflow:hidden}
+.side{background:color-mix(in srgb,#fff 45%,var(--bg));border-right:1px solid var(--line)}
+.dark .side{background:color-mix(in srgb,#1b2127 45%,var(--bg))}
+.mid{padding-left:4px;padding-right:4px}
+.grow{flex:1;min-height:0}
+.row{display:grid;gap:12px;grid-auto-columns:1fr;grid-auto-flow:column}
+.grp{font:800 12px Manrope,sans-serif;color:var(--faint);letter-spacing:.5px;margin:2px 4px -6px;text-transform:uppercase}
+.grid{display:grid;gap:12px}
+.grid>*{aspect-ratio:1;min-width:0}
+.grid.free>*{aspect-ratio:auto}
+.bottom{display:flex;gap:14px;align-items:flex-start}
+.bottom>div{display:flex;flex-direction:column;gap:12px}
+.bottom .fillw{flex:1;align-self:stretch}
+.bottom .grid{grid-template-columns:repeat(var(--c),var(--u))}
+.bottom .grid>*{height:var(--u)}
+.push{margin-top:auto}
+</style><div class="page"><div class="area side"></div><div class="area mid"></div><div class="area right"></div></div>`;
+    const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
+    const make = (cfg) => {
+      const tag = cfg.type.startsWith('custom:') ? cfg.type.slice(7) : `hui-${cfg.type}-card`;
+      let e;
+      if (helpers && !customElements.get(tag)) e = helpers.createCardElement(cfg);
+      else { e = document.createElement(tag); try { e.setConfig(cfg); } catch (err) { e = document.createElement('div'); e.textContent = err.message; } }
+      if (this._hass) e.hass = this._hass;
+      this._cards.push(e);
+      return e;
+    };
+    this._cards = [];
+    const fill = (host, items) => (items || []).forEach((it) => {
+      if (it.group != null || it.cards) {
+        if (it.group) host.append(Object.assign(document.createElement('div'), { className: 'grp', textContent: it.group }));
+        const g = document.createElement('div');
+        g.className = it.row ? 'row' : 'grid';
+        if (!it.row) g.style.gridTemplateColumns = `repeat(${it.columns || 2},1fr)`;
+        if (it.rows) { g.style.gridTemplateRows = it.rows; g.classList.add('free'); }
+        if (it.square === false) g.classList.add('free');
+        if (it.height) g.style.height = it.height;
+        it.cards.forEach((cc) => g.append(make(cc)));
+        host.append(g);
+      } else if (it.bottom) {
+        const b = document.createElement('div'); b.className = 'bottom';
+        it.bottom.forEach((part) => {
+          const col = document.createElement('div');
+          if (part.fill) col.className = 'fillw';
+          if (part.group) col.append(Object.assign(document.createElement('div'), { className: 'grp', textContent: part.group }));
+          const g = document.createElement('div');
+          g.className = part.fill ? 'fillw' : 'grid';
+          g.style.setProperty('--c', part.columns || 2);
+          if (part.fill) { g.style.display = 'flex'; g.style.flexDirection = 'column'; }
+          part.cards.forEach((cc) => { const e = make(cc); if (part.fill) e.style.flex = '1'; g.append(e); });
+          col.append(g); b.append(col);
+        });
+        host.append(b);
+      } else {
+        const e = make(it);
+        if (it.grow) e.classList.add('grow');
+        if (it.push) e.classList.add('push');
+        if (it.height) e.style.height = it.height;
+        host.append(e);
+      }
+    });
+    const [side, mid, right] = this.shadowRoot.querySelectorAll('.area');
+    fill(side, c.sidebar); fill(mid, c.center); fill(right, c.right);
+    if (this._hass) this.hass = this._hass;
+  }
+  getCardSize() { return 12; }
+  getGridOptions() { return { columns: 'full', rows: 'auto' }; }
+}
+
 /* ───────────────────────── 3. Καταχώριση ───────────────────────── */
 
 function register(tag, cls, name, description) {
@@ -2998,6 +3947,19 @@ register('wall-room-card', WallRoomCard, 'Wall · Δωμάτιο', 'Πλατιά
 register('wall-weather-card', WallWeatherCard, 'Wall · Καιρός', 'Πλατιά κάρτα: ουρανός που αλλάζει με τις συνθήκες, πρόγνωση και insight.');
 register('wall-person-card', WallPersonCard, 'Wall · Άτομο', 'Πλατιά κάρτα: χάρτης, avatar με κατάσταση (σπίτι, εκτός, οδηγεί), απόσταση και διεύθυνση.');
 register('wall-dehumidifier-card', WallDehumidifierCard, 'Wall · Αφυγραντήρας', 'Φορητή συσκευή με οθόνη υγρασίας· popup με στόχο και επιλογή δωματίου.');
+
+register('wall-tile', WallTileCard, 'Wall v2 · Συσκευή', 'Ήσυχο πλακίδιο 1×1: εικονίδιο, ⏻, τιμή, −/+ ή πρόοδος, για κάθε συσκευή.');
+register('wall-today', WallTodayCard, 'Wall v2 · Ημερολόγιο', 'Ώρα, μήνας και τα επόμενα γεγονότα.');
+register('wall-sky', WallSkyCard, 'Wall v2 · Καιρός', 'Ουρανός με κίνηση, τρέχουσες συνθήκες και 3 ημέρες.');
+register('wall-home', WallHomeCard, 'Wall v2 · Συνθήκες σπιτιού', 'Θερμοκρασία, υγρασία, CO₂/VOC, τάση και 24ωρο.');
+register('wall-person-tile', WallPersonTile, 'Wall v2 · Άτομο', 'Αχνός χάρτης και κατάσταση· «Έρχεται» με ώρα άφιξης και πρόοδο.');
+register('wall-car-tile', WallCarTile, 'Wall v2 · Αυτοκίνητο', 'Μπαταρία, αυτονομία, προθέρμανση ή φθηνότερη τιμή καυσίμου.');
+register('wall-plan', WallPlanCard, 'Wall v2 · Κάτοψη', 'Λάμπες και θερμοκρασίες στο σπίτι, με κλειδαριές, κατανάλωση και κάμερες στις γωνίες.');
+register('wall-notices', WallNoticeCard, 'Wall v2 · Ειδοποιήσεις', 'Ως 4 θέσεις για ό,τι θέλει προσοχή.');
+register('wall-shopping', WallShopCard, 'Wall v2 · Ψώνια', 'Λίστα ψωνιών από todo, με τικ και προσθήκη.');
+register('wall-media', WallMediaCard, 'Wall v2 · Μουσική και TV', 'Ό,τι παίζει τώρα, με εναλλαγή πηγής.');
+register('wall-actions', WallActionsCard, 'Wall v2 · Γρήγορες ενέργειες', 'Κουμπιά για σκηνές και scripts.');
+register('wall-layout', WallLayoutCard, 'Wall v2 · Σελίδα', 'Η σελίδα του tablet: sidebar, κέντρο και δεξιά στήλη, με θέμα και στιλ.');
 
 /* Για τη σελίδα δοκιμής και για πειραματισμό από την κονσόλα */
 window.wallCards = { VERSION, openPopup, popSection, popChips, popSwatches, popSlider, popStepper };
