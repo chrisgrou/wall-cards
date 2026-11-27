@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.7.1';
+const VERSION = '0.7.2';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3054,7 +3054,30 @@ function parseDur(v) {
 }
 const durText = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}ω ${pad2(Math.round(min % 60))}′` : `${Math.round(min)}′`);
 const validTime = (s) => { if (!s) return null; const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) || d.getFullYear() < 2000 ? null : d; };
+/* WashData: entities με κοινό πρόθεμα (π.χ. sensor.dryer_state, sensor.dryer_time_remaining…) */
+function washdata(card) {
+  const pre = card._config.washdata; if (!pre) return null;
+  const S = (k) => card.st(`sensor.${pre}_${k}`), N = (k) => card.num(`sensor.${pre}_${k}`), V = (k) => card.val(`sensor.${pre}_${k}`);
+  const last = (k) => Object.keys(card._hass.states).find((id) => id.startsWith('sensor.') && id.endsWith(`${pre}_last_cycle_${k}`));
+  const ids = { state: `sensor.${pre}_state`, power: `sensor.${pre}_current_power`, lastDur: last('duration'), lastEnergy: last('energy'), lastCost: last('cost') };
+  const btn = (k) => { const id = `button.${pre}_${k}`; return card.st(id) ? id : null; };
+  const profiles = Object.keys(card._hass.states).filter((id) => id.startsWith('sensor.') && id.includes(`${pre}_profile_`) && id.endsWith('_count'))
+    .map((id) => [card.friendly(id).replace(/^.*Profile\s*/i, '').replace(/\s*Count$/i, ''), card.num(id)]).filter(([, n]) => !isNaN(n)).sort((a, b) => b[1] - a[1]);
+  return { S, N, V, ids, profiles, buttons: { pause: btn('pause_cycle'), resume: btn('resume_cycle'), end: btn('force_end_cycle'), unload: btn('mark_unloaded') } };
+}
 function applianceInfo(card) {
+  const wd = washdata(card);
+  if (wd) {
+    const st = wd.V('state').toLowerCase(), run = ['running', 'on', 'paused', 'starting', 'ending'].includes(st);
+    const done = ['finished', 'done', 'complete', 'completed', 'clean', 'unload'].includes(st);
+    const el2 = wd.N('elapsed_time'), rem = wd.N('time_remaining'), tot = wd.N('total_duration'), prg = wd.N('progress');
+    const prog = wd.V('program');
+    const s = card.st(wd.ids.state);
+    return { st, run, done, paused: st === 'paused', elapsed: !isNaN(el2) ? el2 / 60 : null, remaining: run && !isNaN(rem) ? rem : null, total: !isNaN(tot) ? tot : null,
+      progress: run && !isNaN(prg) && prg > 0 ? prg : null, energy: card.num(card._config.cycle_energy_entity) || null, program: prog && !/detect/i.test(prog) ? prog : null, temp: null,
+      started: card._config.start_entity ? validTime(card.val(card._config.start_entity)) : null,
+      finished: !run && s?.last_changed ? new Date(s.last_changed) : null, cycles: wd.N('cycle_count'), wd };
+  }
   const c = card._config, s = card.st(c.entity), a = s?.attributes || {};
   const st = String(s?.state || '').toLowerCase();
   const run = ['on', 'running', 'run', 'wash', 'rinse', 'spin', 'drying', 'λειτουργεί'].includes(st);
@@ -3083,7 +3106,7 @@ async function fetchStates(hass, id, days = 30) {
 }
 function cyclesFrom(points) {
   const out = []; let start = null;
-  const isRun = (s) => ['on', 'running', 'run', 'wash', 'rinse', 'spin', 'drying'].includes(s);
+  const isRun = (s) => ['on', 'running', 'run', 'wash', 'rinse', 'spin', 'drying', 'paused'].includes(s);
   points.forEach(([t, s]) => { if (isRun(s) && start == null) start = t; else if (!isRun(s) && start != null) { if (t - start > 5 * 60000) out.push([start, t]); start = null; } });
   return out.reverse();
 }
@@ -3114,7 +3137,7 @@ function appliancePopup(card) {
     tabs: [{ id: 'now', label: 'Τώρα', icon: 'play_circle' }, { id: 'hist', label: 'Ιστορικό', icon: 'history' }, { id: 'energy', label: 'Κατανάλωση', icon: 'bolt' }],
     status: () => { const i = applianceInfo(card); return i.run ? `Σε λειτουργία${i.program ? ' · ' + i.program : ''}` : i.done ? `Τελείωσε ${agoText(i.finished)}` : i.finished ? `Τελευταία φορά ${agoText(i.finished)}` : 'Σβηστό'; },
     render: (pp, tab) => {
-      const i = applianceInfo(card), w = card.num(c.power_entity);
+      const i = applianceInfo(card), w = card.num(c.power_entity || i.wd?.ids.power);
       if (tab === 'now') {
         if (i.run && i.progress != null) {
           const bar = el('div'); bar.style.cssText = `height:12px;border-radius:6px;background:var(--w-track);overflow:hidden`;
@@ -3129,13 +3152,31 @@ function appliancePopup(card) {
           i.run && i.remaining != null ? ['Τελειώνει', hhmm(new Date(Date.now() + i.remaining * 60000)), 'flag'] : ['Τελείωσε', i.finished && !i.run ? `${hhmm(i.finished)} · ${agoText(i.finished)}` : null, 'flag'],
           ['Τώρα', !isNaN(w) ? `${fmt(w, 0)} W` : null, 'bolt'], ['Ενέργεια κύκλου', i.energy != null ? `${fmt(i.energy, 2)} kWh` : null, 'electric_meter'],
         ]);
-        if (c.power_entity) fetchHistory(card._hass, [c.power_entity], 3).then((d) => { if (pp.body.isConnected && !pp.busy) popGraph(popSection(pp, 'Κατανάλωση, τελευταίες 3 ώρες'), d[c.power_entity] || [], { hours: 3, color: c.color || '#2f9a76', unit: 'W' }); });
+        const b = i.wd?.buttons;
+        if (b) {
+          const chips = [];
+          if (i.run && !i.paused && b.pause) chips.push({ label: 'Παύση', icon: 'pause', tap: () => card.call('button', 'press', { entity_id: b.pause }) });
+          if (i.paused && b.resume) chips.push({ label: 'Συνέχεια', icon: 'play_arrow', tap: () => card.call('button', 'press', { entity_id: b.resume }) });
+          if (i.run && b.end) chips.push({ label: 'Τέλος κύκλου', icon: 'stop', tap: () => card.call('button', 'press', { entity_id: b.end }) });
+          if (i.done && b.unload) chips.push({ label: 'Άδειασε', icon: 'check', tap: () => card.call('button', 'press', { entity_id: b.unload }) });
+          if (chips.length) popChips(popSection(pp), chips);
+        }
+        const pw = c.power_entity || i.wd?.ids.power;
+        if (pw) fetchHistory(card._hass, [pw], 3).then((d) => { if (pp.body.isConnected && !pp.busy) popGraph(popSection(pp, 'Κατανάλωση, τελευταίες 3 ώρες'), d[pw] || [], { hours: 3, color: c.color || '#2f9a76', unit: 'W' }); });
+        if (false) fetchHistory(card._hass, [c.power_entity], 3).then((d) => { if (pp.body.isConnected && !pp.busy) popGraph(popSection(pp, 'Κατανάλωση, τελευταίες 3 ώρες'), d[c.power_entity] || [], { hours: 3, color: c.color || '#2f9a76', unit: 'W' }); });
       } else if (tab === 'hist') {
         const sec = popSection(pp, 'Κύκλοι, τελευταίες 30 ημέρες');
         sec.append(el('p', 'grp', 'Φόρτωση…'));
-        fetchStates(card._hass, c.entity, 30).then((pts) => {
+        fetchStates(card._hass, i.wd?.ids.state || c.entity, 30).then((pts) => {
           const cyc = cyclesFrom(pts); sec.replaceChildren();
           const mins = cyc.map(([a, b]) => (b - a) / 60000);
+          const wd = i.wd;
+          if (wd) {
+            const L = (id, u, d = 0) => { const v = card.num(id); return isNaN(v) ? null : `${fmt(v, d)}${u}`; };
+            popFacts(popSection(pp, 'Τελευταίος κύκλος'), [['Διάρκεια', wd.ids.lastDur ? durText(card.num(wd.ids.lastDur)) : null, 'timer'], ['Ενέργεια', L(wd.ids.lastEnergy, ' kWh', 2), 'electric_meter'],
+              ['Κόστος', L(wd.ids.lastCost, ' €', 2), 'euro'], ['Σύνολο κύκλων', i.cycles != null && !isNaN(i.cycles) ? String(i.cycles) : null, 'functions']]);
+            if (wd.profiles.length) popChips(popSection(pp, 'Προγράμματα'), wd.profiles.slice(0, 8).map(([n, k]) => ({ label: `${n} · ${k}`, icon: 'tune' })));
+          }
           popFacts(sec, [['Κύκλοι', String(cyc.length), 'repeat'], ['Μέση διάρκεια', mins.length ? durText(mins.reduce((x, y) => x + y, 0) / mins.length) : '—', 'timer'],
             ['Αυτή την εβδομάδα', String(cyc.filter(([a]) => a > Date.now() - 7 * 864e5).length), 'date_range'], ['Σύνολο κύκλων', i.cycles != null ? String(i.cycles) : null, 'functions']]);
           const list = el('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:10px';
@@ -3151,11 +3192,12 @@ function appliancePopup(card) {
       } else {
         popFacts(popSection(pp), [['Τώρα', !isNaN(w) ? `${fmt(w, 0)} W` : null, 'bolt'], ['Αυτός ο κύκλος', i.energy != null ? `${fmt(i.energy, 2)} kWh` : null, 'electric_meter'],
           ...(c.energy_entities || []).map((e) => { const s = card.st(e.entity || e); return s ? [e.name || card.friendly(e.entity || e), `${fmt(+s.state, +s.state < 10 ? 2 : 0)} ${s.attributes.unit_of_measurement || ''}`, 'calendar_today'] : null; })]);
-        if (c.power_entity) {
+        const pw = c.power_entity || i.wd?.ids.power;
+        if (pw) {
           const s1 = popSection(pp, 'Ισχύς, 24 ώρες');
-          fetchHistory(card._hass, [c.power_entity], 24).then((d) => popGraph(s1, d[c.power_entity] || [], { hours: 24, color: c.color || '#2f9a76', unit: 'W' }));
+          fetchHistory(card._hass, [pw], 24).then((d) => popGraph(s1, d[pw] || [], { hours: 24, color: c.color || '#2f9a76', unit: 'W' }));
           const s2 = popSection(pp, 'Ισχύς, 7 ημέρες');
-          fetchHistory(card._hass, [c.power_entity], 168).then((d) => popGraph(s2, d[c.power_entity] || [], { hours: 168, color: c.color || '#2f9a76', unit: 'W', h: 70 }));
+          fetchHistory(card._hass, [pw], 168).then((d) => popGraph(s2, d[pw] || [], { hours: 168, color: c.color || '#2f9a76', unit: 'W', h: 70 }));
         } else popSection(pp).append(el('p', 'grp', 'Πρόσθεσε αισθητήρα ισχύος (W) στη ρύθμιση της κάρτας για γραφήματα.'));
       }
     },
@@ -3215,6 +3257,8 @@ class WallTileCard extends Wall2Card {
     return form([
       ['entity', 'Συσκευή', ANY, true],
       ['appliance', 'Συσκευή με κύκλο (πλυντήριο, στεγνωτήριο, πιάτα)', { boolean: {} }],
+      ['washdata', 'WashData: πρόθεμα entities (π.χ. dryer)', TEXT],
+      ['cycle_energy_entity', 'Ενέργεια τρέχοντος κύκλου (kWh)', ent('sensor')],
       ['name', 'Όνομα', TEXT], ['icon', 'Εικονίδιο (Material Symbols, π.χ. heat)', TEXT],
       ['color', 'Χρώμα όταν λειτουργεί (π.χ. #e0702a)', TEXT],
       ['animation', 'Κίνηση εικονιδίου', { select: { mode: 'dropdown', options: ['', ...ANIMS].map((v) => ({ value: v, label: v || 'αυτόματα' })) } }],
@@ -3238,7 +3282,8 @@ class WallTileCard extends Wall2Card {
   getGridOptions() { return { columns: 3, rows: 2, min_columns: 3, min_rows: 2 }; }
   watched() {
     const c = this._config;
-    return [c.entity, c.value_entity, c.secondary_entity, c.power_entity, c.remaining_entity, c.total_entity, c.progress_entity,
+    const wd = c.washdata ? ['state', 'program', 'progress', 'time_remaining', 'elapsed_time', 'total_duration', 'current_power'].map((k) => `sensor.${c.washdata}_${k}`) : [];
+    return [...wd, c.cycle_energy_entity, c.entity, c.value_entity, c.secondary_entity, c.power_entity, c.remaining_entity, c.total_entity, c.progress_entity,
       c.finish_entity, c.duration_entity, c.humidity_entity, c.attention_entity];
   }
   template() {
@@ -3373,7 +3418,7 @@ class WallTileCard extends Wall2Card {
     if (!ok) v = '<small>μη διαθέσιμο</small>';
     else if (ap) {
       if (ap.run) {
-        v = ap.remaining != null ? `${durText(ap.remaining)}<small> απομένουν</small>` : `${durText(ap.elapsed) || 'Λειτουργεί'}`;
+        v = ap.paused ? 'Σε παύση' : ap.remaining != null ? `${durText(ap.remaining)}<small> απομένουν</small>` : `${durText(ap.elapsed) || 'Λειτουργεί'}`;
         sub = [ap.program, ap.elapsed != null && ap.remaining != null ? `σε λειτουργία ${durText(ap.elapsed)}` : ''].filter(Boolean).join(' · ');
         prog = ap.progress;
       } else if (ap.done) { v = 'Τελείωσε'; sub = [durText(ap.elapsed), agoText(ap.finished)].filter(Boolean).join(' · '); }
