@@ -12,6 +12,9 @@ const now = () => new Date().toISOString();
 const S = (state, attributes = {}, ago = 0) => ({ state: String(state), attributes, last_changed: new Date(Date.now() - ago * 60000).toISOString(), last_updated: now() });
 const fin = Date.now() / 1000 + 9 * 60;
 const states = {
+  'timer.wall_1': { state: 'active', attributes: { friendly_name: 'Φούρνος', duration: '0:20:00', finishes_at: new Date(Date.now()+754e3).toISOString() } },
+  'timer.wall_2': { state: 'idle', attributes: { friendly_name: 'wall 2', duration: '0:10:00' } },
+  'switch.schedule_alarm1': { state: 'on', attributes: { friendly_name: 'Ξυπνητήρι Chris', tags: ['alarm'], next_trigger: new Date(Date.now()+20*3600e3).toISOString() } },
   'sun.sun': S('below_horizon'),
   'weather.home': S('partlycloudy', { temperature: 13, friendly_name: 'Έδεσσα' }),
   'sensor.home_t': S(21.4, { unit_of_measurement: '°C', device_class: 'temperature' }), 'sensor.home_h': S(52, { unit_of_measurement: '%', device_class: 'humidity' }),
@@ -72,12 +75,12 @@ const cfg = {
     { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', height: '60px' },
     { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'], push: true },
   ],
+  rail: [{ type: 'custom:wall-actions', mode: 'rail', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] }],
   top: [
     { type: 'custom:wall-notices', mode: 'bar', grow: true, items: [
       { entity: 'input_select.dryer', state: 'done', icon: 'cyclone', text: 'Το στεγνωτήριο τελείωσε', color: '#c98a1e', urgent: true },
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
-    { type: 'custom:wall-actions', mode: 'menu', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] },
-    { type: 'custom:wall-today', mode: 'clock', calendars: ['calendar.family'], events: 3 },
+    { type: 'custom:wall-today', mode: 'clock', width: 'right', calendars: ['calendar.family'], events: 3 },
   ],
   center: [
     { group: '', columns: 2, rows: '76px 54px', cards: [

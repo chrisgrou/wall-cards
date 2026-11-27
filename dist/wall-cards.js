@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.7.2';
+const VERSION = '0.8.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -2973,6 +2973,42 @@ class WallDehumidifierCard extends WallBaseCard {
 
 const V2 = { theme: 'auto', style: 'A' };
 
+const XP_CSS = `
+:host{overflow:visible;position:relative;z-index:6}
+:host(.xopen){z-index:30}
+.xp{--box:#fff;--ink:#1c2228;--mut:#5f6b76;--faint:#9aa4ad;--line:#e6eaee;--chip:#eef1f4;--accent:#2f5fa8;--ok:#3f8a5c;
+  position:absolute;left:0;right:0;top:100%;z-index:30;box-sizing:border-box;padding:6px 14px 14px;background:var(--box);color:var(--ink);
+  border-radius:0 0 22px 22px;box-shadow:0 26px 40px -14px rgba(20,30,40,.4);font-family:var(--w-font);transform-origin:top}
+.xp.dark{--box:#1b2127;--ink:#e9eef2;--mut:#93a0ab;--faint:#5f6b76;--line:#2a323a;--chip:#252d35;--accent:#8fb5ef;--ok:#6cc08e}
+.xp:not([hidden]){animation:xpin .34s cubic-bezier(.2,.9,.25,1)}
+.xp.out{animation:xpout .2s ease-in forwards}
+@keyframes xpin{from{clip-path:inset(0 0 100% 0);opacity:.3}to{clip-path:inset(0 0 -60px 0)}}
+@keyframes xpout{to{clip-path:inset(0 0 100% 0);opacity:0}}
+.card.v2.open{border-bottom-left-radius:0;border-bottom-right-radius:0;box-shadow:none;background:var(--box)!important;transition:none}
+.xp .ms{font-family:'Material Symbols Rounded';font-feature-settings:'liga'}
+`;
+/* Άνοιγμα/κλείσιμο panel που «βγαίνει» από την κάρτα, σαν συνέχειά της */
+const XP_OPEN = new Set();
+function expander(card, xp, onOpen) {
+  const cardEl = card.$('.card');
+  const close = () => {
+    if (xp.hidden) return;
+    xp.classList.add('out');
+    setTimeout(() => { xp.hidden = true; xp.classList.remove('out'); if (!card.shadowRoot.querySelector('.xp:not([hidden])')) { cardEl.classList.remove('open'); card.classList.remove('xopen'); } }, 190);
+    clearTimeout(xp._t);
+  };
+  const open = () => {
+    XP_OPEN.forEach((f) => f !== close && f()); XP_OPEN.clear(); XP_OPEN.add(close);
+    card.shadowRoot.querySelectorAll('.xp:not([hidden])').forEach((o) => { if (o !== xp) { o.hidden = true; } });
+    xp.classList.toggle('dark', cardEl.classList.contains('dark'));
+    xp.hidden = false; cardEl.classList.add('open'); card.classList.add('xopen');
+    onOpen?.(); clearTimeout(xp._t); xp._t = setTimeout(close, 45000);
+  };
+  const away = (e) => { if (!xp.hidden && !e.composedPath().includes(card)) close(); };
+  document.addEventListener('click', away);
+  (card._xpOff ||= []).push(() => document.removeEventListener('click', away));
+  return { open, close, toggle: () => (xp.hidden ? open() : close()) };
+}
 const V2_CSS = `
 :host{box-shadow:none;border-radius:20px}
 .card.v2{
@@ -3007,6 +3043,7 @@ class Wall2Card extends WallBaseCard {
     card.classList.add('v2');
     card.classList.toggle('dark', dark);
     card.classList.toggle('styleB', (c.style || V2.style) === 'B');
+    this.shadowRoot.querySelectorAll('.xp').forEach((x) => x.classList.toggle('dark', dark));
   }
   setConfig(config) {
     if (!config) throw new Error('Λείπει η ρύθμιση');
@@ -3017,6 +3054,41 @@ class Wall2Card extends WallBaseCard {
   }
 }
 
+/* ── Εικονογραφημένα εικονίδια συσκευών (στιλ «Soft 3D»): b σώμα, d λεπτομέρεια, k σκούρο, ac τόνος, fl υγρό, ln γραμμή ── */
+const PICS = {
+  washer: `<rect class="b" x="9" y="5" width="30" height="38" rx="5"/><rect class="d" x="9" y="5" width="30" height="8" rx="4"/><circle class="k" cx="15" cy="9" r="1.6"/><rect class="ac" x="24" y="8" width="11" height="2.4" rx="1.2"/><circle class="d" cx="24" cy="28" r="11"/><circle class="fl" cx="24" cy="28" r="8"/><path class="ln spin" d="M18 29q3-4 6 0t6 0"/>`,
+  dryer: `<rect class="b" x="9" y="5" width="30" height="38" rx="5"/><rect class="d" x="9" y="5" width="30" height="8" rx="4"/><circle class="ac blink" cx="15" cy="9" r="1.8"/><circle class="k" cx="31" cy="9" r="2.4"/><circle class="d" cx="24" cy="28" r="11"/><circle class="k" cx="24" cy="28" r="8"/><g class="spin"><path class="ac" d="M24 22c2 2 2 4 0 6s-2 4 0 6c-4-1-5-4-3-6s2-4 3-6z"/></g>`,
+  dishwasher: `<rect class="b" x="8" y="5" width="32" height="38" rx="5"/><rect class="d" x="8" y="5" width="32" height="7" rx="3.5"/><rect class="k" x="17" y="7.6" width="14" height="2" rx="1"/><rect class="d" x="12" y="16" width="24" height="22" rx="3"/><g class="rise"><circle class="fl" cx="18" cy="31" r="2"/><circle class="fl" cx="25" cy="27" r="2.6"/><circle class="fl" cx="31" cy="32" r="1.7"/></g><rect class="ac" x="12" y="39.5" width="24" height="1.8" rx=".9"/>`,
+  heater: `<rect class="b" x="13" y="3" width="22" height="40" rx="11"/><rect class="d" x="13" y="28" width="22" height="15" rx="2"/><path class="k" d="M18 43h4v3h-4zM26 43h4v3h-4z"/><g class="wob"><path class="ac" d="M24 13c4 4 5 6 5 8a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3 0-5 1-7z"/></g><circle class="k" cx="24" cy="35" r="2.6"/>`,
+  vacuum: `<path class="d" d="M11 4h26a3 3 0 0 1 3 3v19H8V7a3 3 0 0 1 3-3z"/><rect class="k" x="19" y="8" width="10" height="2.4" rx="1.2"/><rect class="k" x="5" y="42" width="38" height="2.4" rx="1.2"/><g class="roam"><circle class="b" cx="24" cy="29" r="13"/><circle class="d" cx="24" cy="29" r="9"/><circle class="k" cx="24" cy="22.5" r="3.2"/><circle class="ac blink" cx="24" cy="22.5" r="1.3"/></g>`,
+  printer: `<rect class="d" x="6" y="5" width="36" height="38" rx="4"/><rect class="b" x="10" y="9" width="28" height="30" rx="2"/><rect class="k" x="10" y="13" width="28" height="2.4"/><g class="slide"><rect class="k" x="19" y="11" width="10" height="7" rx="1.5"/><path class="k" d="M22 18h4l-2 3z"/></g><path class="ac" d="M17 35h14l-2-8h-10z"/><rect class="k" x="12" y="35" width="24" height="2"/>`,
+  router: `<rect class="b" x="6" y="27" width="36" height="12" rx="4"/><circle class="ac blink" cx="13" cy="33" r="1.8"/><circle class="ac" cx="19" cy="33" r="1.8"/><circle class="ac blink" cx="25" cy="33" r="1.8" style="animation-delay:.5s"/><path class="d" d="M11 27l-2-14h3l2 14zM37 27l2-14h-3l-2 14z"/><path class="ln" d="M18 17a8 8 0 0 1 12 0M21 21a4 4 0 0 1 6 0"/>`,
+  ac: `<rect class="b" x="4" y="10" width="40" height="17" rx="5"/><rect class="d" x="8" y="22" width="32" height="2.6" rx="1.3"/><circle class="ac" cx="37" cy="15" r="1.6"/><g class="rise"><path class="ln" d="M14 31q2 4 0 8M24 31q2 4 0 8M34 31q2 4 0 8"/></g>`,
+  boiler: `<rect class="b" x="10" y="4" width="28" height="34" rx="4"/><rect class="k" x="15" y="9" width="18" height="7" rx="2"/><rect class="ac" x="18" y="11.2" width="7" height="2.6" rx="1"/><circle class="d" cx="24" cy="27" r="6"/><g class="wob"><path class="ac" d="M24 23c2 2 3 3 3 4.5a3 3 0 0 1-6 0c0-1 .6-1.8 1.2-2.4 0 1 .6 1.6 1.2 1.6 0-1.6 0-2.6.6-3.7z"/></g><path class="k" d="M15 38h3v6h-3zM22.5 38h3v6h-3zM30 38h3v6h-3z"/>`,
+  dehumidifier: `<rect class="b" x="11" y="4" width="26" height="40" rx="6"/><rect class="d" x="15" y="8" width="18" height="10" rx="3"/><path class="ln" d="M16 24h16M16 28h16M16 32h16"/><rect class="fl" x="15" y="36" width="18" height="5" rx="1.5"/><g class="rise"><path class="ac" d="M24 9.5c2 2.3 3 3.8 3 5a3 3 0 0 1-6 0c0-1.2 1-2.7 3-5z"/></g>`,
+  purifier: `<rect class="b" x="12" y="6" width="24" height="38" rx="9"/><circle class="d" cx="24" cy="17" r="7"/><g class="spin"><path class="ac" d="M24 17l0-5a3 3 0 0 1 0 5l5 0a3 3 0 0 1-5 0l0 5a3 3 0 0 1 0-5l-5 0a3 3 0 0 1 5 0z"/></g><path class="ln" d="M17 29h14M17 33h14M17 37h14"/>`,
+};
+const PIC_BY_ICON = { local_laundry_service: 'washer', cyclone: 'dryer', dishwasher: 'dishwasher', water_heater: 'heater', robot_2: 'vacuum', view_in_ar: 'printer',
+  router: 'router', local_fire_department: 'boiler', heat: 'ac', ac_unit: 'ac', water_drop: 'dehumidifier', mode_fan: 'purifier', air_purifier: 'purifier' };
+const PIC_DEFS = `<defs><linearGradient id="wpb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#c9d2d9"/></linearGradient>
+<linearGradient id="wpd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa6b0"/><stop offset="1" stop-color="#5e6b76"/></linearGradient>
+<linearGradient id="wpa" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#3d8fe6"/></linearGradient></defs>`;
+const PIC_CSS = `
+.pic{width:clamp(34px,36cqmin,58px);height:clamp(34px,36cqmin,58px);margin:-2px 0 0 -3px;flex:none;align-self:flex-start;filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));overflow:visible}
+.pic *{stroke:none}.pic .b{fill:url(#wpb)}.pic .d{fill:url(#wpd)}.pic .k{fill:#3d4851}.pic .fl{fill:url(#wpa)}
+.pic .ac{fill:#7d8a95;transition:fill .4s}.pic .ln{fill:none;stroke:#3d4851;stroke-width:2;stroke-linecap:round}
+.on .pic .ac,.att .pic .ac{fill:var(--a);filter:drop-shadow(0 0 2.5px var(--a))}
+.card.v2:not(.on):not(.att) .pic{opacity:.62;filter:saturate(.3) drop-shadow(0 2px 2px rgba(0,0,0,.25))}
+.pic g,.pic path,.pic circle{transform-box:fill-box;transform-origin:center}
+.on .pic .spin{animation:pspin 2.4s linear infinite}.on .pic .wob{animation:pwob 1.4s ease-in-out infinite;transform-origin:50% 90%}
+.on .pic .blink{animation:pblink 1.4s steps(2) infinite}.on .pic .rise{animation:prise 2s ease-in infinite}
+.on .pic .roam{animation:proam 5s ease-in-out infinite}.on .pic .slide{animation:pslide 2.2s ease-in-out infinite}
+@keyframes pspin{to{transform:rotate(360deg)}}@keyframes pwob{25%{transform:scale(1.08,.94)}60%{transform:scale(.95,1.06)}}
+@keyframes pblink{50%{opacity:.2}}@keyframes prise{from{transform:translateY(3px);opacity:0}50%{opacity:1}to{transform:translateY(-5px);opacity:0}}
+@keyframes proam{0%,100%{transform:translate(0,0)}30%{transform:translate(-5px,3px) rotate(-12deg)}65%{transform:translate(5px,2px) rotate(10deg)}}
+@keyframes pslide{50%{transform:translateX(7px)}}
+.haspic .nm{display:none}.haspic.shownm .nm{display:block}
+`;
 /* ── Συσκευή (template 1×1): εικονίδιο, ⏻, όνομα, τιμή, γραμμή, −/+ ή πρόοδος ── */
 const TILE_KINDS = {
   climate: { icon: 'heat', color: '#e0702a', anim: 'wave' },
@@ -3032,7 +3104,7 @@ const TILE_KINDS = {
 };
 const ANIMS = ['wave', 'drop', 'spin', 'roam', 'glow', 'pulse', 'wob', 'flame'];
 const VAC = { cleaning: 'Καθαρίζει', docked: 'Στη βάση', returning: 'Επιστρέφει', paused: 'Σε παύση', idle: 'Σε αναμονή', error: 'Σφάλμα' };
-const STATE_GR = { on: 'Λειτουργεί', off: 'σβηστό', running: 'Λειτουργεί', idle: 'σε αναμονή', paused: 'σε παύση', standby: 'αναμονή',
+const STATE_GR = { on: 'Λειτουργεί', off: '', running: 'Λειτουργεί', idle: 'σε αναμονή', paused: 'σε παύση', standby: 'αναμονή',
   done: 'Τελείωσε', finished: 'Τελείωσε', finish: 'Τελείωσε', connected: 'Online', disconnected: 'Offline', printing: 'Τυπώνει', prepare: 'Προετοιμασία',
   failed: 'Απέτυχε', unknown: 'άγνωστο', home: 'Σπίτι', not_home: 'Εκτός' };
 const grState = (s) => STATE_GR[String(s).toLowerCase()] ?? s;
@@ -3206,7 +3278,7 @@ function appliancePopup(card) {
 }
 
 class WallTileCard extends Wall2Card {
-  static css2 = `
+  static css2 = PIC_CSS + `
 :host{container-type:size}
 .card.v2{padding:7cqmin 7cqmin 6cqmin;cursor:pointer;--a:#7a858f}
 .ico{font-size:clamp(22px,19cqmin,30px)!important}
@@ -3256,6 +3328,8 @@ class WallTileCard extends Wall2Card {
   static getConfigForm() {
     return form([
       ['entity', 'Συσκευή', ANY, true],
+      ['pic', 'Εικόνα συσκευής', { select: { mode: 'dropdown', options: ['auto', 'washer', 'dryer', 'dishwasher', 'heater', 'vacuum', 'printer', 'router', 'ac', 'boiler', 'dehumidifier', 'purifier', 'none'].map((v) => ({ value: v, label: v })) } }],
+      ['show_name', 'Δείξε και το όνομα', { boolean: {} }],
       ['appliance', 'Συσκευή με κύκλο (πλυντήριο, στεγνωτήριο, πιάτα)', { boolean: {} }],
       ['washdata', 'WashData: πρόθεμα entities (π.χ. dryer)', TEXT],
       ['cycle_energy_entity', 'Ενέργεια τρέχοντος κύκλου (kWh)', ent('sensor')],
@@ -3406,7 +3480,15 @@ class WallTileCard extends Wall2Card {
     card.classList.toggle('on', on && !att);
     card.classList.toggle('att', att);
     card.classList.toggle('unavail', !ok);
-    this.$('.ico').textContent = c.icon || (d === 'climate' && ['cool', 'dry'].includes(st) ? 'ac_unit' : k.icon);
+    const icon = c.icon || (d === 'climate' && ['cool', 'dry'].includes(st) ? 'ac_unit' : k.icon);
+    const pic = c.pic === false || c.pic === 'none' ? null : PICS[c.pic] ? c.pic : PIC_BY_ICON[icon] || (d === 'vacuum' ? 'vacuum' : null);
+    if (pic !== this._pic) {
+      this._pic = pic; this.$('.pic')?.remove();
+      if (pic) this.$('.ico').insertAdjacentHTML('afterend', `<svg class="pic" viewBox="0 0 48 48">${PIC_DEFS}${PICS[pic]}</svg>`);
+      this.$('.ico').style.display = pic ? 'none' : '';
+    }
+    card.classList.toggle('haspic', !!pic); card.classList.toggle('shownm', !!c.show_name);
+    this.$('.ico').textContent = icon;
     this.$('.nm').textContent = c.name || a.friendly_name || id;
     const pwMode = c.power_button || (['climate', 'humidifier', 'fan', 'vacuum', 'switch', 'light', 'input_boolean'].includes(d) ? 'show' : 'hide');
     this.$('.pw').hidden = pwMode === 'hide';
@@ -3422,12 +3504,11 @@ class WallTileCard extends Wall2Card {
         sub = [ap.program, ap.elapsed != null && ap.remaining != null ? `σε λειτουργία ${durText(ap.elapsed)}` : ''].filter(Boolean).join(' · ');
         prog = ap.progress;
       } else if (ap.done) { v = 'Τελείωσε'; sub = [durText(ap.elapsed), agoText(ap.finished)].filter(Boolean).join(' · '); }
-      else { v = '<small>σβηστό</small>'; sub = ap.finished ? `τελευταία ${agoText(ap.finished)}` : ''; }
+      else { v = ''; sub = ap.finished ? `τελευταία ${agoText(ap.finished)}` : ''; }
     }
     else if (d === 'climate') {
       const t = held ? this._hold.v : a.temperature;
       v = t != null ? `${fmt(t, t % 1 ? 1 : 0)}°` : '—';
-      if (!on) v += '<small> σβηστό</small>';
       sub = a.current_temperature != null && on ? `χώρος ${fmt(a.current_temperature, 1)}°` : '';
       steps = t != null;
     } else if (d === 'humidifier') {
@@ -3435,7 +3516,7 @@ class WallTileCard extends Wall2Card {
       const now = isNaN(cur) ? a.current_humidity : cur;
       const t = held ? this._hold.v : a.humidity;
       v = `${now != null ? Math.round(now) + '%' : '—'}<small> → ${t ?? '—'}</small>`;
-      sub = on ? '' : st === 'on' ? 'σε αναμονή' : 'σβηστός';
+      sub = on ? '' : st === 'on' ? 'σε αναμονή' : '';
       steps = t != null;
     } else if (d === 'vacuum') {
       v = VAC[st] || st; sub = a.battery_level != null ? `μπαταρία ${a.battery_level}%` : '';
@@ -3452,7 +3533,7 @@ class WallTileCard extends Wall2Card {
       const vs = this.st(c.value_entity);
       v = vs ? `${grState(vs.state)}<small> ${vs.attributes.unit_of_measurement || ''}</small>` : '—';
     } else if (['switch', 'light', 'input_boolean', 'fan'].includes(d)) {
-      v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '<small>σβηστό</small>';
+      v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '';
     } else if (!on && OFFS.includes(st)) v = `<small>${grState(st)}</small>`;
     else v = `${grState(st)}<small> ${a.unit_of_measurement || ''}</small>`;
     if (att && !ap) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
@@ -3481,7 +3562,7 @@ const DAYS_FULL = ['Κυριακή', 'Δευτέρα', 'Τρίτη', 'Τετάρ
 const CAL_COLORS = ['#2f5fa8', '#b0548a', '#3f9a62', '#c98a1e', '#7a5fd0'];
 
 class WallTodayCard extends Wall2Card {
-  static css2 = `
+  static css2 = XP_CSS + `
 .clock{font:700 46px var(--w-font);letter-spacing:-2px;line-height:1}
 .date{font:600 14px var(--w-font);color:var(--mut);margin-top:2px}
 .card.v2{overflow:hidden}
@@ -3505,6 +3586,29 @@ class WallTodayCard extends Wall2Card {
 .drop.v2.dark{--bg:#0f1316;--box:#1b2127;--ink:#e9eef2;--mut:#93a0ab;--faint:#5f6b76;--line:#2a323a}
 @keyframes dropin{from{opacity:0;transform:translateY(-8px)}}
 .drop .mon{margin-top:0}
+.card.v2.bar2{flex-direction:row;align-items:center;justify-content:space-between;gap:6px;padding:0 8px;background:none;box-shadow:none;height:100%}
+.bar2 .tp{border:0;background:none;color:var(--ink);cursor:pointer;padding:6px 8px;border-radius:14px;font-family:var(--w-font);text-align:left}
+.bar2 .tp:active{background:var(--chip)}
+.bar2 .date{margin:0;font:700 16px var(--w-font);color:var(--mut);line-height:1.15;white-space:normal}
+.bar2 .clock{font:800 40px var(--w-font);letter-spacing:-1.5px;line-height:1}
+.xp .mon{margin-top:4px}
+.tsec{font:800 11px var(--w-font);letter-spacing:.6px;color:var(--faint);text-transform:uppercase;margin:10px 2px 6px}
+.tsec:first-child{margin-top:4px}
+.trow,.arow{display:flex;align-items:center;gap:10px;height:48px;padding:0 6px 0 12px;border-radius:14px;background:var(--chip);margin-bottom:6px;cursor:pointer}
+.tl{font:800 22px var(--w-font);min-width:70px;font-variant-numeric:tabular-nums}.pz .tl{color:var(--faint)}
+.tn{flex:1;min-width:0;font:700 13px var(--w-font);color:var(--mut);position:relative;padding-bottom:8px}
+.tn i{position:absolute;left:0;bottom:0;height:4px;border-radius:2px;background:var(--accent);transition:width 1s linear}
+.ib{width:36px;height:36px;border:0;border-radius:11px;background:var(--box);color:var(--ink);font-size:20px;display:grid;place-items:center;cursor:pointer}
+.tadd{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.pc{height:40px;border:0;border-radius:12px;background:var(--chip);color:var(--ink);font:800 14px var(--w-font);cursor:pointer}
+.tcus{display:flex;align-items:center;gap:8px;margin-top:8px}.tcus .ib{background:var(--chip)}.tcus b{font:800 18px var(--w-font);min-width:62px;text-align:center}
+.go{flex:1;height:40px;border:0;border-radius:12px;background:var(--accent);color:var(--box);font:800 14px var(--w-font);display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+.tnone{font:600 12px var(--w-font);color:var(--faint);padding:2px 2px 4px;line-height:1.35}
+.at{font:800 22px var(--w-font);min-width:62px;color:var(--faint)}.on .at{color:var(--ink)}
+.an{flex:1;min-width:0;font:700 13px var(--w-font)}.an small{display:block;font:600 11px var(--w-font);color:var(--mut)}
+.sw{width:40px;height:24px;border-radius:12px;background:var(--line);position:relative;flex:none;margin-right:6px}
+.sw::after{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+.on .sw{background:var(--ok)}.on .sw::after{transform:translateX(16px)}
 `;
   static getConfigForm() {
     return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'card', label: 'Κάρτα' }, { value: 'clock', label: 'Ώρα στη μπάρα, ημερολόγιο με πάτημα' }] } }],
@@ -3514,22 +3618,78 @@ class WallTodayCard extends Wall2Card {
   }
   static getStubConfig() { return { calendars: [], show_month: true }; }
   getGridOptions() { return { columns: 6, rows: 5 }; }
-  watched() { return [...(this._config.calendars || [])]; }
+  timers() { const c = this._config; return c.timers || Object.keys(this._hass?.states || {}).filter((k) => k.startsWith('timer.wall_')).sort(); }
+  alarms() { const c = this._config; return c.alarms || Object.keys(this._hass?.states || {}).filter((k) => k.startsWith('switch.schedule_') && /alarm|ξυπν/i.test(JSON.stringify(this._hass.states[k].attributes.tags || '') + (this._hass.states[k].attributes.friendly_name || ''))); }
+  watched() { return [...(this._config.calendars || []), ...(this._config.mode === 'clock' ? [...this.timers(), ...this.alarms()] : [])]; }
   template() {
-    if (this._config.mode === 'clock') return `<div class="card chip"><div class="clock"></div><div class="date"></div></div>
-  <div class="drop v2" hidden><div class="mon"></div><div class="ag"></div></div>`;
+    if (this._config.mode === 'clock') return `<div class="card bar2"><button class="date tp"></button><button class="clock tp"></button></div>
+  <div class="xp xcal" hidden><div class="mon"></div><div class="ag"></div></div>
+  <div class="xp xtim" hidden></div>`;
     return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
   }
   bind() {
     this._clock = setInterval(() => this.clock(), 15000);
     if (this._config.mode !== 'clock') return;
-    const drop = this.$('.drop');
-    this.$('.card').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; if (!drop.hidden) { clearTimeout(this._dt); this._dt = setTimeout(() => this.$('.card').click(), 30000); } });
-    this._away = (e) => { if (!drop.hidden && !e.composedPath().includes(this)) this.$('.card').click(); };
-    document.addEventListener('click', this._away);
+    const cal = expander(this, this.$('.xcal')), tim = expander(this, this.$('.xtim'), () => this.renderTimers());
+    this.$('.date').addEventListener('click', (e) => { e.stopPropagation(); cal.toggle(); });
+    this.$('.clock').addEventListener('click', (e) => { e.stopPropagation(); tim.toggle(); });
+    this.$('.xtim').addEventListener('click', (e) => this.timerTap(e));
+    this._tick = setInterval(() => { if (!this.$('.xtim').hidden) this.tickTimers(); }, 1000);
   }
-  applyTheme() { super.applyTheme(); const d = this.$('.drop'); if (d) { const c = this.$('.card'); d.classList.toggle('dark', c.classList.contains('dark')); } }
-  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._clock = null; if (this._away) document.removeEventListener('click', this._away); }
+  /* ── χρονόμετρα (timer.wall_*) και ξυπνητήρια (Scheduler) ── */
+  timerLeft(id) {
+    const s = this.st(id); if (!s) return null;
+    if (s.state === 'active' && s.attributes.finishes_at) return Math.max(0, (new Date(s.attributes.finishes_at) - Date.now()) / 1000);
+    if (s.state === 'paused' && s.attributes.remaining) { const [h, m, x] = s.attributes.remaining.split(':').map(Number); return h * 3600 + m * 60 + x; }
+    return null;
+  }
+  renderTimers() {
+    const xp = this.$('.xtim'), busy = this.timers().filter((id) => ['active', 'paused'].includes(this.val(id)));
+    const pool = this.timers().length, al = this.alarms();
+    const fmtS = (s) => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return `${h ? h + ':' + pad2(m) : m}:${pad2(s % 60)}`; };
+    this._step ??= 10;
+    xp.innerHTML = `
+<div class="tsec">Αντίστροφη μέτρηση</div>
+${busy.map((id) => { const s = this.st(id), left = this.timerLeft(id) || 0, paused = s.state === 'paused';
+      const dur = s.attributes.duration ? s.attributes.duration.split(':').map(Number).reduce((a, b) => a * 60 + b) : left;
+      return `<div class="trow${paused ? ' pz' : ''}" data-id="${id}"><span class="tl" data-left="${id}">${fmtS(left)}</span><span class="tn">${s.attributes.friendly_name?.replace(/^.*?wall[_ ]?/i, '') && !/^\d+$/.test(s.attributes.friendly_name.replace(/^.*?wall[_ ]?/i, '')) ? s.attributes.friendly_name : 'Χρονόμετρο'}<i style="width:${clamp(100 - (left / (dur || 1)) * 100, 0, 100)}%"></i></span>
+      <button class="ib ms" data-a="${paused ? 'start' : 'pause'}">${paused ? 'play_arrow' : 'pause'}</button><button class="ib ms" data-a="cancel">close</button></div>`; }).join('')}
+${pool ? `<div class="tadd">${[1, 5, 10, 15, 30, 60].map((m) => `<button class="pc" data-min="${m}">${m < 60 ? m + '′' : '1ω'}</button>`).join('')}</div>
+<div class="tcus"><button class="ib ms" data-a="dn">remove</button><b>${durText(this._step)}</b><button class="ib ms" data-a="up">add</button><button class="go" data-a="go"><span class="ms">play_arrow</span>Έναρξη</button></div>`
+      : '<div class="tnone">Φτιάξε helpers «timer.wall_1», «timer.wall_2»… για αντίστροφες μετρήσεις.</div>'}
+<div class="tsec">Ξυπνητήρια</div>
+${al.length ? al.map((id) => { const s = this.st(id), a = s.attributes, nx = validTime(a.next_trigger);
+      return `<div class="arow${s.state === 'on' ? ' on' : ''}" data-al="${id}"><span class="at">${nx ? hhmm(nx) : '—'}</span><span class="an">${(a.friendly_name || '').replace(/^schedule\s*/i, '')}<small>${nx ? `${WX_DAYS[nx.getDay()]} ${nx.getDate()}/${nx.getMonth() + 1}` : 'ανενεργό'}</small></span><span class="sw"></span></div>`; }).join('')
+      : '<div class="tnone">Με το Scheduler (HACS) εδώ θα εμφανίζονται όσα ξυπνητήρια φτιάξεις.</div>'}`;
+  }
+  tickTimers() {
+    const xp = this.$('.xtim');
+    const active = this.timers().filter((id) => ['active', 'paused'].includes(this.val(id)));
+    if (active.length !== xp.querySelectorAll('.trow').length) return this.renderTimers();
+    xp.querySelectorAll('[data-left]').forEach((e) => { const s = this.timerLeft(e.dataset.left) || 0; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); e.textContent = `${h ? h + ':' + pad2(m) : m}:${pad2(Math.round(s) % 60)}`; });
+  }
+  timerTap(e) {
+    e.stopPropagation();
+    const b = e.target.closest('button,[data-al]'); if (!b) return;
+    const start = (min) => {
+      const free = this.timers().find((id) => !['active', 'paused'].includes(this.val(id)));
+      if (!free) return;
+      const h = Math.floor(min / 60), m = min % 60;
+      this.call('timer', 'start', { entity_id: free, duration: `${pad2(h)}:${pad2(m)}:00` });
+    };
+    if (b.dataset.min) start(+b.dataset.min);
+    else if (b.dataset.al) this.call('switch', 'toggle', { entity_id: b.dataset.al });
+    else {
+      const a = b.dataset.a, id = b.closest('[data-id]')?.dataset.id;
+      if (a === 'up') this._step = Math.min(600, this._step + (this._step >= 60 ? 15 : 5));
+      else if (a === 'dn') this._step = Math.max(1, this._step - (this._step > 60 ? 15 : this._step > 5 ? 5 : 1));
+      else if (a === 'go') start(this._step);
+      else if (id) this.call('timer', a, { entity_id: id });
+    }
+    setTimeout(() => this.renderTimers(), a2() );
+    function a2() { return 350; }
+  }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._clock = null; clearInterval(this._tick); (this._xpOff || []).forEach((f) => f()); this._xpOff = []; }
   connectedCallback() { super.connectedCallback(); if (this._built && !this._clock) this.bind(); }
   clock() {
     const n = new Date();
@@ -3576,7 +3736,7 @@ class WallTodayCard extends Wall2Card {
       ? next.map((e) => `<div class="ev"><span class="k" style="background:${e.color}"></span><b>${label(e).trim()}</b><span>${e.title}</span></div>`).join('')
       : `<div class="none">${(c.calendars || []).length ? 'Τίποτα για τις επόμενες μέρες' : 'Πρόσθεσε ημερολόγια στη ρύθμιση'}</div>`;
   }
-  update() { this.clock(); this.load(); }
+  update() { this.clock(); this.load(); if (this.$('.xtim') && !this.$('.xtim').hidden) this.renderTimers(); }
 }
 
 /* ── Καιρός: ουρανός με κίνηση, τρέχουσες συνθήκες, 3 ημέρες (χαμηλή → υψηλή) ── */
@@ -3783,7 +3943,8 @@ class WallPersonTile extends Wall2Card {
     return form([['entity', 'Άτομο', ent('person'), true], ['name', 'Όνομα', TEXT], ['color', 'Χρώμα (π.χ. #2f5fa8)', TEXT],
       ['driving_entity', 'Οδηγεί (binary_sensor)', ent('binary_sensor')], ['direction_entity', 'Κατεύθυνση (proximity: towards)', ent('sensor')],
       ['distance_entity', 'Απόσταση από το σπίτι (km)', ent('sensor')], ['eta_entity', 'Χρόνος για το σπίτι (λεπτά)', ent('sensor')],
-      ['usual_minutes', 'Συνηθισμένος χρόνος (λεπτά) για ένδειξη καθυστέρησης', { number: { min: 0, max: 600, mode: 'box' } }]]);
+      ['usual_minutes', 'Συνηθισμένος χρόνος (λεπτά) για ένδειξη καθυστέρησης', { number: { min: 0, max: 600, mode: 'box' } }],
+      ['map', 'Χάρτης', { select: { mode: 'dropdown', options: [{ value: 'native', label: 'Του Home Assistant' }, { value: 'carto', label: 'CARTO' }] } }]]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'person') }; }
   getGridOptions() { return { columns: 6, rows: 1 }; }
@@ -3793,8 +3954,24 @@ class WallPersonTile extends Wall2Card {
   <div class="z"><div class="pn"></div><div class="pst"></div></div><div class="eta" hidden></div><div class="sim" hidden><i></i></div></div>`;
   }
   bind() { this.tapMore(); }
+  /* Ο χάρτης του ίδιου του HA: φορτώνεται μαζί με την κάρτα χάρτη */
+  async haMap(dark) {
+    if (!customElements.get('ha-map')) {
+      const h = window.loadCardHelpers ? await window.loadCardHelpers() : null; if (!h) return;
+      h.createCardElement({ type: 'map', entities: [this._config.entity] });
+      await Promise.race([customElements.whenDefined('ha-map'), new Promise((r) => setTimeout(r, 10000))]);
+      if (!customElements.get('ha-map')) return;
+    }
+    if (!this._hm) {
+      this._hm = document.createElement('ha-map');
+      this._hm.style.cssText = 'position:absolute;inset:0;height:100%;pointer-events:none';
+      this.$('.map').append(this._hm);
+    }
+    Object.assign(this._hm, { hass: this._hass, entities: [{ entity_id: this._config.entity, color: this._config.color }], zoom: 14, themeMode: dark ? 'dark' : 'light', autoFit: true });
+  }
   update() {
     const c = this._config, s = this.st(c.entity), a = s?.attributes || {}, card = this.$('.card');
+    if (this._hm) this._hm.hass = this._hass;
     const name = c.name || a.friendly_name || '';
     const av = this.$('.av');
     av.style.background = a.entity_picture ? cssUrl(a.entity_picture) + ' center/cover' : (c.color || '#2f5fa8');
@@ -3808,7 +3985,11 @@ class WallPersonTile extends Wall2Card {
     card.classList.toggle('home', home); card.classList.toggle('coming', coming);
     if (a.latitude != null) {
       const key = `${a.latitude.toFixed(3)},${a.longitude.toFixed(3)},${card.classList.contains('dark')}`;
-      if (key !== this._mapKey) { this._mapKey = key; this.$('.map').style.backgroundImage = cssUrl(tileUrl(a.latitude, a.longitude, 15, card.classList.contains('dark'))); }
+      if (key !== this._mapKey) {
+        this._mapKey = key;
+        if (c.map === 'carto') this.$('.map').style.backgroundImage = cssUrl(tileUrl(a.latitude, a.longitude, 15, card.classList.contains('dark')));
+        else if (c.map !== false) this.haMap(card.classList.contains('dark'));
+      }
     }
     const pst = this.$('.pst'), etaEl = this.$('.eta'), sim = this.$('.sim');
     etaEl.hidden = sim.hidden = !coming;
@@ -3970,7 +4151,7 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
 
 /* ── Ειδοποιήσεις: ως 4 θέσεις, η πιο επείγουσα έντονη ── */
 class WallNoticeCard extends Wall2Card {
-  static css2 = `
+  static css2 = XP_CSS + `
 .card.v2{padding:12px}
 .hd{display:flex;align-items:center;gap:8px;font:800 14px var(--w-font);margin-bottom:2px}.hd .ms{font-size:20px;color:var(--faint)}
 .hd small{font:800 11px var(--w-font);color:var(--mut);background:var(--chip);border-radius:8px;padding:1px 7px}
@@ -3983,6 +4164,7 @@ class WallNoticeCard extends Wall2Card {
 .bar .bt b{display:block;font:800 15px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .bt small{font:600 12px var(--w-font);color:var(--mut)}
 .bar .cnt{font:800 12px var(--w-font);padding:3px 9px;border-radius:10px;background:var(--chip);color:var(--mut)}
 .bar .chev{color:var(--faint)}
+.xp .n{margin-top:6px}.card.v2.bar.open .chev{transform:rotate(180deg)}.chev{transition:transform .3s}
 .card.v2.bar.hot{background:var(--n);color:#fff}.bar.hot :is(.bi,.chev,small){color:rgba(255,255,255,.9)}.bar.hot .cnt{background:rgba(255,255,255,.22);color:#fff}
 `;
   static getConfigForm() {
@@ -4003,15 +4185,26 @@ class WallNoticeCard extends Wall2Card {
       },
     });
   }
+  fillXp() {
+    const list = this.active(), xp = this.$('.xp');
+    xp.innerHTML = list.length ? list.map((it) => `<div class="n${it.urgent ? ' hot' : ''}" data-i="${it.i}" style="--n:${it.color || '#2f5fa8'}"><span class="ms">${it.icon || 'info'}</span><div class="tx">${this.text(it)}<small>${it.subtitle || since(it.when)}</small></div><span class="ms" style="color:var(--faint)">chevron_right</span></div>`).join('')
+      : '<div class="n empty">Όλα ήσυχα</div>';
+  }
+  disconnectedCallback() { super.disconnectedCallback?.(); (this._xpOff || []).forEach((f) => f()); this._xpOff = []; }
   text(it) { const s = this.st(it.entity); return (it.text || '{state}').replace('{state}', s ? grState(s.state) : '').replace('{name}', this.friendly(it.entity)); }
   getGridOptions() { return { columns: 6, rows: 3 }; }
   watched() { return [...(this._config.items || []).map((i) => i.entity), ...Object.keys(this._hass?.states || {}).filter((k) => k.startsWith('persistent_notification.'))]; }
   template() {
-    if (this.isBar()) return `<div class="card bar"><span class="ms bi">notifications</span><div class="bt"><b></b><small></small></div><span class="cnt"></span><span class="ms chev">expand_more</span></div>`;
+    if (this.isBar()) return `<div class="card bar"><span class="ms bi">notifications</span><div class="bt"><b></b><small></small></div><span class="cnt"></span><span class="ms chev">expand_more</span></div><div class="xp" hidden></div>`;
     return `<div class="card"><div class="hd"><span class="ms">notifications</span><span class="ttl"></span><small></small></div><div class="list"></div></div>`;
   }
   bind() {
-    if (this.isBar()) { this.$('.card').addEventListener('click', () => this.panel()); return; }
+    if (this.isBar()) {
+      const xp = this.$('.xp'), x = expander(this, xp, () => this.fillXp());
+      this.$('.card').addEventListener('click', (e) => { e.stopPropagation(); x.toggle(); });
+      xp.addEventListener('click', (e) => { e.stopPropagation(); const n = e.target.closest('[data-i]'); if (!n) return; const it = this._config.items[n.dataset.i]; x.close(); it.tap ? this.trigger(it.tap) : this.moreInfo(it.entity); });
+      return;
+    }
     this.$('.list').addEventListener('click', (e) => {
       const n = e.target.closest('[data-id]'); if (!n) return;
       const it = (this._config.items || [])[n.dataset.i];
@@ -4180,7 +4373,7 @@ class WallMediaCard extends Wall2Card {
 
 /* ── Γρήγορες ενέργειες ── */
 class WallActionsCard extends Wall2Card {
-  static css2 = `
+  static css2 = XP_CSS + `
 :host{box-shadow:none}
 .card.v2{padding:0;background:none;box-shadow:none;display:grid;gap:8px;grid-template-columns:var(--cols,1fr)}
 button{border-radius:14px;background:var(--box);box-shadow:var(--sh);display:flex;align-items:center;gap:8px;padding:0 12px;font:700 13px var(--w-font);color:var(--ink);min-height:44px}
@@ -4192,6 +4385,14 @@ button{border-radius:14px;background:var(--box);box-shadow:var(--sh);display:fle
 .mdrop button{min-height:56px}
 @keyframes mdin{from{opacity:0;transform:translateY(-8px)}}.icons{grid-auto-flow:column;grid-template-columns:none!important}
 button .ms{font-size:22px;color:var(--accent)}
+.card.v2.rl{width:46px;height:46px;padding:0}.rl .tg{width:46px;height:46px;min-height:0;border-radius:14px;background:none;box-shadow:none;justify-content:center;padding:0}
+.rl .tg .ms{color:#ffc15e;font-size:24px}.card.v2.rl.open .tg{background:#2f3a44}
+.card.v2.rl.open{border-radius:14px}
+.rdrop{left:calc(100% + 12px);right:auto;top:-6px;bottom:auto;width:300px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border-radius:22px;transform-origin:left top}
+.rdrop:not([hidden]){animation:rin .3s cubic-bezier(.2,.9,.25,1)}
+@keyframes rin{from{clip-path:inset(0 100% 0 0 round 22px);opacity:.3}to{clip-path:inset(-40px -40px -40px 0 round 22px)}}
+.rdrop .rh{grid-column:1/-1;font:800 11px var(--w-font);letter-spacing:.6px;color:var(--faint);text-transform:uppercase;margin:2px 4px 0}
+.rdrop button{min-height:56px;background:var(--chip);box-shadow:none;border:0;border-radius:14px;display:flex;align-items:center;gap:8px;padding:0 12px;font:700 13px var(--w-font);color:var(--ink);cursor:pointer}
 `;
   static getConfigForm() {
     return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'grid', label: 'Κουμπιά' }, { value: 'menu', label: 'Ένα κουμπί που ανοίγει μενού' }] } }],
@@ -4202,6 +4403,8 @@ button .ms{font-size:22px;color:var(--accent)}
   watched() { return []; }
   template() {
     const ic = this._config.icons_only;
+    if (this._config.mode === 'rail') return `<div class="card rl"><button class="tg"><span class="ms fill">${this._config.icon || 'bolt'}</span></button></div>
+  <div class="xp rdrop" hidden><div class="rh">Γρήγορες ενέργειες</div>${(this._config.items || []).map((it, i) => `<button data-i="${i}"><span class="ms">${it.icon || 'play_arrow'}</span>${it.name || ''}</button>`).join('')}</div>`;
     if (this._config.mode === 'menu') return `<div class="card mnu"><button class="tg"><span class="ms fill">${this._config.icon || 'bolt'}</span></button></div>
   <div class="mdrop v2" hidden>${(this._config.items || []).map((it, i) => `<button data-i="${i}"><span class="ms">${it.icon || 'play_arrow'}</span>${it.name || ''}</button>`).join('')}</div>`;
     return `<div class="card${ic ? ' icons' : ''}" style="--cols:repeat(${this._config.columns || 1},1fr)">${(this._config.items || []).map((it, i) =>
@@ -4209,6 +4412,12 @@ button .ms{font-size:22px;color:var(--accent)}
   }
   bind() {
     const run = (e) => { const b = e.target.closest('[data-i]'); if (b) { this.trigger(this._config.items[b.dataset.i].entity); if (this._config.mode === 'menu') this.$('.mdrop').hidden = true; } };
+    if (this._config.mode === 'rail') {
+      const x = expander(this, this.$('.rdrop'));
+      this.$('.tg').addEventListener('click', (e) => { e.stopPropagation(); x.toggle(); });
+      this.$('.rdrop').addEventListener('click', (e) => { e.stopPropagation(); const b = e.target.closest('[data-i]'); if (b) { this.trigger(this._config.items[b.dataset.i].entity); x.close(); } });
+      return;
+    }
     if (this._config.mode !== 'menu') { this.$('.card').addEventListener('click', run); return; }
     const drop = this.$('.mdrop');
     this.$('.tg').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; });
@@ -4216,7 +4425,7 @@ button .ms{font-size:22px;color:var(--accent)}
     this._away = (e) => { if (!drop.hidden && !e.composedPath().includes(this)) drop.hidden = true; };
     document.addEventListener('click', this._away);
   }
-  disconnectedCallback() { super.disconnectedCallback?.(); if (this._away) document.removeEventListener('click', this._away); }
+  disconnectedCallback() { super.disconnectedCallback?.(); if (this._away) document.removeEventListener('click', this._away); (this._xpOff || []).forEach((f) => f()); this._xpOff = []; }
   applyTheme() { super.applyTheme(); const d = this.$('.mdrop'); if (d) d.classList.toggle('dark', this.$('.card').classList.contains('dark')); }
   update() {}
 }
@@ -4246,11 +4455,11 @@ class WallLayoutCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>
 :host{display:block}
 .page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${(c.nav || []).length ? '64px ' : ''}${c.columns || 'minmax(260px,20%) 1fr calc(var(--u) * 2 + 44px)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
-.rail{grid-row:1/3;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.rail{grid-row:1/3;position:relative;z-index:9;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
 .rail button{width:46px;height:46px;border-radius:14px;border:0;background:none;display:grid;place-items:center;color:#93a0ab;cursor:pointer;font-family:'Material Symbols Rounded';font-size:24px;font-feature-settings:'liga'}
 .rail button.sel{background:#2f3a44;color:#fff}.rail .sp{flex:1}
 .top{grid-column:-3/-1;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0;position:relative;z-index:5}
-.top>*{min-width:0}.top>.grow{flex:1;height:58px}
+.top>*{min-width:0;height:calc(var(--u) / 2)}.top>.grow{flex:1}.top>.rcol{flex:none;width:calc(var(--u) * 2 + 12px)}.rail>.rc{margin:4px 0}
 .side{grid-row:1/3}
 .page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
 .area{display:flex;flex-direction:column;gap:10px;padding:14px 16px;min-height:0;min-width:0;overflow:hidden}
@@ -4267,7 +4476,7 @@ class WallLayoutCard extends HTMLElement {
 .grid.free>*{aspect-ratio:auto}
 .grid.fix{grid-template-columns:repeat(var(--c),var(--u))!important}
 .grid.fix>*{width:var(--u);height:var(--u);aspect-ratio:auto}
-.grid.fix>.span2{grid-column:span 2;width:auto}
+.grid.fix>.span2{grid-column:span 2;width:auto;aspect-ratio:auto}
 .grid>.span2{grid-column:span 2;aspect-ratio:2/1}
 .bottom{display:flex;gap:14px;align-items:flex-start}
 .bottom>div{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0}
@@ -4317,6 +4526,7 @@ class WallLayoutCard extends HTMLElement {
         const e = make(it);
         if (it.grow) e.classList.add('grow');
         if (it.push) e.classList.add('push');
+        if (it.width === 'right') e.classList.add('rcol');
         if (it.height) e.style.height = it.height;
         host.append(e);
       }
@@ -4337,6 +4547,7 @@ class WallLayoutCard extends HTMLElement {
         mark();
       });
       mark();
+      (c.rail || []).forEach((it) => { const e = make(it); e.classList.add('rc'); rail.insertBefore(e, rail.querySelector('.sp') || null); });
     }
     if (this._hass) this.hass = this._hass;
     /* Ύψος = ό,τι μένει ως το κάτω μέρος της οθόνης, με ή χωρίς τη μπάρα του HA (kiosk) */
