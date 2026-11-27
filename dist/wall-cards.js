@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.9.1';
+const VERSION = '0.10.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4147,6 +4147,19 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
 .chip.ok .ms{color:var(--ok)}.chip.bad{background:#d9573b;color:#fff}.chip.bad .ms{color:#fff}
 .cam{position:relative;width:120px;height:72px;border-radius:12px;background:#2b333a center/cover;box-shadow:var(--sh);overflow:hidden}
 .cam span{position:absolute;left:8px;bottom:6px;font:700 11px var(--w-font);color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.stage{position:absolute;inset:0}.hasdock .stage{bottom:70px}.hasdock .bl{bottom:82px}
+.dock{position:absolute;left:10px;right:10px;bottom:10px;height:58px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:16px;background:var(--box);box-shadow:var(--sh)}
+.dmodes{display:flex;gap:4px;padding-right:8px;border-right:1px solid var(--line)}
+.dmodes button{width:42px;height:42px;border-radius:12px;border:0;background:none;color:var(--faint);display:grid;place-items:center;cursor:pointer;font-size:23px}
+.dmodes button.sel{background:var(--chip);color:var(--ink)}
+.dctl{flex:1;min-width:0;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;animation:dfade .3s}
+@keyframes dfade{from{opacity:0;transform:translateY(6px)}}
+.db{flex:none;display:flex;align-items:center;gap:6px;height:42px;padding:0 13px 0 10px;border-radius:12px;border:0;background:var(--chip);color:var(--ink);font:700 13px var(--w-font);cursor:pointer;white-space:nowrap}
+.db .ms{font-size:21px;color:var(--faint)}.db.on{background:#ffd76a;color:#5a3e00}.db.on .ms{color:#6b4a00}
+.db.pri{background:#7a5fd0;color:#fff}.db.pri .ms{color:#fff}.db.ic{padding:0;width:42px;justify-content:center}
+.dinfo{display:flex;flex-direction:column;line-height:1.15;margin-right:4px;white-space:nowrap}.dinfo b{font:800 15px var(--w-font)}.dinfo small{font:600 12px var(--w-font);color:var(--mut)}
+.dcl{flex:none;display:flex;align-items:center;gap:4px;height:42px;padding:0 4px 0 10px;border-radius:12px;background:var(--chip);font:700 13px var(--w-font);white-space:nowrap}
+.dcl b{font:800 16px var(--w-font);min-width:44px;text-align:center}.dcl .db{background:var(--box);height:34px;width:34px;padding:0;justify-content:center}.dcl .db.on{background:#ffd76a}
 `;
   static getConfigForm() {
     return form([['image', 'Εικόνα κάτοψης (URL, προαιρετικό)', TEXT],
@@ -4156,9 +4169,16 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
   }
   static getStubConfig() { return { rooms: [], lights: [] }; }
   getGridOptions() { return { columns: 12, rows: 6 }; }
+  modes() {
+    const c = this._config, m = [];
+    if ((c.lights || []).length) m.push(['lights', 'lightbulb']);
+    if (c.vacuum) m.push(['vacuum', 'robot_2']);
+    if ((c.climates || []).length) m.push(['climate', 'thermostat']);
+    return c.controls === false ? [] : m;
+  }
   watched() {
     const c = this._config;
-    return [...(c.lights || []).map((l) => l.entity), ...(c.rooms || []).flatMap((r) => [r.temperature, r.humidity]),
+    return [c.vacuum, ...(c.climates || []), ...(c.lights || []).map((l) => l.entity), ...(c.rooms || []).flatMap((r) => [r.temperature, r.humidity]),
       ...(c.locks || []), ...(c.energy || []).map((e) => e.entity || e), ...(c.cameras || [])];
   }
   template() {
@@ -4168,11 +4188,22 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
    <path class="in" stroke-width="2" d="M300 205 L600 355 M375 168 L225 243 M525 393 L675 318 M450 430 L450 465"/></svg>`;
     const rooms = (c.rooms || []).map((r, i) => `<div class="rm" data-i="${i}" style="left:${r.x}%;top:${r.y}%">${r.name}<span class="t"></span></div>`).join('');
     const lights = (c.lights || []).map((l, i) => `<div class="glow" data-g="${i}" style="left:${l.x}%;top:${l.y}%"></div><button class="bulb" data-l="${i}" style="left:${l.x}%;top:${l.y}%"><span class="ms fill">lightbulb</span></button>`).join('');
-    return `<div class="card">${ph}${lights}${rooms}<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div></div>`;
+    const ms = this.modes();
+    const dock = ms.length ? `<div class="dock">${ms.length > 1 ? `<div class="dmodes">${ms.map(([k, ic]) => `<button class="ms fill" data-m="${k}">${ic}</button>`).join('')}</div>` : ''}<div class="dctl"></div></div>` : '';
+    return `<div class="card${ms.length ? ' hasdock' : ''}"><div class="stage">${ph}${lights}${rooms}</div><div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div>${dock}</div>`;
   }
   bind() {
     const c = this._config;
     this.shadowRoot.addEventListener('click', (e) => {
+      const md = e.target.closest('[data-m]'); if (md) { this._mode = md.dataset.m; this._pin = Date.now(); return this.update(); }
+      const dl = e.target.closest('[data-dl]'); if (dl) return this.call('homeassistant', 'toggle', { entity_id: dl.dataset.dl });
+      if (e.target.closest('[data-alloff]')) return this.call('homeassistant', 'turn_off', { entity_id: c.lights.map((l) => l.entity) });
+      const dv = e.target.closest('[data-dv]'); if (dv) return this.call('vacuum', dv.dataset.dv, { entity_id: c.vacuum });
+      const dt = e.target.closest('[data-dt]'); if (dt) {
+        const id = dt.dataset.id, a = this.st(id)?.attributes || {}, step = a.target_temp_step || 0.5;
+        if (dt.dataset.dt === 'pw') return this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id });
+        return this.call('climate', 'set_temperature', { entity_id: id, temperature: (+a.temperature || 20) + (dt.dataset.dt === 'up' ? step : -step) });
+      }
       const b = e.target.closest('[data-l]'); if (b) return this.call('homeassistant', 'toggle', { entity_id: c.lights[b.dataset.l].entity });
       const r = e.target.closest('[data-i]'); if (r) return this.moreInfo(c.rooms[r.dataset.i].temperature);
       const m = e.target.closest('[data-id]'); if (m) {
@@ -4207,6 +4238,7 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
       const col = e.color || { bolt: '#e0a020', water_drop: '#3d8fe6', local_fire_department: '#e46a2c' }[ic] || '#7a858f';
       return `<button class="chip" data-id="${id}"><span class="ms fill" style="color:${col}">${ic}</span><b>${fmt(+s.state, +s.state < 10 ? 1 : 0)} ${s.attributes.unit_of_measurement || ''}</b>${e.name ? `<small>${e.name}</small>` : ''}</button>`;
     }).join('');
+    this.dockUpdate();
     const bl = this.$('.bl');
     if (!this._camT || Date.now() - this._camT > 10000) {
       this._camT = Date.now();
@@ -4217,6 +4249,35 @@ svg.ph{position:absolute;inset:0;width:100%;height:100%}
     }
   }
 }
+
+/* Panel κάτω από την κάτοψη: τα controls της τρέχουσας όψης (φώτα, σκούπα, κλίμα) */
+WallPlanCard.prototype.dockUpdate = function () {
+  const c = this._config, ms = this.modes(), box = this.$('.dctl'); if (!box) return;
+  const vs = c.vacuum ? this.val(c.vacuum) : '';
+  /* αυτόματη όψη: η σκούπα όταν δουλεύει· αλλιώς ό,τι διάλεξε ο χρήστης (για 2 λεπτά) ή η πρώτη */
+  const auto = ['cleaning', 'returning'].includes(vs) ? 'vacuum' : ms[0][0];
+  if (!this._pin || Date.now() - this._pin > 120000) { this._pin = 0; this._mode = auto; }
+  const mode = this._mode;
+  this.shadowRoot.querySelectorAll('[data-m]').forEach((b) => b.classList.toggle('sel', b.dataset.m === mode));
+  let h = '';
+  if (mode === 'lights') {
+    h = c.lights.map((l) => `<button class="db ${this.val(l.entity) === 'on' ? 'on' : ''}" data-dl="${l.entity}"><span class="ms fill">lightbulb</span>${l.name || this.friendly(l.entity)}</button>`).join('')
+      + `<button class="db" data-alloff><span class="ms">light_off</span>Όλα</button>`;
+  } else if (mode === 'vacuum') {
+    const a = this.st(c.vacuum)?.attributes || {}, run = vs === 'cleaning';
+    const GR = { cleaning: 'Καθαρίζει', docked: 'Στη βάση', returning: 'Επιστρέφει', paused: 'Σε παύση', idle: 'Αναμονή', error: 'Σφάλμα' };
+    h = `<div class="dinfo"><b>${GR[vs] || vs || '—'}</b><small>${a.battery_level != null ? `μπαταρία ${a.battery_level}%` : ''}</small></div>`
+      + `<button class="db pri" data-dv="${run ? 'pause' : 'start'}"><span class="ms fill">${run ? 'pause' : 'play_arrow'}</span>${run ? 'Παύση' : 'Έναρξη'}</button>`
+      + `<button class="db" data-dv="return_to_base"><span class="ms fill">home</span>Βάση</button>`
+      + `<button class="db ic" data-dv="stop"><span class="ms fill">stop</span></button><button class="db ic" data-dv="locate"><span class="ms">location_searching</span></button>`;
+  } else if (mode === 'climate') {
+    h = c.climates.map((id) => {
+      const s = this.st(id), a = s?.attributes || {}, off = !s || s.state === 'off';
+      return `<div class="dcl"><span>${this.friendly(id)}</span><button class="db" data-dt="dn" data-id="${id}"><span class="ms">remove</span></button><b>${off ? '—' : fmt(+a.temperature, 1) + '°'}</b><button class="db" data-dt="up" data-id="${id}"><span class="ms">add</span></button><button class="db ${off ? '' : 'on'}" data-dt="pw" data-id="${id}"><span class="ms">power_settings_new</span></button></div>`;
+    }).join('');
+  }
+  if (h !== this._dk) { this._dk = h; box.innerHTML = h; }
+};
 
 /* ── Ειδοποιήσεις: ως 4 θέσεις, η πιο επείγουσα έντονη ── */
 class WallNoticeCard extends Wall2Card {
@@ -4330,33 +4391,48 @@ class WallShopCard extends Wall2Card {
 .cmp .ic{font-size:24px;color:var(--faint)}.cmp .ct{flex:1;min-width:0;cursor:pointer}.cmp .ttl{font:800 15px var(--w-font)}
 .cmp .one{font:600 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8}
 .cmp .one.fade{animation:sfade 7s ease-in-out}@keyframes sfade{0%{opacity:0}18%,82%{opacity:.85}100%{opacity:0}}
+.card.v2.cmp.multi{flex-direction:column;align-items:stretch;justify-content:center;gap:0;padding:4px 10px 4px 14px}
+.cmp .row{display:flex;align-items:center;gap:12px;flex:1;min-height:0}.cmp .row+.row{border-top:1px solid var(--line)}
 `;
   static getConfigForm() {
-    return form([['entity', 'Λίστα', ent('todo'), true], ['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'list', label: 'Λίστα' }, { value: 'compact', label: 'Συμπαγής: αριθμός και ένα προϊόν τη φορά' }] } }],
+    return form([['entity', 'Λίστα', ent('todo'), true], ['reminders', 'Υπενθυμίσεις (2η λίστα, συμπαγής)', ent('todo')], ['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'list', label: 'Λίστα' }, { value: 'compact', label: 'Συμπαγής: αριθμός και ένα προϊόν τη φορά' }] } }],
       ['max', 'Πόσα να φαίνονται (λίστα)', { number: { min: 1, max: 12, mode: 'box' } }]]);
   }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'todo') }; }
   getGridOptions() { return { columns: 6, rows: 3 }; }
-  watched() { return [this._config.entity]; }
+  lists() {
+    const c = this._config, l = [{ entity: c.entity, title: c.title || 'Ψώνια', icon: 'shopping_cart', ask: 'Τι χρειάζεται;' }];
+    if (c.reminders) l.push({ entity: c.reminders, title: c.reminders_title || 'Υπενθυμίσεις', icon: 'event_note', ask: 'Τι να θυμηθώ;' });
+    return l;
+  }
+  watched() { return this.lists().map((l) => l.entity); }
   template() {
-    if (this._config.mode === 'compact') return `<div class="card cmp"><span class="ms fill ic">shopping_cart</span><div class="ct"><b class="ttl"></b><div class="one"></div></div><button class="btn ms add">add</button></div>`;
+    if (this._config.mode === 'compact') return `<div class="card cmp${this._config.reminders ? ' multi' : ''}">${this.lists().map((l, i) => `<div class="row" data-r="${i}"><span class="ms fill ic">${l.icon}</span><div class="ct"><b class="ttl"></b><div class="one"></div></div><button class="btn ms add">add</button></div>`).join('')}</div>`;
     return `<div class="card"><div class="hd"><span class="ms fill">shopping_cart</span><span class="ttl"></span><small></small><button class="btn ms add">add</button></div><div class="list"></div></div>`;
   }
   disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._rot); this._rot = null; }
   rotate() {
-    const one = this.$('.one'); if (!one) return;
-    const open = (this._items || []).filter((i) => i.status === 'needs_action');
-    if (!open.length) { one.textContent = 'η λίστα είναι άδεια'; one.classList.remove('fade'); return; }
-    this._ri = ((this._ri ?? -1) + 1) % open.length;
-    one.classList.remove('fade'); void one.offsetWidth;
-    one.textContent = open[this._ri].summary; one.classList.add('fade');
+    this.shadowRoot.querySelectorAll('.row').forEach((row, k) => {
+      const one = row.querySelector('.one'), open = ((this._itemsBy || [])[k] || []).filter((i) => i.status === 'needs_action');
+      if (!open.length) { one.textContent = k ? 'τίποτα για τώρα' : 'η λίστα είναι άδεια'; one.classList.remove('fade'); return; }
+      this._ri = this._ri || []; this._ri[k] = ((this._ri[k] ?? -1) + 1) % open.length;
+      one.classList.remove('fade'); void one.offsetWidth;
+      one.textContent = open[this._ri[k]].summary; one.classList.add('fade');
+    });
   }
   bind() {
+    if (this._config.mode === 'compact') {
+      this.shadowRoot.querySelectorAll('.row').forEach((row) => {
+        const l = this.lists()[row.dataset.r];
+        row.querySelector('.add').addEventListener('click', () => { const v = prompt(l.ask); if (v && v.trim()) this.call('todo', 'add_item', { entity_id: l.entity, item: v.trim() }); });
+        row.querySelector('.ct').addEventListener('click', () => this.moreInfo(l.entity));
+      });
+      this._rot = setInterval(() => this.rotate(), 7000); return;
+    }
     this.$('.add').addEventListener('click', () => {
       const v = prompt('Τι χρειάζεται;');
       if (v && v.trim()) this.call('todo', 'add_item', { entity_id: this._config.entity, item: v.trim() });
     });
-    if (this._config.mode === 'compact') { this.$('.ct').addEventListener('click', () => this.moreInfo(this._config.entity)); this._rot = setInterval(() => this.rotate(), 7000); return; }
     this.$('.list').addEventListener('click', (e) => {
       const r = e.target.closest('[data-uid]'); if (!r) return;
       this.call('todo', 'update_item', { entity_id: this._config.entity, item: r.dataset.uid, status: r.classList.contains('done') ? 'needs_action' : 'completed' });
@@ -4364,6 +4440,13 @@ class WallShopCard extends Wall2Card {
   }
   async update() {
     const c = this._config;
+    if (c.mode === 'compact') {
+      const ls = this.lists(), first = !this._itemsBy;
+      this._itemsBy = await Promise.all(ls.map((l) => this._hass.callWS({ type: 'todo/item/list', entity_id: l.entity }).then((r) => r?.items || []).catch(() => [])));
+      this.shadowRoot.querySelectorAll('.row').forEach((row, k) => { row.querySelector('.ttl').textContent = `${ls[k].title} · ${this._itemsBy[k].filter((i) => i.status === 'needs_action').length}`; });
+      if (first) this.rotate();
+      return;
+    }
     this.$('.ttl').textContent = c.title || 'Ψώνια';
     let items = [];
     try { items = (await this._hass.callWS({ type: 'todo/item/list', entity_id: c.entity }))?.items || []; } catch (e) { /* μη διαθέσιμη λίστα */ }

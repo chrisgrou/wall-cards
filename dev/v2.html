@@ -66,7 +66,13 @@ const cfg = {
     { icon: 'monitoring', name: 'Στατιστικά', path: '/wall-v2/stats' }, { icon: 'local_pharmacy', name: 'Χρήσιμα', path: '/wall-v2/useful' }, { icon: 'videocam', name: 'Κάμερες', path: '/wall-v2/cameras' },
     { icon: 'dns', name: 'Homelab', path: '/wall-v2/homelab' }, { icon: 'settings', name: 'Ρυθμίσεις', path: '/wall-v2/settings', bottom: true }],
   sidebar: [
-    { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', height: '60px' },
+    { group: '', columns: 1, rows: '76px 76px 54px 54px', cards: [
+      { type: 'custom:wall-person-tile', entity: 'person.chris', color: '#2f5fa8', driving_entity: 'binary_sensor.chris_driving', direction_entity: 'sensor.chris_dir', distance_entity: 'sensor.chris_km', eta_entity: 'sensor.chris_eta', usual_minutes: 8 },
+      { type: 'custom:wall-person-tile', entity: 'person.ioanna', color: '#b0548a' },
+      { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
+      { type: 'custom:wall-car-tile', entity: 'device_tracker.corsa', name: 'Opel Corsa', status_entity: 'device_tracker.corsa', price_entity: 'sensor.diesel', price_label: 'Φθηνότερο πετρέλαιο' },
+    ] },
+    { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', reminders: 'todo.family_board', height: '104px' },
     { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'], push: true },
   ],
   rail: [{ type: 'custom:wall-actions', mode: 'rail', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] }],
@@ -79,13 +85,7 @@ const cfg = {
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
   ],
   center: [
-    { group: '', columns: 2, rows: '76px 54px', cards: [
-      { type: 'custom:wall-person-tile', entity: 'person.chris', color: '#2f5fa8', driving_entity: 'binary_sensor.chris_driving', direction_entity: 'sensor.chris_dir', distance_entity: 'sensor.chris_km', eta_entity: 'sensor.chris_eta', usual_minutes: 8 },
-      { type: 'custom:wall-person-tile', entity: 'person.ioanna', color: '#b0548a' },
-      { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
-      { type: 'custom:wall-car-tile', entity: 'device_tracker.corsa', name: 'Opel Corsa', status_entity: 'device_tracker.corsa', price_entity: 'sensor.diesel', price_label: 'Φθηνότερο πετρέλαιο' },
-    ] },
-    { type: 'custom:wall-plan', grow: true, locks: ['lock.door', 'lock.opener'], energy: ['sensor.power', 'sensor.water', 'sensor.gas'], cameras: [],
+    { type: 'custom:wall-plan', grow: true, vacuum: 'vacuum.robo', climates: ['climate.ac', 'climate.boiler'], locks: ['lock.door', 'lock.opener'], energy: ['sensor.power', 'sensor.water', 'sensor.gas'], cameras: [],
       lights: [{ entity: 'light.salon', x: 50, y: 38 }, { entity: 'light.kitchen', x: 32, y: 58 }, { entity: 'light.bed', x: 62, y: 62 }],
       rooms: [{ name: 'Σαλόνι', x: 44, y: 27, temperature: 'sensor.salon_t', humidity: 'sensor.salon_h' }, { name: 'Κουζίνα', x: 26, y: 48, temperature: 'sensor.kitchen_t' },
         { name: 'Υπνοδωμάτιο', x: 70, y: 51, temperature: 'sensor.bed_t', humidity: 'sensor.bed_h' }, { name: 'Παιδικό', x: 52, y: 72, temperature: 'sensor.kid_t' }] },
