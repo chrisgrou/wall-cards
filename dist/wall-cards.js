@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3087,7 +3087,7 @@ const PIC_CSS = `
 @keyframes pblink{50%{opacity:.2}}@keyframes prise{from{transform:translateY(3px);opacity:0}50%{opacity:1}to{transform:translateY(-5px);opacity:0}}
 @keyframes proam{0%,100%{transform:translate(0,0)}30%{transform:translate(-5px,3px) rotate(-12deg)}65%{transform:translate(5px,2px) rotate(10deg)}}
 @keyframes pslide{50%{transform:translateX(7px)}}
-.haspic .nm{display:none}.haspic.shownm .nm{display:block}
+.haspic .nm{visibility:hidden;height:0;line-height:0}.haspic.shownm .nm{display:block}
 `;
 /* ── Συσκευή (template 1×1): εικονίδιο, ⏻, όνομα, τιμή, γραμμή, −/+ ή πρόοδος ── */
 const TILE_KINDS = {
@@ -4449,6 +4449,7 @@ class WallLayoutCard extends HTMLElement {
   }
   async build() {
     this._built = true;
+    const tok = this._tok = (this._tok || 0) + 1;
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     ensureFonts();
     const c = this._config, u = c.unit || 148;
@@ -4485,6 +4486,7 @@ class WallLayoutCard extends HTMLElement {
 .push{margin-top:auto}
 </style><div class="page">${(c.nav || []).length ? `<nav class="rail">${c.nav.map((n, i) => `${n.bottom ? '<span class="sp"></span>' : ''}<button data-n="${i}" title="${n.name || ''}">${n.icon}</button>`).join('')}</nav>` : ''}<div class="area side"></div><div class="top"></div><div class="area mid"></div><div class="area right"></div></div>`;
     const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
+    if (tok !== this._tok) return; /* νεότερο build ξεκίνησε στο μεταξύ: χωρίς διπλές κάρτες */
     const make = (cfg) => {
       const tag = cfg.type.startsWith('custom:') ? cfg.type.slice(7) : `hui-${cfg.type}-card`;
       let e;
