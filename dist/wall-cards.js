@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.14.0';
+const VERSION = '0.14.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3316,8 +3316,8 @@ class WallTileCard extends Wall2Card {
 @container (max-aspect-ratio:3/2){.vac{display:none!important}}
 .ico{font-size:30px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
 .pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
-.nm{margin-top:auto;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v{font:800 25px var(--w-font);letter-spacing:-.8px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm{margin-top:4px;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v{margin-top:auto;font:800 25px var(--w-font);letter-spacing:-.8px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
 .s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ft{display:flex;gap:6px;margin-top:6px}.ft .btn{flex:1;font:500 20px var(--w-font);height:32px}
