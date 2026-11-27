@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3613,6 +3613,7 @@ class WallTodayCard extends Wall2Card {
 .card.v2.bar2{flex-direction:row;align-items:center;justify-content:flex-start;gap:0;padding:0 2px;background:none;box-shadow:none;height:100%}
 .bar2 .tp{border:0;background:none;color:var(--ink);cursor:pointer;padding:6px 8px;border-radius:14px;font-family:var(--w-font);text-align:left}
 .bar2 .tp:active{background:var(--chip)}
+.noclk :is(.clock,.date){display:none}.noclk .mon{margin-top:0}
 .bar2 .date{margin:0;font:700 16px var(--w-font);color:var(--mut);line-height:1.15;white-space:normal}
 .bar2 .clock{font:800 40px var(--w-font);letter-spacing:-1.5px;line-height:1}
 .xp .mon{margin-top:4px}
@@ -3656,7 +3657,7 @@ class WallTodayCard extends Wall2Card {
     if (this._config.mode === 'clock') return `<div class="card bar2"><button class="clock tp"></button><button class="date tp"></button></div>
   <div class="xp xcal" hidden><div class="mon"></div><div class="ag"></div></div>
   <div class="xp xtim" hidden></div>`;
-    return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
+    return `<div class="card${this._config.clock === false ? ' noclk' : ''}"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
   }
   bind() {
     this._clock = setInterval(() => this.clock(), 15000);
@@ -4680,19 +4681,35 @@ class WallStatusCard extends Wall2Card {
 .gr{background:var(--chip);border-radius:14px;padding:8px 10px 4px;margin-top:6px}.gr svg{width:100%;height:84px;display:block}
 .gr .ax{display:flex;justify-content:space-between;font:700 11px var(--w-font);color:var(--faint)}
 .wsky{position:relative;height:150px;border-radius:16px;overflow:hidden;margin-top:4px}
+.av{position:relative;width:54px;height:54px;flex:none;border-radius:50%;padding:3px;background:var(--rg,#c3cad0);transition:background .4s}
+.av>span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;border:2px solid var(--bg,#fff);background:var(--pc) center/cover;color:#fff;font:800 20px var(--w-font);box-sizing:border-box}
+.av.away>span{filter:grayscale(.7);opacity:.7}.av.drv{--rg:#3d8fe6;animation:avp 1.6s ease-in-out infinite}
+@keyframes avp{50%{box-shadow:0 0 0 5px rgba(61,143,230,.25)}}
+.av i{position:absolute;right:-3px;bottom:-3px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--rg,#8b959e);color:#fff;font:normal 14px 'Material Symbols Rounded';font-feature-settings:'liga';border:2px solid var(--bg,#fff)}
+.ppl{display:flex;flex-direction:column;gap:8px}.ppl>*{display:block;height:128px}
 `;
   static getConfigForm() {
-    return form([['kind', 'Είδος', { select: { mode: 'dropdown', options: [{ value: 'weather', label: 'Καιρός' }, { value: 'home', label: 'Συνθήκες σπιτιού' }] } }],
+    return form([['kind', 'Είδος', { select: { mode: 'dropdown', options: [{ value: 'weather', label: 'Καιρός' }, { value: 'home', label: 'Συνθήκες σπιτιού' }, { value: 'people', label: 'Άτομα (avatars)' }] } }],
       ['entity', 'Καιρός', ent('weather')], ['temperature', 'Θερμοκρασία σπιτιού', ent('sensor')], ['humidity', 'Υγρασία σπιτιού', ent('sensor')]]);
   }
   static getStubConfig(hass) { return { kind: 'weather', entity: firstEntity(hass, 'weather') }; }
   getGridOptions() { return { columns: 3, rows: 1 }; }
-  watched() { const c = this._config; return [c.entity, c.temperature, c.humidity, ...(c.extra || []).map((x) => x.entity)]; }
+  watched() { const c = this._config; return [c.entity, c.temperature, c.humidity, ...(c.extra || []).map((x) => x.entity), ...(c.people || []).flatMap((p) => [p.entity, p.driving_entity])]; }
   template() { return `<div class="card sb"><button class="it"></button></div><div class="xp wide" hidden></div>`; }
   bind() { const x = expander(this, this.$('.xp'), () => this.panel()); this.$('.it').addEventListener('click', (e) => { e.stopPropagation(); x.toggle(); }); this.$('.xp').addEventListener('click', (e) => e.stopPropagation()); }
   disconnectedCallback() { super.disconnectedCallback?.(); (this._xpOff || []).forEach((f) => f()); this._xpOff = []; this._unsub?.then?.((u) => u?.()); this._unsub = null; }
   update() {
     const c = this._config, it = this.$('.it');
+    if (c.kind === 'people') {
+      it.style.gap = '8px';
+      it.innerHTML = (c.people || []).map((p) => {
+        const s = this.st(p.entity), home = s?.state === 'home', drv = p.driving_entity && this.val(p.driving_entity) === 'on';
+        const pic = s?.attributes?.entity_picture, nm = p.name || this.friendly(p.entity);
+        return `<span class="av ${home ? '' : 'away'} ${drv ? 'drv' : ''}" style="--pc:${p.color || '#5f6b76'};${home ? '--rg:#3f9a62' : ''}" title="${nm}"><span style="${pic ? `background-image:${cssUrl(pic)}` : ''}">${pic ? '' : nm[0]}</span><i>${drv ? 'directions_car' : home ? 'home' : 'location_on'}</i></span>`;
+      }).join('');
+      if (!this.$('.xp').hidden) (this._pc || []).forEach((e) => { e.hass = this._hass; });
+      return;
+    }
     if (c.kind === 'home') {
       const tv = this.num(c.temperature), hv = this.num(c.humidity);
       it.innerHTML = `<span class="ms fill" style="--ic:#e0702a">home</span><b>${isNaN(tv) ? '—' : fmt(tv, 1)}°</b><span class="sep"></span><span class="ms" style="--ic:#3d8fe6;font-size:24px">humidity_percentage</span><b>${isNaN(hv) ? '—' : Math.round(hv)}<small>%</small></b>`;
@@ -4709,6 +4726,12 @@ class WallStatusCard extends Wall2Card {
   async panel() {
     this._pt = Date.now();
     const c = this._config, xp = this.$('.xp');
+    if (c.kind === 'people') {
+      if (!this._pc) this._pc = (c.people || []).map((p) => { const e = document.createElement('wall-person-tile'); e.setConfig({ type: 'custom:wall-person-tile', ...p }); return e; });
+      if (!xp.querySelector('.ppl')) { xp.innerHTML = '<div class="ppl"></div>'; xp.firstChild.append(...this._pc); }
+      this._pc.forEach((e) => { e.hass = this._hass; });
+      return;
+    }
     if (c.kind === 'home') {
       const tv = this.num(c.temperature), hv = this.num(c.humidity);
       xp.innerHTML = `<h4>Τώρα στο σπίτι</h4><div class="big"><div><small>Θερμοκρασία</small><b>${isNaN(tv) ? '—' : fmt(tv, 1)}°</b></div><div><small>Υγρασία</small><b>${isNaN(hv) ? '—' : Math.round(hv)}%</b></div></div>
