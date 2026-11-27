@@ -53,7 +53,7 @@ const states = {
 const todo = [{ uid: '1', summary: 'Γάλα', status: 'needs_action' }, { uid: '2', summary: 'Ψωμί', status: 'needs_action' }, { uid: '3', summary: 'Απορρυπαντικό πιάτων', status: 'needs_action' }, { uid: '4', summary: 'Μπανάνες', status: 'completed' }];
 const hist = (base, amp) => Array.from({ length: 48 }, (_, i) => ({ lu: (Date.now() - (47 - i) * 1800000) / 1000, s: String(base + Math.sin(i / 6) * amp) }));
 const day = (o) => new Date(Date.now() + o * 864e5).toISOString();
-const hass = {
+const hass = { services: { scheduler: { add: {}, remove: {} } },
   states, themes: { darkMode: q.has('dark') }, language: 'el',
   callService: (d, s, data) => { console.log('service', d, s, data); if (d === 'homeassistant' || d === 'light') { const id = data.entity_id; states[id] = S(states[id].state === 'on' ? 'off' : 'on', states[id].attributes); push(); } if (d === 'climate' && s === 'set_temperature') { states[data.entity_id].attributes.temperature = data.temperature; states[data.entity_id] = { ...states[data.entity_id], last_updated: now() }; push(); } return Promise.resolve(); },
   callWS: async (m) => m.type === 'todo/item/list' ? { items: todo } : m.type === 'history/history_during_period' ? Object.fromEntries(m.entity_ids.map((id) => [id, hist(id.includes('_h') ? 52 : 20.5, id.includes('_h') ? 4 : 1)])) : {},
@@ -66,17 +66,13 @@ const cfg = {
     { icon: 'monitoring', name: 'Στατιστικά', path: '/wall-v2/stats' }, { icon: 'local_pharmacy', name: 'Χρήσιμα', path: '/wall-v2/useful' }, { icon: 'videocam', name: 'Κάμερες', path: '/wall-v2/cameras' },
     { icon: 'dns', name: 'Homelab', path: '/wall-v2/homelab' }, { icon: 'settings', name: 'Ρυθμίσεις', path: '/wall-v2/settings', bottom: true }],
   sidebar: [
-    { type: 'custom:wall-sky', entity: 'weather.home', height: '150px' },
-    { group: 'Σπίτι', columns: 2, rows: '74px 74px', cards: [
-      { type: 'custom:wall-stat', entity: 'sensor.home_t', name: 'Θερμοκρασία', trend_entity: 'sensor.home_t_rate' },
-      { type: 'custom:wall-stat', entity: 'sensor.home_h', name: 'Υγρασία', trend_entity: 'sensor.home_h_rate', trend_min: 4 },
-      { type: 'custom:wall-stat', entity: 'sensor.co2', name: 'CO₂', icon: 'co2', quality: 'co2', color: '#3f9a62', graph: false },
-      { type: 'custom:wall-stat', entity: 'sensor.pm25', name: 'PM2.5', icon: 'airwave', quality: 'pm25', color: '#7a5fd0', graph: false }] },
     { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', height: '60px' },
     { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'], push: true },
   ],
   rail: [{ type: 'custom:wall-actions', mode: 'rail', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] }],
   top: [
+    { type: 'custom:wall-status', kind: 'weather', entity: 'weather.home' },
+    { type: 'custom:wall-status', kind: 'home', temperature: 'sensor.home_t', humidity: 'sensor.home_h', extra: [{ entity: 'sensor.co2', name: 'CO₂' }, { entity: 'sensor.pm25', name: 'PM2.5' }] },
     { type: 'custom:wall-notices', mode: 'bar', grow: true, items: [
       { entity: 'input_select.dryer', state: 'done', icon: 'cyclone', text: 'Το στεγνωτήριο τελείωσε', color: '#c98a1e', urgent: true },
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
