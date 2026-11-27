@@ -4154,7 +4154,16 @@ class WallLayoutCard extends HTMLElement {
       mark();
     }
     if (this._hass) this.hass = this._hass;
+    /* Ύψος = ό,τι μένει ως το κάτω μέρος της οθόνης, με ή χωρίς τη μπάρα του HA (kiosk) */
+    if (!c.height) {
+      const page = this.shadowRoot.querySelector('.page');
+      const fit = () => { const top = this.getBoundingClientRect().top; if (top >= 0) page.style.height = `${Math.max(400, window.innerHeight - top)}px`; };
+      fit(); setTimeout(fit, 300); setTimeout(fit, 1500);
+      if (!this._onResize) { this._onResize = () => fit(); window.addEventListener('resize', this._onResize); }
+    }
   }
+  disconnectedCallback() { if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; } }
+  connectedCallback() { if (this._built) { this._built = false; this.build(); } }
   getCardSize() { return 12; }
   getGridOptions() { return { columns: 'full', rows: 'auto' }; }
 }
