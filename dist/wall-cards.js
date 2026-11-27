@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.6.0';
+const VERSION = '0.6.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3032,12 +3032,24 @@ const TILE_KINDS = {
 };
 const ANIMS = ['wave', 'drop', 'spin', 'roam', 'glow', 'pulse', 'wob', 'flame'];
 const VAC = { cleaning: 'Καθαρίζει', docked: 'Στη βάση', returning: 'Επιστρέφει', paused: 'Σε παύση', idle: 'Σε αναμονή', error: 'Σφάλμα' };
+const STATE_GR = { on: 'Λειτουργεί', off: 'σβηστό', running: 'Λειτουργεί', idle: 'σε αναμονή', paused: 'σε παύση', standby: 'αναμονή',
+  done: 'Τελείωσε', finished: 'Τελείωσε', finish: 'Τελείωσε', connected: 'Online', disconnected: 'Offline', printing: 'Τυπώνει', prepare: 'Προετοιμασία',
+  failed: 'Απέτυχε', unknown: 'άγνωστο', home: 'Σπίτι', not_home: 'Εκτός' };
+const grState = (s) => STATE_GR[String(s).toLowerCase()] ?? s;
 const DONE = ['done', 'finished', 'complete', 'completed', 'end', 'τέλος'];
 const OFFS = ['off', 'idle', 'docked', 'standby', 'paused', 'none', 'closed', 'locked'];
 
 class WallTileCard extends Wall2Card {
   static css2 = `
-.card.v2{padding:11px 11px 10px;cursor:pointer;--a:#7a858f}
+:host{container-type:size}
+.card.v2{padding:7cqw 7cqw 6cqw;cursor:pointer;--a:#7a858f}
+.ico{font-size:clamp(22px,19cqw,30px)!important}
+.nm{font-size:clamp(11px,8.6cqw,13px)!important}
+.v{font-size:clamp(17px,16cqw,25px)!important}
+.v small,.s{font-size:clamp(10px,7.8cqw,12px)!important}
+.pw{width:clamp(32px,27cqw,42px)!important;height:clamp(32px,27cqw,42px)!important;font-size:clamp(18px,15cqw,23px)!important}
+.ft .btn{height:clamp(24px,21cqw,32px)!important;font-size:clamp(16px,13cqw,20px)!important}
+.ft:not([hidden])~.s,.ft:not([hidden])+.s{display:none}
 .ico{font-size:30px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
 .pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
 .nm{margin-top:auto;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3045,7 +3057,7 @@ class WallTileCard extends Wall2Card {
 .v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
 .s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ft{display:flex;gap:6px;margin-top:6px}.ft .btn{flex:1;font:500 20px var(--w-font);height:32px}
-.pg{height:5px;border-radius:3px;background:var(--line);margin-top:6px;overflow:hidden}.pg i{display:block;height:100%;width:0;background:var(--a);border-radius:3px;transition:width 1s}
+.pg{height:4px;border-radius:2px;background:var(--line);margin-top:5px;overflow:hidden}.pg i{display:block;height:100%;width:0;background:var(--a);border-radius:3px;transition:width 1s}
 .on .ico,.on .pw{color:var(--a)}
 .card.v2.on{background:linear-gradient(160deg,var(--box) 35%,color-mix(in srgb,var(--a) 18%,var(--box)))}
 .on .ft .btn{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
@@ -3112,6 +3124,7 @@ class WallTileCard extends Wall2Card {
   open() {
     const c = this._config, d = this.domain();
     if (this.$('.card').classList.contains('att') && c.attention_entity) { this._ack = this.st(c.attention_entity)?.last_changed; this.update(); return; }
+    if (this.timer()) return this.timerPopup();
     if (d === 'climate') return climatePopup(this);
     if (d === 'light') return lightPopup(this);
     this.moreInfo(c.entity);
@@ -3124,9 +3137,38 @@ class WallTileCard extends Wall2Card {
     if (d === 'humidifier') return this.call('humidifier', 'toggle', { entity_id: id });
     this.call('homeassistant', 'toggle', { entity_id: id });
   }
+  timer() { return !!(this._config.finish_entity && this._config.duration_entity); }
+  maxMin() { return this._config.max_minutes || this.st(this._config.duration_entity)?.attributes?.max || 30; }
+  setMinutes(m, running) {
+    const c = this._config;
+    m = clamp(Math.round(m), 1, this.maxMin());
+    this._hold = { v: m, until: Date.now() + 3000 }; this.update();
+    if (running) return this.call('input_datetime', 'set_datetime', { entity_id: c.finish_entity, timestamp: Math.round(Date.now() / 1000 + m * 60) });
+    return this.call('input_number', 'set_value', { entity_id: c.duration_entity, value: m });
+  }
+  timerPopup() {
+    const c = this._config;
+    openPopup(this, {
+      icon: c.icon || 'water_heater', size: 'sm', accent: () => c.color || '#d9573b',
+      status: () => { const l = this.minutesLeft(); return this.val(c.entity) === 'on' && l != null ? `Λειτουργεί · ${Math.ceil(l)}′ απομένουν` : 'Σβηστός'; },
+      render: (pp) => {
+        const on = this.val(c.entity) === 'on', left = this.minutesLeft();
+        const cur = on && left != null ? Math.ceil(left) : Math.round(this.num(c.duration_entity)) || 15;
+        popStepper(popSection(pp, on ? 'Υπόλοιπο' : 'Διάρκεια'), { text: `${cur}′`, dec: () => this.setMinutes(cur - 1, on), inc: () => this.setMinutes(cur + 1, on) });
+        const max = this.maxMin();
+        popChips(popSection(pp, `Γρήγορα (ως ${max}′)`), [5, 10, 15, 20, 30].filter((m) => m <= max).map((m) => ({ label: `${m}′`, sel: m === cur, tap: () => this.setMinutes(m, on) })));
+        popChips(popSection(pp), [{ label: on ? 'Σβήσιμο' : 'Έναρξη', icon: 'power_settings_new', sel: on, tap: () => this.call('homeassistant', on ? 'turn_off' : 'turn_on', { entity_id: c.entity }) }]);
+      },
+    });
+  }
   step(dir) {
     const c = this._config, d = this.domain(), id = c.entity, a = this.st(id)?.attributes || {};
     if (!this.available(id)) return;
+    if (this.timer()) {
+      const on = this.val(id) === 'on', left = this.minutesLeft();
+      const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : on && left != null ? Math.ceil(left) : this.num(c.duration_entity);
+      return this.setMinutes(cur + dir, on);
+    }
     if (d === 'climate') {
       const by = a.target_temp_step || 0.5;
       const cur = this._hold && Date.now() < this._hold.until ? this._hold.v : a.temperature;
@@ -3206,17 +3248,22 @@ class WallTileCard extends Wall2Card {
       v = VAC[st] || st; sub = a.battery_level != null ? `μπαταρία ${a.battery_level}%` : '';
     } else if (d === 'input_number' || d === 'number') {
       v = `${st}<small> ${a.unit_of_measurement || ''}</small>`; steps = true;
+    } else if (this.timer()) {
+      const hv = held ? this._hold.v : null;
+      if (on && left != null) v = `${hv ?? Math.ceil(left)}′<small> απομένουν</small>`;
+      else v = `${hv ?? Math.round(this.num(c.duration_entity))}′<small> διάρκεια</small>`;
+      steps = true;
     } else if (left != null && on) {
-      v = left >= 60 ? `${Math.floor(left / 60)}:${pad2(left % 60)}` : `${Math.ceil(left)}′<small> απομένουν</small>`;
+      v = left >= 60 ? `${Math.floor(left / 60)}:${pad2(Math.round(left % 60))}` : `${Math.ceil(left)}′<small> απομένουν</small>`;
     } else if (c.value_entity) {
       const vs = this.st(c.value_entity);
-      v = vs ? `${vs.state}<small> ${vs.attributes.unit_of_measurement || ''}</small>` : '—';
+      v = vs ? `${grState(vs.state)}<small> ${vs.attributes.unit_of_measurement || ''}</small>` : '—';
     } else if (['switch', 'light', 'input_boolean', 'fan'].includes(d)) {
       v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '<small>σβηστό</small>';
-      if (d === 'switch' && c.duration_entity && !on) v = `${Math.round(this.num(c.duration_entity))}′<small> διάρκεια</small>`;
-    } else v = `${st}<small> ${a.unit_of_measurement || ''}</small>`;
+    } else if (!on && OFFS.includes(st)) v = `<small>${grState(st)}</small>`;
+    else v = `${grState(st)}<small> ${a.unit_of_measurement || ''}</small>`;
     if (att) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
-    if (c.secondary_entity && !att) { const ss = this.st(c.secondary_entity); if (ss) sub = `${ss.state} ${ss.attributes.unit_of_measurement || ''}`.trim(); }
+    if (c.secondary_entity && !att) { const ss = this.st(c.secondary_entity); if (ss) sub = `${grState(ss.state)} ${ss.attributes.unit_of_measurement || ''}`.trim(); }
 
     /* Πρόοδος */
     if (c.progress_entity) prog = this.num(c.progress_entity);
@@ -3226,7 +3273,7 @@ class WallTileCard extends Wall2Card {
     }
     this.$('.v').innerHTML = v;
     this.$('.s').textContent = sub; this.$('.s').hidden = !sub;
-    this.$('.ft').hidden = !steps || prog != null;
+    this.$('.ft').hidden = !steps || (prog != null && !this.timer());
     const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
     if (!pg.hidden) pg.firstElementChild.style.width = `${prog}%`;
     this.tick(left != null && on);
@@ -3240,11 +3287,12 @@ const CAL_COLORS = ['#2f5fa8', '#b0548a', '#3f9a62', '#c98a1e', '#7a5fd0'];
 
 class WallTodayCard extends Wall2Card {
   static css2 = `
-.clock{font:700 52px var(--w-font);letter-spacing:-2px;line-height:1}
-.date{font:600 15px var(--w-font);color:var(--mut);margin-top:2px}
+.clock{font:700 46px var(--w-font);letter-spacing:-2px;line-height:1}
+.date{font:600 14px var(--w-font);color:var(--mut);margin-top:2px}
+.card.v2{overflow:hidden}
 .mon{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;text-align:center;font:600 13px var(--w-font);margin-top:10px}
 .mon .h{color:var(--faint);font-size:11px;font-weight:700}
-.mon .d{position:relative;height:24px;display:grid;place-items:center;color:var(--ink)}
+.mon .d{position:relative;height:22px;display:grid;place-items:center;color:var(--ink)}
 .mon .d.t{background:var(--ink);color:var(--box);border-radius:8px}
 .mon .d i{position:absolute;bottom:0;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%}
 .ag{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
@@ -3451,7 +3499,7 @@ const tileUrl = (lat, lon, z, dark) => {
   const y = Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n);
   return `https://basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/${z}/${x}/${y}@2x.png`;
 };
-const ZONE_GR = { home: 'Σπίτι', not_home: 'Εκτός' };
+const ZONE_GR = { home: 'Σπίτι', not_home: 'Εκτός', unknown: 'Άγνωστο', unavailable: 'Άγνωστο' };
 class WallPersonTile extends Wall2Card {
   static css2 = `
 .card.v2{flex-direction:row;align-items:center;gap:12px;padding:0 14px;cursor:pointer}
@@ -3665,13 +3713,40 @@ class WallNoticeCard extends Wall2Card {
 .n .ms{font-size:21px;color:var(--n)}.n .tx{flex:1;min-width:0;font:700 13px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.n .tx small{display:block;font:600 11px var(--w-font);color:var(--mut)}
 .n.hot{background:var(--n);color:#fff}.n.hot .ms,.n.hot small{color:rgba(255,255,255,.9)}
 .n.empty{background:none;border:1.5px dashed var(--line);color:var(--faint);justify-content:center;font:700 12px var(--w-font);cursor:default}
+.card.v2.bar{flex-direction:row;align-items:center;gap:12px;padding:0 12px 0 14px;cursor:pointer;background:color-mix(in srgb,var(--n) 9%,var(--box))}
+.bar .bi{font-size:24px;color:var(--n)}.bar .bt{flex:1;min-width:0;line-height:1.2}
+.bar .bt b{display:block;font:800 15px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .bt small{font:600 12px var(--w-font);color:var(--mut)}
+.bar .cnt{font:800 12px var(--w-font);padding:3px 9px;border-radius:10px;background:var(--chip);color:var(--mut)}
+.bar .chev{color:var(--faint)}
+.card.v2.bar.hot{background:var(--n);color:#fff}.bar.hot :is(.bi,.chev,small){color:rgba(255,255,255,.9)}.bar.hot .cnt{background:rgba(255,255,255,.22);color:#fff}
 `;
-  static getConfigForm() { return form([['slots', 'Θέσεις', { number: { min: 1, max: 6, mode: 'box' } }], ['title', 'Τίτλος', TEXT]]); }
-  static getStubConfig() { return { slots: 4, items: [] }; }
+  static getConfigForm() {
+    return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'list', label: 'Λίστα' }, { value: 'bar', label: 'Μπάρα (η πιο πρόσφατη + panel)' }] } }],
+      ['slots', 'Θέσεις (λίστα)', { number: { min: 1, max: 6, mode: 'box' } }], ['title', 'Τίτλος', TEXT]]);
+  }
+  static getStubConfig() { return { mode: 'bar', items: [] }; }
+  isBar() { return this._config.mode === 'bar'; }
+  panel() {
+    openPopup(this, {
+      icon: 'notifications', size: 'md', title: this._config.title || 'Ειδοποιήσεις',
+      status: () => { const n = this.active().length; return n ? `${n} ενεργές` : 'Όλα ήσυχα'; },
+      render: (pp) => {
+        const list = this.active();
+        if (!list.length) { popSection(pp).append(el('p', 'grp', 'Δεν υπάρχει κάτι που θέλει προσοχή.')); return; }
+        popChips(popSection(pp), list.map((it) => ({ label: `${this.text(it)} · ${it.subtitle || since(it.when)}`, icon: it.icon || 'info',
+          tap: () => { pp.close(true); it.tap ? this.trigger(it.tap) : this.moreInfo(it.entity); } })));
+      },
+    });
+  }
+  text(it) { const s = this.st(it.entity); return (it.text || '{state}').replace('{state}', s ? grState(s.state) : '').replace('{name}', this.friendly(it.entity)); }
   getGridOptions() { return { columns: 6, rows: 3 }; }
   watched() { return [...(this._config.items || []).map((i) => i.entity), ...Object.keys(this._hass?.states || {}).filter((k) => k.startsWith('persistent_notification.'))]; }
-  template() { return `<div class="card"><div class="hd"><span class="ms">notifications</span><span class="ttl"></span><small></small></div><div class="list"></div></div>`; }
+  template() {
+    if (this.isBar()) return `<div class="card bar"><span class="ms bi">notifications</span><div class="bt"><b></b><small></small></div><span class="cnt"></span><span class="ms chev">expand_more</span></div>`;
+    return `<div class="card"><div class="hd"><span class="ms">notifications</span><span class="ttl"></span><small></small></div><div class="list"></div></div>`;
+  }
   bind() {
+    if (this.isBar()) { this.$('.card').addEventListener('click', () => this.panel()); return; }
     this.$('.list').addEventListener('click', (e) => {
       const n = e.target.closest('[data-id]'); if (!n) return;
       const it = (this._config.items || [])[n.dataset.i];
@@ -3687,6 +3762,17 @@ class WallNoticeCard extends Wall2Card {
     }).filter(Boolean).sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
   }
   update() {
+    if (this.isBar()) {
+      const list = this.active(), top = list[0], card = this.$('.card');
+      card.classList.toggle('hot', !!top?.urgent);
+      card.style.setProperty('--n', top?.color || '#5f6b76');
+      this.$('.bi').textContent = top?.icon || 'notifications';
+      this.$('.bt b').textContent = top ? this.text(top) : 'Όλα ήσυχα';
+      this.$('.bt small').textContent = top ? (top.subtitle || since(top.when)) : '';
+      this.$('.cnt').textContent = list.length > 1 ? `+${list.length - 1}` : '';
+      this.$('.cnt').hidden = list.length < 2;
+      return;
+    }
     const c = this._config, list = this.active(), slots = c.slots ?? 4;
     this.$('.ttl').textContent = c.title || 'Ειδοποιήσεις';
     this.$('.hd small').textContent = list.length || '';
@@ -3807,6 +3893,7 @@ class WallActionsCard extends Wall2Card {
 :host{box-shadow:none}
 .card.v2{padding:0;background:none;box-shadow:none;display:grid;gap:8px;grid-template-columns:var(--cols,1fr)}
 button{border-radius:14px;background:var(--box);box-shadow:var(--sh);display:flex;align-items:center;gap:8px;padding:0 12px;font:700 13px var(--w-font);color:var(--ink);min-height:44px}
+.icons button{justify-content:center;padding:0;width:52px}.icons{grid-auto-flow:column;grid-template-columns:none!important}
 button .ms{font-size:22px;color:var(--accent)}
 `;
   static getConfigForm() { return form([['columns', 'Στήλες', { number: { min: 1, max: 6, mode: 'box' } }]]); }
@@ -3814,8 +3901,9 @@ button .ms{font-size:22px;color:var(--accent)}
   getGridOptions() { return { columns: 3, rows: 4 }; }
   watched() { return []; }
   template() {
-    return `<div class="card" style="--cols:repeat(${this._config.columns || 1},1fr)">${(this._config.items || []).map((it, i) =>
-      `<button data-i="${i}"><span class="ms">${it.icon || 'play_arrow'}</span>${it.name || ''}</button>`).join('')}</div>`;
+    const ic = this._config.icons_only;
+    return `<div class="card${ic ? ' icons' : ''}" style="--cols:repeat(${this._config.columns || 1},1fr)">${(this._config.items || []).map((it, i) =>
+      `<button data-i="${i}" title="${it.name || ''}"><span class="ms">${it.icon || 'play_arrow'}</span>${ic ? '' : it.name || ''}</button>`).join('')}</div>`;
   }
   bind() { this.$('.card').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) this.trigger(this._config.items[b.dataset.i].entity); }); }
   update() {}
@@ -3845,25 +3933,29 @@ class WallLayoutCard extends HTMLElement {
     const c = this._config, u = c.unit || 148;
     this.shadowRoot.innerHTML = `<style>
 :host{display:block}
-.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || '100vh'};display:grid;grid-template-columns:${c.columns || '340px 1fr 330px'};background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
+.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${c.columns || 'minmax(270px,21%) 1fr minmax(300px,24%)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
+.top{grid-column:2/4;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0}
+.top>*{min-width:0}.top>.grow{flex:1;height:58px}
+.side{grid-row:1/3}
 .page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
 .area{display:flex;flex-direction:column;gap:10px;padding:14px 16px;min-height:0;min-width:0;overflow:hidden}
 .side{background:color-mix(in srgb,#fff 45%,var(--bg));border-right:1px solid var(--line)}
 .dark .side{background:color-mix(in srgb,#1b2127 45%,var(--bg))}
 .mid{padding-left:4px;padding-right:4px}
-.grow{flex:1;min-height:0}
+.area>*{flex:none;height:auto}
+.area>.grow,.grow{flex:1 1 0;min-height:0;height:auto}
+.area>.push{margin-top:auto}
 .row{display:grid;gap:12px;grid-auto-columns:1fr;grid-auto-flow:column}
 .grp{font:800 12px Manrope,sans-serif;color:var(--faint);letter-spacing:.5px;margin:2px 4px -6px;text-transform:uppercase}
 .grid{display:grid;gap:12px}
 .grid>*{aspect-ratio:1;min-width:0}
 .grid.free>*{aspect-ratio:auto}
 .bottom{display:flex;gap:14px;align-items:flex-start}
-.bottom>div{display:flex;flex-direction:column;gap:12px}
-.bottom .fillw{flex:1;align-self:stretch}
-.bottom .grid{grid-template-columns:repeat(var(--c),var(--u))}
-.bottom .grid>*{height:var(--u)}
+.bottom>div{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0}
+.bottom .fillw{flex:none;align-self:stretch}
+.bottom .grid{grid-template-columns:repeat(var(--c),1fr)}
 .push{margin-top:auto}
-</style><div class="page"><div class="area side"></div><div class="area mid"></div><div class="area right"></div></div>`;
+</style><div class="page"><div class="area side"></div><div class="top"></div><div class="area mid"></div><div class="area right"></div></div>`;
     const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
     const make = (cfg) => {
       const tag = cfg.type.startsWith('custom:') ? cfg.type.slice(7) : `hui-${cfg.type}-card`;
@@ -3910,6 +4002,8 @@ class WallLayoutCard extends HTMLElement {
     });
     const [side, mid, right] = this.shadowRoot.querySelectorAll('.area');
     fill(side, c.sidebar); fill(mid, c.center); fill(right, c.right);
+    const top = this.shadowRoot.querySelector('.top');
+    fill(top, c.top); top.hidden = !(c.top || []).length;
     if (this._hass) this.hass = this._hass;
   }
   getCardSize() { return 12; }
