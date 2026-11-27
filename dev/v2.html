@@ -32,6 +32,10 @@ const states = {
   'input_boolean.water_heater': S('on', { friendly_name: 'Θερμοσίφωνας' }), 'input_datetime.wh_finish': S('x', { timestamp: fin }), 'input_number.wh_duration': S(15),
   'input_select.washer': S('on', { friendly_name: 'Πλυντήριο' }), 'sensor.washer_rem': S(42, { unit_of_measurement: 'min' }), 'sensor.washer_tot': S(120, { unit_of_measurement: 'min' }),
   'input_select.dryer': S('done', { friendly_name: 'Στεγνωτήριο' }, 3), 'input_select.dish': S('off', { friendly_name: 'Πιάτα' }),
+  'sensor.dev_washer': S('on', { friendly_name: 'Πλυντήριο', program: 'Cotton', temp: '40℃', time_remaining: '0h 42m', progress: 65, counter_full_cycles: 661 }),
+  'sensor.dev_dryer': S('finished', { friendly_name: 'Στεγνωτήριο', time_elapsed: '2h 41m', time_finished: new Date(Date.now()-3*60000).toISOString().slice(0,19).replace('T',' '), energy_used: 1.46 }, 3),
+  'sensor.dev_dish': S('off', { friendly_name: 'Πιάτα', time_elapsed: '--', time_finished: new Date(Date.now()-9*3600000).toISOString().slice(0,19).replace('T',' ') }),
+  'sensor.dryer_w': S(0, { unit_of_measurement: 'W' }), 'sensor.washer_w': S(410, { unit_of_measurement: 'W' }),
   'vacuum.robo': S('cleaning', { friendly_name: 'Σκούπα', battery_level: 64 }),
   'sensor.printer3d': S('printing', { friendly_name: 'Εκτυπωτής 3D' }), 'sensor.p3d_progress': S(34), 'sensor.p3d_rem': S(114, { unit_of_measurement: 'min' }),
   'sensor.net': S(940, { friendly_name: 'Δίκτυο', unit_of_measurement: 'Mbps' }), 'sensor.net_clients': S(32, { unit_of_measurement: 'συσκευές' }),
@@ -90,9 +94,9 @@ const cfg = {
   ],
   right: [
     { group: 'Συσκευές', columns: 2, cards: [
-      { type: 'custom:wall-tile', entity: 'input_select.washer', name: 'Πλυντήριο', remaining_entity: 'sensor.washer_rem', total_entity: 'sensor.washer_tot', icon: 'local_laundry_service', color: '#2f9a76' },
-      { type: 'custom:wall-tile', entity: 'input_select.dryer', name: 'Στεγνωτήριο', icon: 'cyclone', animation: 'spin', color: '#c98a1e', attention_entity: 'input_select.dryer', attention_state: 'done' },
-      { type: 'custom:wall-tile', entity: 'input_select.dish', name: 'Πλυντήριο πιάτων', icon: 'dishwasher', color: '#3a8fa6' },
+      { type: 'custom:wall-tile', entity: 'sensor.dev_washer', appliance: true, name: 'Πλυντήριο', icon: 'local_laundry_service', animation: 'wob', color: '#2f9a76', power_entity: 'sensor.washer_w' },
+      { type: 'custom:wall-tile', entity: 'sensor.dev_dryer', appliance: true, name: 'Στεγνωτήριο', icon: 'cyclone', animation: 'spin', color: '#c98a1e', power_entity: 'sensor.dryer_w' },
+      { type: 'custom:wall-tile', entity: 'sensor.dev_dish', appliance: true, name: 'Πλυντήριο πιάτων', icon: 'dishwasher', animation: 'wob', color: '#3a8fa6' },
       { type: 'custom:wall-tile', entity: 'input_boolean.water_heater', name: 'Θερμοσίφωνας', icon: 'water_heater', animation: 'flame', color: '#d9573b', finish_entity: 'input_datetime.wh_finish', duration_entity: 'input_number.wh_duration' },
       { type: 'custom:wall-tile', entity: 'vacuum.robo', name: 'Σκούπα', span: 2 }] },
     { group: 'Εξοπλισμός', columns: 2, cards: [

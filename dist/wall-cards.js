@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3039,6 +3039,130 @@ const grState = (s) => STATE_GR[String(s).toLowerCase()] ?? s;
 const DONE = ['done', 'finished', 'complete', 'completed', 'end', 'τέλος'];
 const OFFS = ['off', 'idle', 'docked', 'standby', 'paused', 'none', 'closed', 'locked'];
 
+/* ── Συσκευές με κύκλο (πλυντήρια, στεγνωτήριο, πιάτα): κοινή ανάγνωση και popup με καρτέλες ── */
+/* «1h 31m», «51m», «0:42», «2:32:10» → λεπτά */
+function parseDur(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return v;
+  const s = String(v).trim();
+  if (!s || s === '-' || s === '--') return null;
+  let m = s.match(/(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?/i);
+  if (m && (m[1] || m[2])) return (+m[1] || 0) * 60 + (+m[2] || 0);
+  m = s.match(/^(\d+):(\d\d)(?::(\d\d))?$/);
+  if (m) return m[3] != null ? +m[1] * 60 + +m[2] + +m[3] / 60 : +m[1] * 60 + +m[2];
+  return null;
+}
+const durText = (min) => (min == null ? '' : min >= 60 ? `${Math.floor(min / 60)}ω ${pad2(Math.round(min % 60))}′` : `${Math.round(min)}′`);
+const validTime = (s) => { if (!s) return null; const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) || d.getFullYear() < 2000 ? null : d; };
+function applianceInfo(card) {
+  const c = card._config, s = card.st(c.entity), a = s?.attributes || {};
+  const st = String(s?.state || '').toLowerCase();
+  const run = ['on', 'running', 'run', 'wash', 'rinse', 'spin', 'drying', 'λειτουργεί'].includes(st);
+  const done = DONE.includes(st);
+  const elapsed = parseDur(a.time_elapsed);
+  let remaining = a.time_remaining_sec != null ? a.time_remaining_sec / 60 : parseDur(a.time_remaining);
+  if (remaining === 0 && !run) remaining = null;
+  const total = parseDur(a.program_duration) ?? (elapsed != null && remaining != null ? elapsed + remaining : null);
+  const progress = a.progress != null && +a.progress > 0 ? +a.progress : total && elapsed != null ? clamp((elapsed / total) * 100, 0, 100) : null;
+  const energy = a.energy_used != null ? parseFloat(a.energy_used) : null;
+  const finished = validTime(a.time_finished) || (c.finish_entity ? validTime(card.val(c.finish_entity)) : null) || (done || !run ? (s?.last_changed ? new Date(s.last_changed) : null) : null);
+  return { st, run, done, elapsed, remaining, total, progress, energy, program: a.program && a.program !== '-' ? a.program : null, temp: a.temp && a.temp !== '-' ? String(a.temp).replace('℃', '°') : null,
+    started: validTime(a.time_started), finished, cycles: a.counter_full_cycles };
+}
+const agoText = (d) => { if (!d) return ''; const m = Math.floor((Date.now() - d) / 60000); return m < 1 ? 'μόλις τώρα' : m < 60 ? `πριν ${m}′` : m < 1440 ? `πριν ${Math.floor(m / 60)}ω` : `πριν ${Math.floor(m / 1440)} ημ.`; };
+
+/* Ιστορικό καταστάσεων (κείμενο), για τους κύκλους */
+async function fetchStates(hass, id, days = 30) {
+  if (!hass.callWS || !id) return [];
+  const key = `states:${id}:${days}`, hit = historyCache.get(key);
+  if (hit && Date.now() - hit.at < HISTORY_TTL) return hit.data;
+  const res = await hass.callWS({ type: 'history/history_during_period', start_time: new Date(Date.now() - days * 864e5).toISOString(), entity_ids: [id], minimal_response: true, no_attributes: true, significant_changes_only: false });
+  const data = (res?.[id] || []).map((p) => [p.lu != null ? p.lu * 1000 : new Date(p.last_updated || p.last_changed).getTime(), String(p.s ?? p.state).toLowerCase()]);
+  historyCache.set(key, { at: Date.now(), data });
+  return data;
+}
+function cyclesFrom(points) {
+  const out = []; let start = null;
+  const isRun = (s) => ['on', 'running', 'run', 'wash', 'rinse', 'spin', 'drying'].includes(s);
+  points.forEach(([t, s]) => { if (isRun(s) && start == null) start = t; else if (!isRun(s) && start != null) { if (t - start > 5 * 60000) out.push([start, t]); start = null; } });
+  return out.reverse();
+}
+/* Μικρό γράφημα μέσα στο popup */
+function popGraph(parent, points, { hours = 24, color = '#2f86d9', unit = '', h = 90 } = {}) {
+  const box = el('div'); box.style.cssText = 'position:relative;background:#fff;border-radius:16px;padding:10px 12px 6px;box-shadow:0 1px 3px rgba(0,0,0,.06)';
+  if (points.length < 2) { box.append(el('p', 'grp', 'Δεν υπάρχουν δεδομένα')); parent.append(box); return; }
+  const vals = points.map((x) => x[1]), lo = Math.min(0, ...vals), hi = Math.max(...vals) || 1;
+  const pth = smoothPath(points, 300, h, lo, hi, hours);
+  box.innerHTML = `<svg viewBox="0 0 300 ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block"><path d="${pth.area}" fill="${color}" opacity=".15"/><path d="${pth.line}" fill="none" stroke="${color}" stroke-width="2.2"/></svg>
+  <div style="display:flex;justify-content:space-between;font:600 12px var(--w-font);color:var(--w-muted)"><span>${hours >= 24 ? `${Math.round(hours / 24) > 1 ? Math.round(hours / 24) + ' ημέρες' : '24 ώρες'}` : `${hours} ώρες`}</span><span>μέγιστο ${fmt(hi, hi < 10 ? 1 : 0)} ${unit}</span></div>`;
+  parent.append(box);
+}
+/* Γραμμές «ετικέτα — τιμή» */
+function popFacts(parent, rows) {
+  const g = el('div'); g.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px';
+  rows.filter((r) => r && r[1] != null && r[1] !== '').forEach(([k, v, icon]) => {
+    const b = el('div'); b.style.cssText = 'background:#fff;border-radius:14px;padding:10px 12px;box-shadow:0 1px 3px rgba(0,0,0,.06)';
+    b.innerHTML = `<div style="font:600 12px var(--w-font);color:var(--w-muted);display:flex;gap:5px;align-items:center">${icon ? `<span class="ms" style="font-size:16px">${icon}</span>` : ''}${k}</div><div style="font:800 19px var(--w-font);letter-spacing:-.4px">${v}</div>`;
+    g.append(b);
+  });
+  parent.append(g);
+}
+function appliancePopup(card) {
+  const c = card._config;
+  const p = openPopup(card, {
+    icon: c.icon || 'local_laundry_service', size: 'md', accent: () => c.color || '#2f9a76', title: c.name,
+    tabs: [{ id: 'now', label: 'Τώρα', icon: 'play_circle' }, { id: 'hist', label: 'Ιστορικό', icon: 'history' }, { id: 'energy', label: 'Κατανάλωση', icon: 'bolt' }],
+    status: () => { const i = applianceInfo(card); return i.run ? `Σε λειτουργία${i.program ? ' · ' + i.program : ''}` : i.done ? `Τελείωσε ${agoText(i.finished)}` : i.finished ? `Τελευταία φορά ${agoText(i.finished)}` : 'Σβηστό'; },
+    render: (pp, tab) => {
+      const i = applianceInfo(card), w = card.num(c.power_entity);
+      if (tab === 'now') {
+        if (i.run && i.progress != null) {
+          const bar = el('div'); bar.style.cssText = `height:12px;border-radius:6px;background:var(--w-track);overflow:hidden`;
+          bar.innerHTML = `<i style="display:block;height:100%;width:${i.progress}%;background:var(--acc);border-radius:6px"></i>`;
+          popSection(pp, `Πρόοδος ${Math.round(i.progress)}%`).append(bar);
+        }
+        popFacts(popSection(pp), [
+          i.run ? ['Απομένει', durText(i.remaining), 'hourglass_bottom'] : null,
+          ['Διάρκεια', durText(i.elapsed), 'timer'],
+          ['Πρόγραμμα', i.program, 'tune'], ['Θερμοκρασία', i.temp, 'thermostat'],
+          ['Ξεκίνησε', i.started ? hhmm(i.started) : null, 'schedule'],
+          i.run && i.remaining != null ? ['Τελειώνει', hhmm(new Date(Date.now() + i.remaining * 60000)), 'flag'] : ['Τελείωσε', i.finished && !i.run ? `${hhmm(i.finished)} · ${agoText(i.finished)}` : null, 'flag'],
+          ['Τώρα', !isNaN(w) ? `${fmt(w, 0)} W` : null, 'bolt'], ['Ενέργεια κύκλου', i.energy != null ? `${fmt(i.energy, 2)} kWh` : null, 'electric_meter'],
+        ]);
+        if (c.power_entity) fetchHistory(card._hass, [c.power_entity], 3).then((d) => { if (pp.body.isConnected && !pp.busy) popGraph(popSection(pp, 'Κατανάλωση, τελευταίες 3 ώρες'), d[c.power_entity] || [], { hours: 3, color: c.color || '#2f9a76', unit: 'W' }); });
+      } else if (tab === 'hist') {
+        const sec = popSection(pp, 'Κύκλοι, τελευταίες 30 ημέρες');
+        sec.append(el('p', 'grp', 'Φόρτωση…'));
+        fetchStates(card._hass, c.entity, 30).then((pts) => {
+          const cyc = cyclesFrom(pts); sec.replaceChildren();
+          const mins = cyc.map(([a, b]) => (b - a) / 60000);
+          popFacts(sec, [['Κύκλοι', String(cyc.length), 'repeat'], ['Μέση διάρκεια', mins.length ? durText(mins.reduce((x, y) => x + y, 0) / mins.length) : '—', 'timer'],
+            ['Αυτή την εβδομάδα', String(cyc.filter(([a]) => a > Date.now() - 7 * 864e5).length), 'date_range'], ['Σύνολο κύκλων', i.cycles != null ? String(i.cycles) : null, 'functions']]);
+          const list = el('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:10px';
+          cyc.slice(0, 8).forEach(([a, b]) => {
+            const r = el('div'); r.style.cssText = 'display:flex;justify-content:space-between;background:#fff;border-radius:12px;padding:9px 12px;font:600 14px var(--w-font);box-shadow:0 1px 2px rgba(0,0,0,.05)';
+            const d = new Date(a);
+            r.innerHTML = `<span>${WX_DAYS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1} · ${hhmm(d)}</span><b>${durText((b - a) / 60000)}</b>`;
+            list.append(r);
+          });
+          if (!cyc.length) list.append(el('p', 'grp', 'Δεν βρέθηκαν κύκλοι'));
+          sec.append(list);
+        });
+      } else {
+        popFacts(popSection(pp), [['Τώρα', !isNaN(w) ? `${fmt(w, 0)} W` : null, 'bolt'], ['Αυτός ο κύκλος', i.energy != null ? `${fmt(i.energy, 2)} kWh` : null, 'electric_meter'],
+          ...(c.energy_entities || []).map((e) => { const s = card.st(e.entity || e); return s ? [e.name || card.friendly(e.entity || e), `${fmt(+s.state, +s.state < 10 ? 2 : 0)} ${s.attributes.unit_of_measurement || ''}`, 'calendar_today'] : null; })]);
+        if (c.power_entity) {
+          const s1 = popSection(pp, 'Ισχύς, 24 ώρες');
+          fetchHistory(card._hass, [c.power_entity], 24).then((d) => popGraph(s1, d[c.power_entity] || [], { hours: 24, color: c.color || '#2f9a76', unit: 'W' }));
+          const s2 = popSection(pp, 'Ισχύς, 7 ημέρες');
+          fetchHistory(card._hass, [c.power_entity], 168).then((d) => popGraph(s2, d[c.power_entity] || [], { hours: 168, color: c.color || '#2f9a76', unit: 'W', h: 70 }));
+        } else popSection(pp).append(el('p', 'grp', 'Πρόσθεσε αισθητήρα ισχύος (W) στη ρύθμιση της κάρτας για γραφήματα.'));
+      }
+    },
+  });
+  return p;
+}
+
 class WallTileCard extends Wall2Card {
   static css2 = `
 :host{container-type:size}
@@ -3090,12 +3214,14 @@ class WallTileCard extends Wall2Card {
   static getConfigForm() {
     return form([
       ['entity', 'Συσκευή', ANY, true],
+      ['appliance', 'Συσκευή με κύκλο (πλυντήριο, στεγνωτήριο, πιάτα)', { boolean: {} }],
       ['name', 'Όνομα', TEXT], ['icon', 'Εικονίδιο (Material Symbols, π.χ. heat)', TEXT],
       ['color', 'Χρώμα όταν λειτουργεί (π.χ. #e0702a)', TEXT],
       ['animation', 'Κίνηση εικονιδίου', { select: { mode: 'dropdown', options: ['', ...ANIMS].map((v) => ({ value: v, label: v || 'αυτόματα' })) } }],
       ['value_entity', 'Τιμή από άλλο entity (προαιρετικό)', ANY],
       ['secondary_entity', 'Δεύτερη γραμμή από entity (προαιρετικό)', ANY],
       ['power_entity', 'Κατανάλωση W: «λειτουργεί» πάνω από 5 W (προαιρετικό)', ent('sensor')],
+      ['energy_entities', 'Ενέργεια (kWh) για το popup: σήμερα, μήνας…', { entity: { multiple: true, filter: { domain: 'sensor' } } }],
       ['remaining_entity', 'Χρόνος που απομένει (λεπτά ή timestamp)', ANY],
       ['total_entity', 'Συνολική διάρκεια σε λεπτά, για την πρόοδο', ANY],
       ['progress_entity', 'Πρόοδος 0–100 (προαιρετικό)', ANY],
@@ -3132,7 +3258,8 @@ class WallTileCard extends Wall2Card {
   }
   open() {
     const c = this._config, d = this.domain();
-    if (this.$('.card').classList.contains('att') && c.attention_entity) { this._ack = this.st(c.attention_entity)?.last_changed; this.update(); return; }
+    if (this.$('.card').classList.contains('att') && (c.attention_entity || c.appliance)) { this._ack = this.st(c.attention_entity || c.entity)?.last_changed; if (c.ack_entity) this.call('input_select', 'select_option', { entity_id: c.ack_entity, option: 'off' }); this.update(); return; }
+    if (this._config.appliance) return appliancePopup(this);
     if (this.timer()) return this.timerPopup();
     if (d === 'climate') return climatePopup(this);
     if (d === 'light') return lightPopup(this);
@@ -3223,9 +3350,13 @@ class WallTileCard extends Wall2Card {
     let on = ok && !OFFS.includes(st);
     if (d === 'climate') on = ok && st !== 'off';
     if (!isNaN(w)) on = on && w > 5;
-    if (d === 'input_select' || d === 'sensor') on = ok && !OFFS.includes(st) && !DONE.includes(st.toLowerCase()) && st !== '0';
+    if (d === 'input_select' || d === 'sensor') on = ok && !OFFS.includes(st.toLowerCase()) && !DONE.includes(st.toLowerCase()) && st !== '0';
+    const ap = c.appliance ? applianceInfo(this) : null;
+    if (ap) on = ok && ap.run;
     const attState = c.attention_entity ? this.val(c.attention_entity) : '';
     let att = !!c.attention_entity && (c.attention_state ? attState === c.attention_state : DONE.includes(attState.toLowerCase()));
+    if (ap && !c.attention_entity) att = ap.done;
+    if (att && ap && !c.attention_entity && this._ack && this._ack === s?.last_changed) att = false;
     if (att && this._ack && this._ack === this.st(c.attention_entity)?.last_changed) att = false;
     card.classList.toggle('on', on && !att);
     card.classList.toggle('att', att);
@@ -3240,6 +3371,14 @@ class WallTileCard extends Wall2Card {
     let v = '', sub = '', steps = false, prog = null;
     const left = this.minutesLeft();
     if (!ok) v = '<small>μη διαθέσιμο</small>';
+    else if (ap) {
+      if (ap.run) {
+        v = ap.remaining != null ? `${durText(ap.remaining)}<small> απομένουν</small>` : `${durText(ap.elapsed) || 'Λειτουργεί'}`;
+        sub = [ap.program, ap.elapsed != null && ap.remaining != null ? `σε λειτουργία ${durText(ap.elapsed)}` : ''].filter(Boolean).join(' · ');
+        prog = ap.progress;
+      } else if (ap.done) { v = 'Τελείωσε'; sub = [durText(ap.elapsed), agoText(ap.finished)].filter(Boolean).join(' · '); }
+      else { v = '<small>σβηστό</small>'; sub = ap.finished ? `τελευταία ${agoText(ap.finished)}` : ''; }
+    }
     else if (d === 'climate') {
       const t = held ? this._hold.v : a.temperature;
       v = t != null ? `${fmt(t, t % 1 ? 1 : 0)}°` : '—';
@@ -3271,11 +3410,12 @@ class WallTileCard extends Wall2Card {
       v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '<small>σβηστό</small>';
     } else if (!on && OFFS.includes(st)) v = `<small>${grState(st)}</small>`;
     else v = `${grState(st)}<small> ${a.unit_of_measurement || ''}</small>`;
-    if (att) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
+    if (att && !ap) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
+    if (att && ap) steps = false;
     if (c.secondary_entity && !att) { const ss = this.st(c.secondary_entity); if (ss) sub = `${grState(ss.state)} ${ss.attributes.unit_of_measurement || ''}`.trim(); }
 
     /* Πρόοδος */
-    if (c.progress_entity) prog = this.num(c.progress_entity);
+    if (ap) { /* από τη συσκευή */ } else if (c.progress_entity) prog = this.num(c.progress_entity);
     else if (left != null && on) {
       const total = c.total_entity ? toMinutes(this.st(c.total_entity)) : c.duration_entity ? this.num(c.duration_entity) : null;
       if (total) prog = clamp(100 - (left / total) * 100, 0, 100);
@@ -3286,7 +3426,7 @@ class WallTileCard extends Wall2Card {
     this.$('.ft').hidden = !steps || (prog != null && !this.timer());
     const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
     if (!pg.hidden) pg.firstElementChild.style.width = `${prog}%`;
-    this.tick(left != null && on);
+    this.tick((left != null && on) || !!ap);
   }
 }
 
