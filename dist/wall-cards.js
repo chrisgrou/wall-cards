@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.13.1';
+const VERSION = '0.14.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3505,7 +3505,8 @@ class WallTileCard extends Wall2Card {
     card.classList.toggle('att', att);
     card.classList.toggle('unavail', !ok);
     const icon = c.icon || (d === 'climate' && ['cool', 'dry'].includes(st) ? 'ac_unit' : k.icon);
-    const pic = c.pic === false || c.pic === 'none' ? null : PICS[c.pic] ? c.pic : PIC_BY_ICON[icon] || (d === 'vacuum' ? 'vacuum' : null);
+    /* εικονογραφημένα μόνο αν ζητηθούν (pic: auto ή όνομα)· προεπιλογή: απλό εικονίδιο και όνομα */
+    const pic = !c.pic || c.pic === 'none' ? null : PICS[c.pic] ? c.pic : c.pic === 'auto' ? PIC_BY_ICON[icon] || (d === 'vacuum' ? 'vacuum' : null) : null;
     if (pic !== this._pic) {
       this._pic = pic; this.$('.pic')?.remove();
       if (pic) this.$('.ico').insertAdjacentHTML('afterend', `<svg class="pic" viewBox="0 0 48 48">${PIC_DEFS}${PICS[pic]}</svg>`);
@@ -3597,6 +3598,9 @@ class WallTodayCard extends Wall2Card {
 .mon .d i{position:absolute;bottom:0;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%}
 .ag{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
 .ev{display:flex;align-items:center;gap:10px;font:600 14px var(--w-font);min-width:0}
+.agv .ag{margin:0;padding:0;border:0;flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;gap:4px}
+.agv .dh{font:800 11px var(--w-font);letter-spacing:.5px;text-transform:uppercase;color:var(--faint);margin:8px 0 2px}.agv .dh:first-child{margin-top:0}.agv .dh.td{color:var(--accent,#3d8fe6)}
+.agv .ev span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.agv .ev b{min-width:44px}
 .ev .k{width:4px;height:24px;border-radius:2px;flex:none}
 .ev b{font:700 13px var(--w-font);color:var(--mut);min-width:66px;flex:none}
 .ev span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3769,6 +3773,7 @@ ${this._adding ? `<div class="afrm"><div class="atm"><button class="ib ms" data-
     const c = this._config, n = new Date(), evs = this._events || [];
     const mon = this.$('.mon');
     mon.hidden = c.show_month === false;
+    this.$('.card').classList.toggle('agv', mon.hidden && c.mode !== 'clock');
     if (!mon.hidden) {
       const first = new Date(n.getFullYear(), n.getMonth(), 1), days = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
       const dots = {};
@@ -3785,6 +3790,17 @@ ${this._adding ? `<div class="afrm"><div class="atm"><button class="ib ms" data-
       const day = dd === 0 ? '' : dd === 1 ? 'Αύριο ' : `${WX_DAYS[e.start.getDay()]} `;
       return day + (e.allDay ? (dd === 0 ? 'Σήμερα' : '') : hhmm(e.start));
     };
+    if (this.$('.card').classList.contains('agv')) {
+      const all = evs.filter((e) => (e.allDay ? e.start >= today0 : e.start >= n)).slice(0, c.events ?? 12);
+      let last = '';
+      this.$('.ag').innerHTML = all.length ? all.map((e) => {
+        const d0 = new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate()), dd = Math.round((d0 - today0) / 864e5);
+        const key = d0.toDateString(), head = key !== last ? `<div class="dh${dd === 0 ? ' td' : ''}">${dd === 0 ? 'Σήμερα' : dd === 1 ? 'Αύριο' : `${DAYS_FULL[e.start.getDay()]} ${e.start.getDate()} ${MONTHS[e.start.getMonth()]}`}</div>` : '';
+        last = key;
+        return head + `<div class="ev"><span class="k" style="background:${e.color}"></span><b>${e.allDay ? 'όλη μέρα' : hhmm(e.start)}</b><span>${e.title}</span></div>`;
+      }).join('') : `<div class="none">${(c.calendars || []).length ? 'Τίποτα για τις επόμενες μέρες' : 'Πρόσθεσε ημερολόγια στη ρύθμιση'}</div>`;
+      return;
+    }
     this.$('.ag').innerHTML = next.length
       ? next.map((e) => `<div class="ev"><span class="k" style="background:${e.color}"></span><b>${label(e).trim()}</b><span>${e.title}</span></div>`).join('')
       : `<div class="none">${(c.calendars || []).length ? 'Τίποτα για τις επόμενες μέρες' : 'Πρόσθεσε ημερολόγια στη ρύθμιση'}</div>`;

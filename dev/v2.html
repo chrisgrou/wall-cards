@@ -67,7 +67,7 @@ const cfg = {
     { icon: 'monitoring', name: 'Στατιστικά', path: '/wall-v2/stats' }, { icon: 'local_pharmacy', name: 'Χρήσιμα', path: '/wall-v2/useful' }, { icon: 'videocam', name: 'Κάμερες', path: '/wall-v2/cameras' },
     { icon: 'dns', name: 'Homelab', path: '/wall-v2/homelab' }, { icon: 'settings', name: 'Ρυθμίσεις', path: '/wall-v2/settings', bottom: true }],
   sidebar: [
-    { type: 'custom:wall-today', mode: 'card', clock: false, calendars: ['calendar.family'], events: 2 },
+    { type: 'custom:wall-today', mode: 'card', clock: false, show_month: false, height: '210px', calendars: ['calendar.family'], events: 12 },
     { type: 'custom:wall-family', shopping: 'todo.shopping', reminders: 'todo.family_board', chores: 'todo.chores', grow: true },
     { group: '', columns: 1, rows: '54px 54px', cards: [
       { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
