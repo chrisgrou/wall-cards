@@ -55,20 +55,21 @@ const cfg = {
   sidebar: [
     { type: 'custom:wall-sky', entity: 'weather.home', height: '170px' },
     { type: 'custom:wall-home', entity: 'sensor.home_t', humidity_entity: 'sensor.home_h', co2_entity: 'sensor.co2', temperature_trend_entity: 'sensor.home_t_rate', humidity_trend_entity: 'sensor.home_h_rate', height: '150px' },
-    { type: 'custom:wall-today', calendars: ['calendar.family'], events: 2, grow: true },
+    { type: 'custom:wall-shopping', entity: 'todo.shopping', max: 5, grow: true },
     { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'] },
   ],
   top: [
     { type: 'custom:wall-notices', mode: 'bar', grow: true, items: [
       { entity: 'input_select.dryer', state: 'done', icon: 'cyclone', text: 'Το στεγνωτήριο τελείωσε', color: '#c98a1e', urgent: true },
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
+    { type: 'custom:wall-today', mode: 'clock', calendars: ['calendar.family'], events: 3 },
     { type: 'custom:wall-actions', icons_only: true, items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] },
   ],
   center: [
     { group: '', columns: 2, rows: '78px 56px', cards: [
       { type: 'custom:wall-person-tile', entity: 'person.chris', color: '#2f5fa8', driving_entity: 'binary_sensor.chris_driving', direction_entity: 'sensor.chris_dir', distance_entity: 'sensor.chris_km', eta_entity: 'sensor.chris_eta', usual_minutes: 8 },
-      { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
       { type: 'custom:wall-person-tile', entity: 'person.ioanna', color: '#b0548a' },
+      { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
       { type: 'custom:wall-car-tile', entity: 'device_tracker.corsa', name: 'Opel Corsa', status_entity: 'device_tracker.corsa', price_entity: 'sensor.diesel', price_label: 'Φθηνότερο πετρέλαιο' },
     ] },
     { type: 'custom:wall-plan', grow: true, locks: ['lock.door', 'lock.opener'], energy: ['sensor.power', 'sensor.water', 'sensor.gas'], cameras: [],
@@ -88,7 +89,6 @@ const cfg = {
       { type: 'custom:wall-tile', entity: 'input_select.dish', icon: 'dishwasher', color: '#3a8fa6' },
       { type: 'custom:wall-tile', entity: 'vacuum.robo' },
       { type: 'custom:wall-tile', entity: 'sensor.printer3d', name: 'Εκτυπωτής 3D', icon: 'view_in_ar', animation: 'flame', color: '#d0662f', remaining_entity: 'sensor.p3d_rem', progress_entity: 'sensor.p3d_progress' }] },
-    { type: 'custom:wall-shopping', entity: 'todo.shopping', max: 4, grow: true },
   ],
 };
 const el = document.createElement('wall-layout');

@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.6.1';
+const VERSION = '0.6.2';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3058,8 +3058,13 @@ class WallTileCard extends Wall2Card {
 .s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ft{display:flex;gap:6px;margin-top:6px}.ft .btn{flex:1;font:500 20px var(--w-font);height:32px}
 .pg{height:4px;border-radius:2px;background:var(--line);margin-top:5px;overflow:hidden}.pg i{display:block;height:100%;width:0;background:var(--a);border-radius:3px;transition:width 1s}
+.card.v2:not(.on):not(.att){background:color-mix(in srgb,var(--box) 55%,var(--bg));box-shadow:inset 0 0 0 1px var(--line)}
+.card.v2:not(.on):not(.att) :is(.v,.nm){color:var(--mut)}
+.card.v2:not(.on):not(.att) .ico{color:var(--faint);opacity:.7}
 .on .ico,.on .pw{color:var(--a)}
-.card.v2.on{background:linear-gradient(160deg,var(--box) 35%,color-mix(in srgb,var(--a) 18%,var(--box)))}
+.card.v2.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,var(--box)) 20%,color-mix(in srgb,var(--a) 30%,var(--box)));box-shadow:inset 0 0 0 2px var(--a),var(--sh)}
+.dark .card.v2.on,.card.v2.dark.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 22%,var(--box)) 20%,color-mix(in srgb,var(--a) 42%,var(--box)))}
+.on .nm::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--a);margin-right:5px;vertical-align:middle;animation:pulse 2s ease-in-out infinite}
 .on .ft .btn{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
 .styleB.on{background:var(--a)!important;color:#fff}
 .styleB.on :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)}
@@ -3301,18 +3306,40 @@ class WallTodayCard extends Wall2Card {
 .ev b{font:700 13px var(--w-font);color:var(--mut);min-width:66px;flex:none}
 .ev span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .none{font:600 13px var(--w-font);color:var(--faint);font-style:italic}
+:host{overflow:visible;position:relative;z-index:6}
+.card.v2.chip{flex-direction:row;align-items:center;gap:12px;padding:0 10px 0 16px;cursor:pointer;height:100%}
+.chip .clock{font-size:30px;letter-spacing:-1px}.chip .date{margin:0;font-size:14px}.chip .chev{color:var(--faint);margin-left:auto}
+.drop{position:absolute;right:0;top:calc(100% + 8px);width:320px;padding:14px 16px;border-radius:20px;background:var(--box);color:var(--ink);
+  box-shadow:0 18px 40px rgba(20,30,40,.25);animation:dropin .25s cubic-bezier(.3,1.4,.5,1)}
+.drop.v2{--bg:#eef1f4;--box:#fff;--ink:#1c2228;--mut:#5f6b76;--faint:#9aa4ad;--line:#e6eaee}
+.drop.v2.dark{--bg:#0f1316;--box:#1b2127;--ink:#e9eef2;--mut:#93a0ab;--faint:#5f6b76;--line:#2a323a}
+@keyframes dropin{from{opacity:0;transform:translateY(-8px)}}
+.drop .mon{margin-top:0}
 `;
   static getConfigForm() {
-    return form([['calendars', 'Ημερολόγια', { entity: { multiple: true, filter: { domain: 'calendar' } } }],
+    return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'card', label: 'Κάρτα' }, { value: 'clock', label: 'Ώρα στη μπάρα, ημερολόγιο με πάτημα' }] } }],
+      ['calendars', 'Ημερολόγια', { entity: { multiple: true, filter: { domain: 'calendar' } } }],
       ['events', 'Πόσα επόμενα γεγονότα', { number: { min: 0, max: 6, mode: 'box' } }],
       ['show_month', 'Δείξε τον μήνα', { boolean: {} }]]);
   }
   static getStubConfig() { return { calendars: [], show_month: true }; }
   getGridOptions() { return { columns: 6, rows: 5 }; }
   watched() { return [...(this._config.calendars || [])]; }
-  template() { return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`; }
-  bind() { this._clock = setInterval(() => this.clock(), 15000); }
-  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._clock = null; }
+  template() {
+    if (this._config.mode === 'clock') return `<div class="card chip"><div class="clock"></div><div class="date"></div><span class="ms chev">expand_more</span></div>
+  <div class="drop v2" hidden><div class="mon"></div><div class="ag"></div></div>`;
+    return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
+  }
+  bind() {
+    this._clock = setInterval(() => this.clock(), 15000);
+    if (this._config.mode !== 'clock') return;
+    const drop = this.$('.drop');
+    this.$('.card').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; this.$('.chev').textContent = drop.hidden ? 'expand_more' : 'expand_less'; if (!drop.hidden) { clearTimeout(this._dt); this._dt = setTimeout(() => this.$('.card').click(), 30000); } });
+    this._away = (e) => { if (!drop.hidden && !e.composedPath().includes(this)) this.$('.card').click(); };
+    document.addEventListener('click', this._away);
+  }
+  applyTheme() { super.applyTheme(); const d = this.$('.drop'); if (d) { const c = this.$('.card'); d.classList.toggle('dark', c.classList.contains('dark')); } }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._clock); this._clock = null; if (this._away) document.removeEventListener('click', this._away); }
   connectedCallback() { super.connectedCallback(); if (this._built && !this._clock) this.bind(); }
   clock() {
     const n = new Date();
@@ -3934,7 +3961,7 @@ class WallLayoutCard extends HTMLElement {
     this.shadowRoot.innerHTML = `<style>
 :host{display:block}
 .page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${c.columns || 'minmax(270px,21%) 1fr minmax(300px,24%)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
-.top{grid-column:2/4;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0}
+.top{grid-column:2/4;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0;position:relative;z-index:5}
 .top>*{min-width:0}.top>.grow{flex:1;height:58px}
 .side{grid-row:1/3}
 .page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
