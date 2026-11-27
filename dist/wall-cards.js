@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.13.0';
+const VERSION = '0.13.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4785,12 +4785,12 @@ class WallLayoutCard extends HTMLElement {
     const c = this._config, u = c.unit || 148;
     this.shadowRoot.innerHTML = `<style>
 :host{display:block}
-.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${(c.nav || []).length || c.navbar ? '64px ' : ''}${c.columns || 'minmax(260px,20%) 1fr calc(var(--u) * 2 + 44px)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
+.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${(c.nav || []).length ? '64px ' : ''}${c.columns || 'minmax(260px,20%) 1fr calc(var(--u) * 2 + 44px)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
 .rail{grid-row:1/3;position:relative;z-index:9;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
 .rail button{width:46px;height:46px;border-radius:14px;border:0;background:none;display:grid;place-items:center;color:#93a0ab;cursor:pointer;font-family:'Material Symbols Rounded';font-size:24px;font-feature-settings:'liga'}
 .rail button.sel{background:#2f3a44;color:#fff}.rail .sp{flex:1}
-.nbar{grid-row:1/3;position:relative;z-index:25}
-.top{grid-column:${(c.nav || []).length || c.navbar ? 2 : 1}/-1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:12px 16px 0;min-width:0;position:relative;z-index:20}
+.nbar{position:absolute;width:0;height:0;overflow:visible;z-index:25}
+.top{grid-column:${(c.nav || []).length ? 2 : 1}/-1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:12px 16px 0;min-width:0;position:relative;z-index:20}
 .top>div{display:flex;gap:10px;min-width:0}.top>.tl{justify-self:start}.top>.tc{justify-self:center}.top>.tr{justify-self:end}
 .top>div>*{min-width:0;flex:none;height:calc(var(--u) / 2)}.top>div>.grow{flex:1}.top>div>.rcol{flex:none;width:calc(var(--u) * 2 + 12px)}.rail>.rc{margin:4px 0}
 .side{grid-row:2}
