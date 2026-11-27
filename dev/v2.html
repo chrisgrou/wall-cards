@@ -71,12 +71,12 @@ const cfg = {
   ],
   rail: [{ type: 'custom:wall-actions', mode: 'rail', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] }],
   top: [
-    { type: 'custom:wall-status', kind: 'weather', entity: 'weather.home' },
+    { type: 'custom:wall-today', mode: 'clock', align: 'left', width: 'right', calendars: ['calendar.family'], events: 3 },
     { type: 'custom:wall-status', kind: 'home', temperature: 'sensor.home_t', humidity: 'sensor.home_h', extra: [{ entity: 'sensor.co2', name: 'CO₂' }, { entity: 'sensor.pm25', name: 'PM2.5' }] },
-    { type: 'custom:wall-notices', mode: 'bar', grow: true, items: [
+    { type: 'custom:wall-status', kind: 'weather', entity: 'weather.home' },
+    { type: 'custom:wall-notices', mode: 'bar', align: 'right', width: 'right', items: [
       { entity: 'input_select.dryer', state: 'done', icon: 'cyclone', text: 'Το στεγνωτήριο τελείωσε', color: '#c98a1e', urgent: true },
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
-    { type: 'custom:wall-today', mode: 'clock', width: 'right', calendars: ['calendar.family'], events: 3 },
   ],
   center: [
     { group: '', columns: 2, rows: '76px 54px', cards: [

@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.9.0';
+const VERSION = '0.9.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3610,7 +3610,7 @@ class WallTodayCard extends Wall2Card {
 .drop.v2.dark{--bg:#0f1316;--box:#1b2127;--ink:#e9eef2;--mut:#93a0ab;--faint:#5f6b76;--line:#2a323a}
 @keyframes dropin{from{opacity:0;transform:translateY(-8px)}}
 .drop .mon{margin-top:0}
-.card.v2.bar2{flex-direction:row;align-items:center;justify-content:space-between;gap:6px;padding:0 8px;background:none;box-shadow:none;height:100%}
+.card.v2.bar2{flex-direction:row;align-items:center;justify-content:flex-start;gap:0;padding:0 2px;background:none;box-shadow:none;height:100%}
 .bar2 .tp{border:0;background:none;color:var(--ink);cursor:pointer;padding:6px 8px;border-radius:14px;font-family:var(--w-font);text-align:left}
 .bar2 .tp:active{background:var(--chip)}
 .bar2 .date{margin:0;font:700 16px var(--w-font);color:var(--mut);line-height:1.15;white-space:normal}
@@ -3653,7 +3653,7 @@ class WallTodayCard extends Wall2Card {
   alarmBtn() { return this._config.alarm_button || 'input_button.wall_alarm'; }
   watched() { return [...(this._config.calendars || []), ...(this._config.mode === 'clock' ? [...this.timers(), ...this.alarms(), this.alarmBtn()] : [])]; }
   template() {
-    if (this._config.mode === 'clock') return `<div class="card bar2"><button class="date tp"></button><button class="clock tp"></button></div>
+    if (this._config.mode === 'clock') return `<div class="card bar2"><button class="clock tp"></button><button class="date tp"></button></div>
   <div class="xp xcal" hidden><div class="mon"></div><div class="ag"></div></div>
   <div class="xp xtim" hidden></div>`;
     return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
@@ -4228,13 +4228,14 @@ class WallNoticeCard extends Wall2Card {
 .n .ms{font-size:21px;color:var(--n)}.n .tx{flex:1;min-width:0;font:700 13px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.n .tx small{display:block;font:600 11px var(--w-font);color:var(--mut)}
 .n.hot{background:var(--n);color:#fff}.n.hot .ms,.n.hot small{color:rgba(255,255,255,.9)}
 .n.empty{background:none;border:1.5px dashed var(--line);color:var(--faint);justify-content:center;font:700 12px var(--w-font);cursor:default}
-.card.v2.bar{flex-direction:row;align-items:center;gap:12px;padding:0 12px 0 14px;cursor:pointer;background:color-mix(in srgb,var(--n) 9%,var(--box))}
+.card.v2.bar{flex-direction:row;align-items:center;gap:12px;padding:0 12px 0 14px;cursor:pointer;background:none;box-shadow:none}
+.card.v2.bar.open{background:var(--box);box-shadow:var(--w-shadow,0 4px 14px rgba(0,0,0,.08))}
 .bar .bi{font-size:24px;color:var(--n)}.bar .bt{flex:1;min-width:0;line-height:1.2}
 .bar .bt b{display:block;font:800 15px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .bt small{font:600 12px var(--w-font);color:var(--mut)}
 .bar .cnt{font:800 12px var(--w-font);padding:3px 9px;border-radius:10px;background:var(--chip);color:var(--mut)}
 .bar .chev{color:var(--faint)}
 .xp .n{margin-top:6px}.card.v2.bar.open .chev{transform:rotate(180deg)}.chev{transition:transform .3s}
-.card.v2.bar.hot{background:var(--n);color:#fff}.bar.hot :is(.bi,.chev,small){color:rgba(255,255,255,.9)}.bar.hot .cnt{background:rgba(255,255,255,.22);color:#fff}
+.bar.hot .bi{animation:nring 1.6s ease-in-out infinite}.bar.hot .cnt{background:var(--n);color:#fff}@keyframes nring{0%,60%,100%{transform:none}10%,30%{transform:rotate(14deg)}20%,40%{transform:rotate(-14deg)}}
 `;
   static getConfigForm() {
     return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'list', label: 'Λίστα' }, { value: 'bar', label: 'Μπάρα (η πιο πρόσφατη + panel)' }] } }],
@@ -4608,9 +4609,10 @@ class WallLayoutCard extends HTMLElement {
 .rail{grid-row:1/3;position:relative;z-index:9;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
 .rail button{width:46px;height:46px;border-radius:14px;border:0;background:none;display:grid;place-items:center;color:#93a0ab;cursor:pointer;font-family:'Material Symbols Rounded';font-size:24px;font-feature-settings:'liga'}
 .rail button.sel{background:#2f3a44;color:#fff}.rail .sp{flex:1}
-.top{grid-column:-3/-1;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0;position:relative;z-index:20}
-.top>*{min-width:0;flex:none;height:calc(var(--u) / 2)}.top>.grow{flex:1}.top>.rcol{flex:none;width:calc(var(--u) * 2 + 12px)}.rail>.rc{margin:4px 0}
-.side{grid-row:1/3}
+.top{grid-column:${(c.nav || []).length ? 2 : 1}/-1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:12px 16px 0;min-width:0;position:relative;z-index:20}
+.top>div{display:flex;gap:10px;min-width:0}.top>.tl{justify-self:start}.top>.tc{justify-self:center}.top>.tr{justify-self:end}
+.top>div>*{min-width:0;flex:none;height:calc(var(--u) / 2)}.top>div>.grow{flex:1}.top>div>.rcol{flex:none;width:calc(var(--u) * 2 + 12px)}.rail>.rc{margin:4px 0}
+.side{grid-row:2}
 .page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
 .area{display:flex;flex-direction:column;gap:10px;padding:14px 16px;min-height:0;min-width:0;overflow:hidden}
 .side{padding-right:4px}
@@ -4632,7 +4634,7 @@ class WallLayoutCard extends HTMLElement {
 .bottom .fillw{flex:none;align-self:stretch}
 .bottom .grid{grid-template-columns:repeat(var(--c),1fr)}
 .push{margin-top:auto}
-</style><div class="page">${(c.nav || []).length ? `<nav class="rail">${c.nav.map((n, i) => `${n.bottom ? '<span class="sp"></span>' : ''}<button data-n="${i}" title="${n.name || ''}">${n.icon}</button>`).join('')}</nav>` : ''}<div class="area side"></div><div class="top"></div><div class="area mid"></div><div class="area right"></div></div>`;
+</style><div class="page">${(c.nav || []).length ? `<nav class="rail">${c.nav.map((n, i) => `${n.bottom ? '<span class="sp"></span>' : ''}<button data-n="${i}" title="${n.name || ''}">${n.icon}</button>`).join('')}</nav>` : ''}<div class="area side"></div><div class="top"><div class="tl"></div><div class="tc"></div><div class="tr"></div></div><div class="area mid"></div><div class="area right"></div></div>`;
     const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
     if (tok !== this._tok) return; /* νεότερο build ξεκίνησε στο μεταξύ: χωρίς διπλές κάρτες */
     const make = (cfg) => {
@@ -4684,7 +4686,8 @@ class WallLayoutCard extends HTMLElement {
     const [side, mid, right] = this.shadowRoot.querySelectorAll('.area');
     fill(side, c.sidebar); fill(mid, c.center); fill(right, c.right);
     const top = this.shadowRoot.querySelector('.top');
-    fill(top, c.top); top.hidden = !(c.top || []).length;
+    const slot = { left: '.tl', right: '.tr' };
+    (c.top || []).forEach((it) => fill(top.querySelector(slot[it.align] || '.tc'), [it])); top.hidden = !(c.top || []).length;
     const rail = this.shadowRoot.querySelector('.rail');
     if (rail) {
       const mark = () => rail.querySelectorAll('[data-n]').forEach((b) => b.classList.toggle('sel', location.pathname === c.nav[b.dataset.n].path || location.pathname.endsWith('/' + c.nav[b.dataset.n].path)));
