@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.12.0';
+const VERSION = '0.12.1';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4705,7 +4705,7 @@ class WallStatusCard extends Wall2Card {
       it.innerHTML = (c.people || []).map((p) => {
         const s = this.st(p.entity), home = s?.state === 'home', drv = p.driving_entity && this.val(p.driving_entity) === 'on';
         const pic = s?.attributes?.entity_picture, nm = p.name || this.friendly(p.entity);
-        return `<span class="av ${home ? '' : 'away'} ${drv ? 'drv' : ''}" style="--pc:${p.color || '#5f6b76'};${home ? '--rg:#3f9a62' : ''}" title="${nm}"><span style="${pic ? `background-image:${cssUrl(pic)}` : ''}">${pic ? '' : nm[0]}</span><i>${drv ? 'directions_car' : home ? 'home' : 'location_on'}</i></span>`;
+        return `<span class="av ${home ? '' : 'away'} ${drv ? 'drv' : ''}" style="--pc:${p.color || '#5f6b76'};${home ? '--rg:#3f9a62' : ''}" title="${nm}"><span style='${pic ? `background-image:${cssUrl(pic)}` : ''}'>${pic ? '' : nm[0]}</span><i>${drv ? 'directions_car' : home ? 'home' : 'location_on'}</i></span>`;
       }).join('');
       if (!this.$('.xp').hidden) (this._pc || []).forEach((e) => { e.hass = this._hass; });
       return;
