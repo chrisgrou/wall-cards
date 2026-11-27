@@ -1,0 +1,153 @@
+<!doctype html><html lang="el"><head><meta charset="utf-8"><title>Wall v2 · mockup v3</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL@20..48,400,0..1&display=block">
+<style>
+:root{--bg:#eef1f4;--box:#fff;--ink:#1c2228;--mut:#5f6b76;--faint:#9aa4ad;--line:#e6eaee;--chip:#eef1f4;--sh:0 1px 3px rgba(0,0,0,.05),0 6px 16px rgba(40,50,60,.06);--ok:#3f8a5c;--nav:#1f6b4f;--c:#2f5fa8;--i:#b0548a;--u:136px}
+*{box-sizing:border-box}html,body{margin:0;background:#5d636a}
+body{font-family:Manrope,sans-serif;color:var(--ink);padding:16px}
+.ms{font-family:'Material Symbols Rounded';font-weight:400;font-style:normal;line-height:1;font-feature-settings:'liga';display:inline-block}
+.fill{font-variation-settings:'FILL' 1}
+.cap{color:#eee;font:700 14px Manrope;margin:0 0 8px 4px}
+.page{width:1412px;height:777px;background:var(--bg);border-radius:18px;display:grid;grid-template-columns:64px 290px 1fr 308px;grid-template-rows:70px 1fr;overflow:hidden}
+.box{background:var(--box);border-radius:18px;box-shadow:var(--sh);position:relative;overflow:hidden}
+/* πλοήγηση */
+.rail{grid-row:1/3;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.rail div{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;color:#93a0ab;font-size:24px;position:relative}
+.rail .sel{background:#2f3a44;color:#fff}
+.rail .sp{flex:1}
+.rail div:hover::after{content:attr(data-t)}
+/* πάνω μπάρα */
+.top{grid-column:3/5;display:flex;gap:10px;align-items:stretch;padding:12px 16px 0 4px}
+.nb{flex:1;display:flex;align-items:center;gap:12px;padding:0 14px;border-radius:16px;background:#c98a1e;color:#fff}
+.nb .ms{font-size:24px}.nb b{font:800 15px Manrope;display:block}.nb small{font:600 12px Manrope;opacity:.9}.nb .cnt{margin-left:auto;font:800 12px Manrope;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.22)}
+.qa{display:flex;gap:8px}.qa div{width:52px;border-radius:14px;background:var(--box);box-shadow:var(--sh);display:grid;place-items:center;font-size:22px;color:var(--c)}
+.clk{display:flex;align-items:center;gap:12px;padding:0 18px;border-radius:16px;background:var(--box);box-shadow:var(--sh)}
+.clk b{font:700 30px Manrope;letter-spacing:-1px}.clk span{font:600 14px Manrope;color:var(--mut)}
+/* στήλες */
+.area{display:flex;flex-direction:column;gap:10px;padding:14px 16px;min-height:0;overflow:hidden}
+.side{grid-row:1/3;background:color-mix(in srgb,#fff 45%,var(--bg));border-right:1px solid #e3e7eb}
+.mid{padding:12px 4px}
+.grp{font:800 11px Manrope;color:var(--faint);letter-spacing:.5px;margin:2px 4px -4px;text-transform:uppercase}
+/* καιρός */
+.wx{height:150px;color:#fff;background:linear-gradient(180deg,#1d2a44,#3d5274);padding:12px 14px;display:flex;flex-direction:column}
+.wx .t{font:500 48px Manrope;letter-spacing:-3px;line-height:.95}.wx .d{font:700 13px Manrope}.wx .d small{display:block;font:600 11px Manrope;opacity:.85}
+.wx .fc{margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.wx .fc div{display:flex;align-items:center;gap:5px;padding:5px 7px;border-radius:10px;background:rgba(255,255,255,.16);font:700 11px Manrope}.wx .fc .ms{font-size:20px}
+.moon{position:absolute;right:20px;top:14px;width:38px;height:38px;border-radius:50%;box-shadow:-9px 3px 0 0 #f4efd8;transform:rotate(-20deg)}
+/* συνθήκες: modular, μικρές κάρτες με τίτλο */
+.cond{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cn{height:74px;padding:9px 12px;display:flex;flex-direction:column;justify-content:space-between}
+.cn .h{display:flex;align-items:center;gap:6px;font:700 11px Manrope;color:var(--mut);letter-spacing:.3px}
+.cn .h .ms{font-size:17px;color:var(--k)}
+.cn .v{font:700 24px Manrope;letter-spacing:-.8px;display:flex;align-items:baseline;gap:6px}
+.cn .v small{font:700 12px Manrope;color:var(--mut)}
+.cn .tr{font:800 11px Manrope;padding:1px 6px;border-radius:8px}
+.cn .spark{position:absolute;right:10px;bottom:10px;width:54px;height:20px}
+.cn i.q{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--q);margin-left:auto}
+.cn.empty{background:none;box-shadow:none;border:1.5px dashed #d6dce1}
+.cn.empty .v{color:var(--faint);font-size:13px;font-weight:600}
+/* ψώνια */
+.shop{height:60px;display:flex;align-items:center;gap:12px;padding:0 14px}
+.shop .ms{font-size:24px;color:var(--faint)}.shop b{font:800 15px Manrope}.shop .it{font:600 13px Manrope;color:var(--mut);animation:fade 6s ease-in-out infinite}
+@keyframes fade{0%,100%{opacity:0}15%,85%{opacity:1}}
+.shop .add{margin-left:auto;width:36px;height:36px;border-radius:11px;border:1.5px solid #d6dce1;display:grid;place-items:center;color:var(--c)}
+/* media */
+.med{margin-top:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+.med .now{display:flex;gap:10px;align-items:center}.med .art{width:46px;height:46px;border-radius:11px;background:linear-gradient(140deg,#c0653a,#6b2d1a);display:grid;place-items:center;color:#fff}
+.med b{font:800 13px Manrope}.med small{font:600 11px Manrope;color:var(--mut)}
+.med .mc{display:flex;justify-content:space-around;align-items:center;color:var(--mut)}.med .pp{width:40px;height:40px;border-radius:50%;background:#c0653a;color:#fff;display:grid;place-items:center}
+/* άτομα */
+.ppl{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:76px 54px;gap:10px 12px}
+.pc{display:flex;align-items:center;gap:12px;padding:0 14px}
+.pc .av{width:40px;height:40px;border-radius:50%;color:#fff;display:grid;place-items:center;font:700 15px Manrope}
+.pc .n{font:700 13px Manrope}.pc .s{font:800 19px Manrope}.pc .s small{font:600 11px Manrope;color:var(--mut);margin-left:6px}
+.pc.coming{background:var(--nav);color:#fff}.pc .eta{margin-left:auto;text-align:right;font:800 24px Manrope;line-height:1}.pc .eta small{display:block;font:600 11px Manrope;opacity:.85}
+.car{display:flex;align-items:center;gap:10px;padding:0 12px;font:700 12px Manrope}.car .ms{font-size:24px}.car .cx{flex:1}.car .bat{height:5px;border-radius:3px;background:var(--line);margin-top:4px}.car .bat i{display:block;height:100%;width:63%;background:#3f9a62;border-radius:3px}
+.car b{font:800 16px Manrope}.car small{color:var(--mut);font-weight:600}
+/* κάτοψη */
+.plan{flex:1;min-height:0;background:linear-gradient(180deg,#f7f9fb,#e9eef2)}
+.plan svg{position:absolute;inset:0;width:100%;height:100%}
+.chip{position:absolute;display:flex;align-items:center;gap:6px;height:34px;padding:0 11px 0 8px;border-radius:11px;background:#fff;box-shadow:var(--sh);font:700 12px Manrope}
+.chip .ms{font-size:18px}
+.rm{position:absolute;transform:translate(-50%,-50%);background:rgba(255,255,255,.94);padding:4px 9px;border-radius:10px;font:700 12px Manrope;text-align:center;box-shadow:var(--sh)}.rm small{display:block;font:600 11px Manrope;color:var(--mut)}
+.bulb{position:absolute;transform:translate(-50%,-50%);width:32px;height:32px;border-radius:50%;background:#ffd76a;display:grid;place-items:center;box-shadow:0 0 0 6px rgba(255,215,106,.3),0 0 26px rgba(255,200,80,.7);font-size:18px;color:#6b4a00}
+/* πλακίδια: ΙΔΙΟ μέγεθος παντού */
+.row4{display:grid;grid-template-columns:repeat(4,var(--u));gap:12px}
+.row2{display:grid;grid-template-columns:repeat(2,var(--u));gap:12px}
+.t{--a:#7a858f;width:var(--u);height:var(--u);padding:10px;display:flex;flex-direction:column;border-radius:18px;background:color-mix(in srgb,#fff 55%,var(--bg));box-shadow:inset 0 0 0 1px var(--line)}
+.t.w2{width:calc(var(--u)*2 + 12px)}
+.t .ico{font-size:28px;color:var(--faint);opacity:.75}.t .pw{position:absolute;right:6px;top:6px;width:36px;height:36px;display:grid;place-items:center;font-size:21px;color:var(--faint)}
+.t .nm{margin-top:auto;font:700 12px Manrope;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t .v{font:800 23px Manrope;letter-spacing:-.6px;color:var(--mut);white-space:nowrap}.t .v small{font:700 11px Manrope}
+.t .ft{display:flex;gap:6px;margin-top:5px}.t .ft b{flex:1;height:28px;border-radius:9px;border:1.5px solid #d6dce1;display:grid;place-items:center;font:500 18px Manrope;background:#fff}
+.t .pg{height:4px;border-radius:2px;background:var(--line);margin-top:5px}.t .pg i{display:block;height:100%;width:var(--p);background:var(--a);border-radius:2px}
+.t.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,#fff) 20%,color-mix(in srgb,var(--a) 30%,#fff));box-shadow:inset 0 0 0 2px var(--a),var(--sh)}
+.t.on .ico,.t.on .pw{color:var(--a);opacity:1}.t.on .v{color:var(--ink)}.t.on .ft b{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
+.t.att{background:var(--a);box-shadow:none;color:#fff}.t.att :is(.ico,.nm,.v,.pw){color:#fff!important;opacity:1}
+.t.w2 .vac{position:absolute;right:14px;bottom:12px;display:flex;gap:6px}.t.w2 .vac b{width:38px;height:34px;border-radius:10px;border:1.5px solid #d6dce1;display:grid;place-items:center;background:#fff;font-size:20px}
+.notes{color:#d6dbe0;font:500 13px Manrope;margin:12px 4px 0;max-width:1400px;line-height:1.5}
+</style></head><body>
+<div class="cap">Mockup v3 · 1412×777 (το tablet χωρίς τις μπάρες του HA, σε kiosk)</div>
+<div class="page">
+ <div class="rail">
+  <div class="sel ms fill" data-t="Αρχική">home</div><div class="ms" data-t="Ημερολόγιο">calendar_month</div><div class="ms" data-t="Media">play_circle</div>
+  <div class="ms" data-t="Στατιστικά">monitoring</div><div class="ms" data-t="Χρήσιμα">local_pharmacy</div><div class="ms" data-t="Κάμερες">videocam</div>
+  <div class="ms" data-t="Homelab">dns</div><div class="sp"></div><div class="ms" data-t="Ρυθμίσεις">settings</div>
+ </div>
+ <div class="area side">
+  <div class="box wx"><div class="moon"></div><div style="display:flex;gap:10px"><div class="t" style="all:unset;font:500 48px Manrope;letter-spacing:-3px;line-height:.95">9°</div><div class="d">Βροχή<small>Ε 8° · Μ 13° · από 08:00</small></div></div>
+   <div class="fc"><div><span class="ms fill">rainy</span>Σάβ 5° <b>12°</b></div><div><span class="ms fill">rainy</span>Κυρ 4° <b>6°</b></div><div><span class="ms fill">cloud</span>Δευ 1° <b>4°</b></div></div></div>
+  <div class="grp">Σπίτι</div>
+  <div class="cond">
+   <div class="box cn" style="--k:#e0702a"><div class="h"><span class="ms fill">thermostat</span>ΘΕΡΜΟΚΡΑΣΙΑ</div><div class="v">21,8°<span class="tr" style="background:#e6f0fb;color:#2f6fb5">↘ 0,8</span></div>
+    <svg class="spark" viewBox="0 0 54 20"><path d="M0 14 C10 12 14 6 22 8 S36 14 54 6" fill="none" stroke="#e0702a" stroke-width="2"/></svg></div>
+   <div class="box cn" style="--k:#3d8fe6"><div class="h"><span class="ms fill">humidity_percentage</span>ΥΓΡΑΣΙΑ</div><div class="v">62%</div>
+    <svg class="spark" viewBox="0 0 54 20"><path d="M0 8 C10 10 18 14 28 12 S44 6 54 10" fill="none" stroke="#3d8fe6" stroke-width="2" stroke-dasharray="3 3"/></svg></div>
+   <div class="box cn" style="--k:#3f9a62"><div class="h"><span class="ms fill">co2</span>CO₂<i class="q" style="--q:#3f9a62"></i></div><div class="v">640<small>ppm</small></div></div>
+   <div class="box cn empty"><div class="h"><span class="ms">airwave</span>PM2.5 · VOC</div><div class="v">προσθήκη αισθητήρα</div></div>
+  </div>
+  <div class="box shop"><span class="ms fill">shopping_cart</span><div><b>Ψώνια · 3</b><div class="it">γάλα</div></div><span class="add ms">add</span></div>
+  <div class="box med"><div class="now"><div class="art"><span class="ms fill">tv</span></div><div><b>Shield</b><br><small>TV σαλονιού</small></div></div>
+   <div class="mc"><span class="ms fill">skip_previous</span><span class="pp ms fill">pause</span><span class="ms fill">skip_next</span></div></div>
+ </div>
+ <div class="top">
+  <div class="nb"><span class="ms fill">dishwasher</span><div><b>Τα πιάτα είναι έτοιμα</b><small>πριν 9 ώρες</small></div><span class="cnt">+1</span></div>
+  <div class="qa"><div class="ms">light_mode</div><div class="ms">movie</div><div class="ms">bedtime</div><div class="ms">logout</div></div>
+  <div class="clk"><b>07:40</b><span>Παρ 27 Νοε</span></div>
+ </div>
+ <div class="area mid">
+  <div class="ppl">
+   <div class="box pc"><div class="av" style="background:var(--c)">C</div><div><div class="n">Chris</div><div class="s" style="color:var(--ok)">Σπίτι<small>από 18:00</small></div></div></div>
+   <div class="box pc"><div class="av" style="background:var(--i)">Ι</div><div><div class="n">Ιωάννα</div><div class="s">Άγνωστο<small>χωρίς θέση</small></div></div></div>
+   <div class="box car"><span class="ms fill" style="color:#c0392b">electric_car</span><div class="cx">Tesla Model 3 <small>· Σπίτι</small><div class="bat"><i></i></div></div><b>63%</b></div>
+   <div class="box car"><span class="ms fill" style="color:#5f6b76">directions_car</span><div class="cx">Opel Corsa<div style="color:var(--mut);font-weight:600;margin-top:2px">⛽ Φθηνότερο πετρέλαιο <b style="font-size:12px;color:var(--ink)">1,849 €</b></div></div></div>
+  </div>
+  <div class="box plan"><svg viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet"><path d="M150 260 L450 110 L750 260 L450 410 Z" fill="#fbfcfd" stroke="#c9d1d8" stroke-width="2"/><path d="M150 260 L150 295 L450 445 L750 295 L750 260 L450 410 Z" fill="#e3e8ed" stroke="#c9d1d8" stroke-width="2"/><path d="M300 185 L600 335" stroke="#c9d1d8" stroke-width="2"/></svg>
+   <div class="chip" style="left:12px;top:12px"><span class="ms fill" style="color:var(--ok)">lock</span>Πόρτα</div><div class="chip" style="left:100px;top:12px"><span class="ms fill" style="color:var(--ok)">lock</span>Είσοδος</div>
+   <div class="chip" style="right:12px;top:12px"><span class="ms fill" style="color:#e0a020">bolt</span>3431 W</div>
+   <div class="rm" style="left:42%;top:26%">Σαλόνι<small>23,3° · 50%</small></div><div class="bulb ms fill" style="left:49%;top:37%">lightbulb</div>
+   <div class="rm" style="left:66%;top:52%">Υπνοδωμάτιο<small>21,4° · 54%</small></div><div class="bulb ms fill" style="left:58%;top:64%">lightbulb</div></div>
+  <div class="grp">Κλίμα</div>
+  <div class="row4">
+   <div class="t on" style="--a:#e0702a"><span class="ms fill ico">heat</span><span class="ms pw">power_settings_new</span><div class="nm">Κλιματιστικό</div><div class="v">26°</div><div class="ft"><b>−</b><b>+</b></div></div>
+   <div class="t"><span class="ms fill ico">local_fire_department</span><span class="ms pw">power_settings_new</span><div class="nm">Λέβητας</div><div class="v">30°<small> σβηστός</small></div><div class="ft"><b>−</b><b>+</b></div></div>
+   <div class="t on" style="--a:#3d7fe0"><span class="ms fill ico">water_drop</span><span class="ms pw">power_settings_new</span><div class="nm">Αφυγραντήρας</div><div class="v">65%<small> → 55</small></div><div class="ft"><b>−</b><b>+</b></div></div>
+   <div class="t"><span class="ms fill ico">mode_fan</span><span class="ms pw">power_settings_new</span><div class="nm">Καθαριστής</div><div class="v"><small>σβηστός</small></div></div>
+  </div>
+ </div>
+ <div class="area" style="padding-left:8px;padding-top:12px">
+  <div class="grp">Συσκευές</div>
+  <div class="row2">
+   <div class="t on" style="--a:#2f9a76"><span class="ms fill ico">local_laundry_service</span><div class="nm">Πλυντήριο</div><div class="v">0:42</div><div class="pg"><i style="--p:65%"></i></div></div>
+   <div class="t att" style="--a:#c98a1e"><span class="ms fill ico">cyclone</span><div class="nm">Στεγνωτήριο</div><div class="v">Τελείωσε</div></div>
+   <div class="t"><span class="ms fill ico">dishwasher</span><div class="nm">Πλυντήριο πιάτων</div><div class="v"><small>σβηστό</small></div></div>
+   <div class="t on" style="--a:#d9573b"><span class="ms fill ico">water_heater</span><span class="ms pw">power_settings_new</span><div class="nm">Θερμοσίφωνας</div><div class="v">9′<small> απομένουν</small></div><div class="ft"><b>−</b><b>+</b></div></div>
+  </div>
+  <div class="t w2"><span class="ms fill ico">robot_2</span><span class="ms pw">power_settings_new</span><div class="nm">Σκούπα · μπαταρία 100%</div><div class="v">Στη βάση</div><div class="vac"><b class="ms">play_arrow</b><b class="ms">home</b><b class="ms">map</b></div></div>
+  <div class="grp">Εξοπλισμός</div>
+  <div class="row2">
+   <div class="t"><span class="ms fill ico">view_in_ar</span><div class="nm">Εκτυπωτής 3D</div><div class="v"><small>ανενεργός</small></div></div>
+   <div class="t on" style="--a:#2f9a76"><span class="ms fill ico">router</span><div class="nm">Δίκτυο</div><div class="v">Online</div></div>
+  </div>
+ </div>
+</div>
+<div class="notes"><b>Σελίδες (πλαϊνή ράγα):</b> Αρχική · Ημερολόγιο (μήνας/εβδομάδα, σε στυλ Skylight) · Media (μουσική, TV, ραδιόφωνο) · Στατιστικά (ενέργεια, νερό, συνθήκες σπιτιού, αυτοκίνητα) · Χρήσιμα (εφημερεύοντα φαρμακεία, πρατήρια/τιμές καυσίμων, αργίες, ΚΤΕΛ) · Κάμερες/Ασφάλεια · Homelab (δίκτυο, server, εκτυπωτής 3D, backups) · Ρυθμίσεις (θέμα, στιλ, οθόνη). Ιδέες για επιπλέον: Αυτοκίνητα (Tesla, Corsa, φόρτιση), Αυτοματισμοί/σενάρια, Παιδικό (Σοφία: πρόγραμμα, θερμοκρασία δωματίου).</div>
+</body></html>

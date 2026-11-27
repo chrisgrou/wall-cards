@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.6.2';
+const VERSION = '0.7.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3042,14 +3042,16 @@ const OFFS = ['off', 'idle', 'docked', 'standby', 'paused', 'none', 'closed', 'l
 class WallTileCard extends Wall2Card {
   static css2 = `
 :host{container-type:size}
-.card.v2{padding:7cqw 7cqw 6cqw;cursor:pointer;--a:#7a858f}
-.ico{font-size:clamp(22px,19cqw,30px)!important}
-.nm{font-size:clamp(11px,8.6cqw,13px)!important}
-.v{font-size:clamp(17px,16cqw,25px)!important}
-.v small,.s{font-size:clamp(10px,7.8cqw,12px)!important}
-.pw{width:clamp(32px,27cqw,42px)!important;height:clamp(32px,27cqw,42px)!important;font-size:clamp(18px,15cqw,23px)!important}
-.ft .btn{height:clamp(24px,21cqw,32px)!important;font-size:clamp(16px,13cqw,20px)!important}
+.card.v2{padding:7cqmin 7cqmin 6cqmin;cursor:pointer;--a:#7a858f}
+.ico{font-size:clamp(22px,19cqmin,30px)!important}
+.nm{font-size:clamp(11px,8.6cqmin,13px)!important}
+.v{font-size:clamp(17px,16cqmin,25px)!important}
+.v small,.s{font-size:clamp(10px,7.8cqmin,12px)!important}
+.pw{width:clamp(32px,27cqmin,42px)!important;height:clamp(32px,27cqmin,42px)!important;font-size:clamp(18px,15cqmin,23px)!important}
+.ft .btn{height:clamp(24px,21cqmin,32px)!important;font-size:clamp(16px,13cqmin,20px)!important}
 .ft:not([hidden])~.s,.ft:not([hidden])+.s{display:none}
+.vac{position:absolute;right:7cqh;bottom:7cqh;display:flex;gap:6px}.vac .btn{width:clamp(30px,26cqh,40px);height:clamp(30px,26cqh,40px);font-size:clamp(17px,15cqh,21px)}
+@container (max-aspect-ratio:3/2){.vac{display:none!important}}
 .ico{font-size:30px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
 .pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
 .nm{margin-top:auto;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3064,7 +3066,7 @@ class WallTileCard extends Wall2Card {
 .on .ico,.on .pw{color:var(--a)}
 .card.v2.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,var(--box)) 20%,color-mix(in srgb,var(--a) 30%,var(--box)));box-shadow:inset 0 0 0 2px var(--a),var(--sh)}
 .dark .card.v2.on,.card.v2.dark.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 22%,var(--box)) 20%,color-mix(in srgb,var(--a) 42%,var(--box)))}
-.on .nm::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--a);margin-right:5px;vertical-align:middle;animation:pulse 2s ease-in-out infinite}
+
 .on .ft .btn{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
 .styleB.on{background:var(--a)!important;color:#fff}
 .styleB.on :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)}
@@ -3116,7 +3118,8 @@ class WallTileCard extends Wall2Card {
   template() {
     return `<div class="card"><span class="ms fill ico"></span><button class="ms pw" aria-label="On/Off">power_settings_new</button>
   <div class="nm"></div><div class="v"></div><div class="s" hidden></div>
-  <div class="ft" hidden><button class="btn dn">−</button><button class="btn up">+</button></div><div class="pg" hidden><i></i></div></div>`;
+  <div class="ft" hidden><button class="btn dn">−</button><button class="btn up">+</button></div><div class="pg" hidden><i></i></div>
+  <div class="vac" hidden><button class="btn ms" data-v="start">play_arrow</button><button class="btn ms" data-v="pause">pause</button><button class="btn ms" data-v="return_to_base">home</button></div></div>`;
   }
   domain() { return (this._config.entity || '').split('.')[0]; }
   kind() { return TILE_KINDS[this.domain()] || TILE_KINDS.sensor; }
@@ -3125,6 +3128,7 @@ class WallTileCard extends Wall2Card {
     this.$('.pw').addEventListener('click', () => this.power());
     this.$('.dn').addEventListener('click', () => this.step(-1));
     this.$('.up').addEventListener('click', () => this.step(1));
+    this.$('.vac').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) this.call('vacuum', b.dataset.v, { entity_id: this._config.entity }); });
   }
   open() {
     const c = this._config, d = this.domain();
@@ -3277,6 +3281,7 @@ class WallTileCard extends Wall2Card {
       if (total) prog = clamp(100 - (left / total) * 100, 0, 100);
     }
     this.$('.v').innerHTML = v;
+    this.$('.vac').hidden = d !== 'vacuum' || !ok;
     this.$('.s').textContent = sub; this.$('.s').hidden = !sub;
     this.$('.ft').hidden = !steps || (prog != null && !this.timer());
     const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
@@ -3307,8 +3312,8 @@ class WallTodayCard extends Wall2Card {
 .ev span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .none{font:600 13px var(--w-font);color:var(--faint);font-style:italic}
 :host{overflow:visible;position:relative;z-index:6}
-.card.v2.chip{flex-direction:row;align-items:center;gap:12px;padding:0 10px 0 16px;cursor:pointer;height:100%}
-.chip .clock{font-size:30px;letter-spacing:-1px}.chip .date{margin:0;font-size:14px}.chip .chev{color:var(--faint);margin-left:auto}
+.card.v2.chip{flex-direction:row;align-items:center;gap:12px;padding:0 6px 0 12px;cursor:pointer;height:100%;background:none!important;box-shadow:none!important}
+.chip .clock{font-size:30px;letter-spacing:-1px}.chip .date{margin:0;font-size:14px;white-space:nowrap}
 .drop{position:absolute;right:0;top:calc(100% + 8px);width:320px;padding:14px 16px;border-radius:20px;background:var(--box);color:var(--ink);
   box-shadow:0 18px 40px rgba(20,30,40,.25);animation:dropin .25s cubic-bezier(.3,1.4,.5,1)}
 .drop.v2{--bg:#eef1f4;--box:#fff;--ink:#1c2228;--mut:#5f6b76;--faint:#9aa4ad;--line:#e6eaee}
@@ -3326,7 +3331,7 @@ class WallTodayCard extends Wall2Card {
   getGridOptions() { return { columns: 6, rows: 5 }; }
   watched() { return [...(this._config.calendars || [])]; }
   template() {
-    if (this._config.mode === 'clock') return `<div class="card chip"><div class="clock"></div><div class="date"></div><span class="ms chev">expand_more</span></div>
+    if (this._config.mode === 'clock') return `<div class="card chip"><div class="clock"></div><div class="date"></div></div>
   <div class="drop v2" hidden><div class="mon"></div><div class="ag"></div></div>`;
     return `<div class="card"><div class="clock"></div><div class="date"></div><div class="mon"></div><div class="ag"></div></div>`;
   }
@@ -3334,7 +3339,7 @@ class WallTodayCard extends Wall2Card {
     this._clock = setInterval(() => this.clock(), 15000);
     if (this._config.mode !== 'clock') return;
     const drop = this.$('.drop');
-    this.$('.card').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; this.$('.chev').textContent = drop.hidden ? 'expand_more' : 'expand_less'; if (!drop.hidden) { clearTimeout(this._dt); this._dt = setTimeout(() => this.$('.card').click(), 30000); } });
+    this.$('.card').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; if (!drop.hidden) { clearTimeout(this._dt); this._dt = setTimeout(() => this.$('.card').click(), 30000); } });
     this._away = (e) => { if (!drop.hidden && !e.composedPath().includes(this)) this.$('.card').click(); };
     document.addEventListener('click', this._away);
   }
@@ -3517,6 +3522,54 @@ svg{flex:1;width:calc(100% + 32px);margin:4px -16px 0;min-height:24px;display:bl
     const range = (p) => { const v = p.map((x) => x[1]); return [Math.min(...v), Math.max(...v)]; };
     if (tp.length > 1) { const [lo, hi] = range(tp); const p = smoothPath(tp, 300, 42, lo, hi); this.$('.tl').setAttribute('d', p.line); this.$('.ta').setAttribute('d', p.area); }
     if (hp.length > 1) { const [lo, hi] = range(hp); this.$('.hl').setAttribute('d', smoothPath(hp, 300, 42, lo, hi).line); }
+  }
+}
+
+/* ── Μέτρηση (μικρή κάρτα): τίτλος με εικονίδιο, τιμή, τάση, μικρό γράφημα ── */
+const QUALITY = { co2: [[800, '#3f9a62'], [1200, '#d9a21f'], [Infinity, '#d9573b']], pm25: [[12, '#3f9a62'], [35, '#d9a21f'], [Infinity, '#d9573b']], voc: [[150, '#3f9a62'], [300, '#d9a21f'], [Infinity, '#d9573b']] };
+class WallStatCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:9px 12px;justify-content:space-between;cursor:pointer}
+.h{display:flex;align-items:center;gap:6px;font:700 11px var(--w-font);color:var(--mut);letter-spacing:.4px;text-transform:uppercase}
+.h .ms{font-size:17px;color:var(--k)}.h i{margin-left:auto;width:9px;height:9px;border-radius:50%}
+.v{font:700 24px var(--w-font);letter-spacing:-.8px;display:flex;align-items:baseline;gap:5px;position:relative;z-index:1}
+.v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
+.tr{font:800 11px var(--w-font);padding:1px 6px;border-radius:8px;letter-spacing:0}.tr.dn{background:color-mix(in srgb,#3d8fe6 16%,var(--box));color:#2f6fb5}.tr.up{background:color-mix(in srgb,#e0702a 16%,var(--box));color:#c0602a}
+svg{position:absolute;right:10px;bottom:10px;width:56px;height:22px}
+`;
+  static getConfigForm() {
+    return form([['entity', 'Αισθητήρας', ent('sensor'), true], ['name', 'Τίτλος (π.χ. Υγρασία)', TEXT], ['icon', 'Εικονίδιο', TEXT], ['color', 'Χρώμα', TEXT],
+      ['trend_entity', 'Τάση (Derivative)', ent('sensor')], ['trend_min', 'Δείξε την τάση από (π.χ. 0.5)', { number: { min: 0, max: 100, step: 0.1, mode: 'box' } }],
+      ['quality', 'Ποιότητα (χρώμα τελείας)', { select: { mode: 'dropdown', options: [{ value: '', label: '—' }, { value: 'co2', label: 'CO₂' }, { value: 'pm25', label: 'PM2.5' }, { value: 'voc', label: 'VOC' }] } }],
+      ['decimals', 'Δεκαδικά', { number: { min: 0, max: 2, mode: 'box' } }], ['graph', 'Μικρό γράφημα 24 ωρών', { boolean: {} }]]);
+  }
+  static getStubConfig() { return { entity: '' }; }
+  getGridOptions() { return { columns: 3, rows: 1 }; }
+  watched() { return [this._config.entity, this._config.trend_entity]; }
+  template() {
+    return `<div class="card"><div class="h"><span class="ms fill"></span><span class="tt"></span><i hidden></i></div><div class="v"><b></b><small></small><span class="tr" hidden></span></div>
+  <svg viewBox="0 0 56 22" preserveAspectRatio="none" hidden><path fill="none" stroke-width="2"/></svg></div>`;
+  }
+  bind() { this.tapMore(); }
+  async update() {
+    const c = this._config, s = this.st(c.entity), a = s?.attributes || {}, n = this.num(c.entity);
+    const col = c.color || ({ temperature: '#e0702a', humidity: '#3d8fe6', carbon_dioxide: '#3f9a62', pm25: '#7a5fd0' }[a.device_class] || '#7a858f');
+    this.$('.card').style.setProperty('--k', col);
+    this.$('.h .ms').textContent = c.icon || ({ temperature: 'thermostat', humidity: 'humidity_percentage', carbon_dioxide: 'co2', pm25: 'airwave', volatile_organic_compounds: 'air' }[a.device_class] || 'sensors');
+    this.$('.tt').textContent = c.name || a.friendly_name || '';
+    this.$('.v b').textContent = isNaN(n) ? '—' : fmt(n, c.decimals ?? (a.device_class === 'temperature' ? 1 : 0)) + (a.unit_of_measurement === '°C' ? '°' : '');
+    this.$('.v small').textContent = a.unit_of_measurement === '°C' ? '' : a.unit_of_measurement || '';
+    const q = c.quality && QUALITY[c.quality], dot = this.$('.h i');
+    dot.hidden = !q || isNaN(n); if (!dot.hidden) dot.style.background = q.find(([m]) => n < m)[1];
+    const tv = this.num(c.trend_entity), tr = this.$('.tr');
+    tr.hidden = isNaN(tv) || Math.abs(tv) < (c.trend_min ?? 0.5);
+    if (!tr.hidden) { tr.className = 'tr ' + (tv < 0 ? 'dn' : 'up'); tr.textContent = `${tv < 0 ? '↘' : '↗'} ${fmt(Math.abs(tv), Math.abs(tv) < 10 ? 1 : 0)}`; }
+    const svg = this.$('svg');
+    svg.hidden = c.graph === false;
+    if (!svg.hidden) {
+      const pts = (await fetchHistory(this._hass, [c.entity]))[c.entity] || [];
+      if (pts.length > 1) { const v = pts.map((x) => x[1]); const pth = smoothPath(pts, 56, 22, Math.min(...v), Math.max(...v)); const el2 = svg.querySelector('path'); el2.setAttribute('d', pth.line); el2.setAttribute('stroke', col); }
+    }
   }
 }
 
@@ -3825,17 +3878,37 @@ class WallShopCard extends Wall2Card {
 .done .cb{background:#3f9a62;border-color:#3f9a62}.done .cb::after{content:'';width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
 .done span:last-child{color:var(--faint);text-decoration:line-through}
 .more{font:600 12px var(--w-font);color:var(--mut);padding-top:6px}
+.card.v2.cmp{flex-direction:row;align-items:center;gap:12px;padding:0 12px 0 14px}
+.cmp .ic{font-size:24px;color:var(--faint)}.cmp .ct{flex:1;min-width:0;cursor:pointer}.cmp .ttl{font:800 15px var(--w-font)}
+.cmp .one{font:600 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8}
+.cmp .one.fade{animation:sfade 7s ease-in-out}@keyframes sfade{0%{opacity:0}18%,82%{opacity:.85}100%{opacity:0}}
 `;
-  static getConfigForm() { return form([['entity', 'Λίστα', ent('todo'), true], ['max', 'Πόσα να φαίνονται', { number: { min: 1, max: 12, mode: 'box' } }]]); }
+  static getConfigForm() {
+    return form([['entity', 'Λίστα', ent('todo'), true], ['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'list', label: 'Λίστα' }, { value: 'compact', label: 'Συμπαγής: αριθμός και ένα προϊόν τη φορά' }] } }],
+      ['max', 'Πόσα να φαίνονται (λίστα)', { number: { min: 1, max: 12, mode: 'box' } }]]);
+  }
   static getStubConfig(hass) { return { entity: firstEntity(hass, 'todo') }; }
   getGridOptions() { return { columns: 6, rows: 3 }; }
   watched() { return [this._config.entity]; }
-  template() { return `<div class="card"><div class="hd"><span class="ms fill">shopping_cart</span><span class="ttl"></span><small></small><button class="btn ms add">add</button></div><div class="list"></div></div>`; }
+  template() {
+    if (this._config.mode === 'compact') return `<div class="card cmp"><span class="ms fill ic">shopping_cart</span><div class="ct"><b class="ttl"></b><div class="one"></div></div><button class="btn ms add">add</button></div>`;
+    return `<div class="card"><div class="hd"><span class="ms fill">shopping_cart</span><span class="ttl"></span><small></small><button class="btn ms add">add</button></div><div class="list"></div></div>`;
+  }
+  disconnectedCallback() { super.disconnectedCallback(); clearInterval(this._rot); this._rot = null; }
+  rotate() {
+    const one = this.$('.one'); if (!one) return;
+    const open = (this._items || []).filter((i) => i.status === 'needs_action');
+    if (!open.length) { one.textContent = 'η λίστα είναι άδεια'; one.classList.remove('fade'); return; }
+    this._ri = ((this._ri ?? -1) + 1) % open.length;
+    one.classList.remove('fade'); void one.offsetWidth;
+    one.textContent = open[this._ri].summary; one.classList.add('fade');
+  }
   bind() {
     this.$('.add').addEventListener('click', () => {
       const v = prompt('Τι χρειάζεται;');
       if (v && v.trim()) this.call('todo', 'add_item', { entity_id: this._config.entity, item: v.trim() });
     });
+    if (this._config.mode === 'compact') { this.$('.ct').addEventListener('click', () => this.moreInfo(this._config.entity)); this._rot = setInterval(() => this.rotate(), 7000); return; }
     this.$('.list').addEventListener('click', (e) => {
       const r = e.target.closest('[data-uid]'); if (!r) return;
       this.call('todo', 'update_item', { entity_id: this._config.entity, item: r.dataset.uid, status: r.classList.contains('done') ? 'needs_action' : 'completed' });
@@ -3846,6 +3919,12 @@ class WallShopCard extends Wall2Card {
     this.$('.ttl').textContent = c.title || 'Ψώνια';
     let items = [];
     try { items = (await this._hass.callWS({ type: 'todo/item/list', entity_id: c.entity }))?.items || []; } catch (e) { /* μη διαθέσιμη λίστα */ }
+    if (c.mode === 'compact') {
+      const first = !this._items; this._items = items;
+      this.$('.ttl').textContent = `${c.title || 'Ψώνια'} · ${items.filter((i) => i.status === 'needs_action').length}`;
+      if (first) this.rotate();
+      return;
+    }
     const open = items.filter((i) => i.status === 'needs_action'), done = items.filter((i) => i.status === 'completed').slice(0, 2);
     const show = [...open, ...done].slice(0, c.max ?? 3);
     this.$('.hd small').textContent = open.length;
@@ -3920,19 +3999,40 @@ class WallActionsCard extends Wall2Card {
 :host{box-shadow:none}
 .card.v2{padding:0;background:none;box-shadow:none;display:grid;gap:8px;grid-template-columns:var(--cols,1fr)}
 button{border-radius:14px;background:var(--box);box-shadow:var(--sh);display:flex;align-items:center;gap:8px;padding:0 12px;font:700 13px var(--w-font);color:var(--ink);min-height:44px}
-.icons button{justify-content:center;padding:0;width:52px}.icons{grid-auto-flow:column;grid-template-columns:none!important}
+.icons button{justify-content:center;padding:0;width:52px}
+:host{overflow:visible;position:relative;z-index:7}
+.card.v2.mnu{height:100%}.mnu .tg{width:56px;height:100%;justify-content:center;padding:0;background:var(--box)}.mnu .tg .ms{font-size:24px;color:var(--accent)}
+.mdrop{position:absolute;right:0;top:calc(100% + 8px);width:300px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border-radius:20px;background:#f4f6f8;box-shadow:0 18px 40px rgba(20,30,40,.25);animation:mdin .25s cubic-bezier(.3,1.4,.5,1)}
+.mdrop.v2{--box:#fff;--ink:#1c2228;--accent:#2f5fa8;--sh:0 1px 3px rgba(0,0,0,.08)}.mdrop.v2.dark{--box:#252d35;--ink:#e9eef2;--accent:#8fb5ef;background:#1b2127}
+.mdrop button{min-height:56px}
+@keyframes mdin{from{opacity:0;transform:translateY(-8px)}}.icons{grid-auto-flow:column;grid-template-columns:none!important}
 button .ms{font-size:22px;color:var(--accent)}
 `;
-  static getConfigForm() { return form([['columns', 'Στήλες', { number: { min: 1, max: 6, mode: 'box' } }]]); }
+  static getConfigForm() {
+    return form([['mode', 'Μορφή', { select: { mode: 'dropdown', options: [{ value: 'grid', label: 'Κουμπιά' }, { value: 'menu', label: 'Ένα κουμπί που ανοίγει μενού' }] } }],
+      ['columns', 'Στήλες', { number: { min: 1, max: 6, mode: 'box' } }], ['icons_only', 'Μόνο εικονίδια', { boolean: {} }]]);
+  }
   static getStubConfig() { return { items: [] }; }
   getGridOptions() { return { columns: 3, rows: 4 }; }
   watched() { return []; }
   template() {
     const ic = this._config.icons_only;
+    if (this._config.mode === 'menu') return `<div class="card mnu"><button class="tg"><span class="ms fill">${this._config.icon || 'bolt'}</span></button></div>
+  <div class="mdrop v2" hidden>${(this._config.items || []).map((it, i) => `<button data-i="${i}"><span class="ms">${it.icon || 'play_arrow'}</span>${it.name || ''}</button>`).join('')}</div>`;
     return `<div class="card${ic ? ' icons' : ''}" style="--cols:repeat(${this._config.columns || 1},1fr)">${(this._config.items || []).map((it, i) =>
       `<button data-i="${i}" title="${it.name || ''}"><span class="ms">${it.icon || 'play_arrow'}</span>${ic ? '' : it.name || ''}</button>`).join('')}</div>`;
   }
-  bind() { this.$('.card').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) this.trigger(this._config.items[b.dataset.i].entity); }); }
+  bind() {
+    const run = (e) => { const b = e.target.closest('[data-i]'); if (b) { this.trigger(this._config.items[b.dataset.i].entity); if (this._config.mode === 'menu') this.$('.mdrop').hidden = true; } };
+    if (this._config.mode !== 'menu') { this.$('.card').addEventListener('click', run); return; }
+    const drop = this.$('.mdrop');
+    this.$('.tg').addEventListener('click', (e) => { e.stopPropagation(); drop.hidden = !drop.hidden; });
+    drop.addEventListener('click', run);
+    this._away = (e) => { if (!drop.hidden && !e.composedPath().includes(this)) drop.hidden = true; };
+    document.addEventListener('click', this._away);
+  }
+  disconnectedCallback() { super.disconnectedCallback?.(); if (this._away) document.removeEventListener('click', this._away); }
+  applyTheme() { super.applyTheme(); const d = this.$('.mdrop'); if (d) d.classList.toggle('dark', this.$('.card').classList.contains('dark')); }
   update() {}
 }
 
@@ -3960,8 +4060,11 @@ class WallLayoutCard extends HTMLElement {
     const c = this._config, u = c.unit || 148;
     this.shadowRoot.innerHTML = `<style>
 :host{display:block}
-.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${c.columns || 'minmax(270px,21%) 1fr minmax(300px,24%)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
-.top{grid-column:2/4;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0;position:relative;z-index:5}
+.page{--bg:#eef1f4;--line:#e3e7eb;--faint:#9aa4ad;--u:${u}px;box-sizing:border-box;height:${c.height || 'calc(100vh - var(--header-height, 56px))'};display:grid;grid-template-columns:${(c.nav || []).length ? '64px ' : ''}${c.columns || 'minmax(260px,20%) 1fr calc(var(--u) * 2 + 44px)'};grid-template-rows:auto 1fr;background:var(--bg);font-family:Manrope,sans-serif;overflow:hidden}
+.rail{grid-row:1/3;background:#1c2228;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.rail button{width:46px;height:46px;border-radius:14px;border:0;background:none;display:grid;place-items:center;color:#93a0ab;cursor:pointer;font-family:'Material Symbols Rounded';font-size:24px;font-feature-settings:'liga'}
+.rail button.sel{background:#2f3a44;color:#fff}.rail .sp{flex:1}
+.top{grid-column:-3/-1;display:flex;gap:10px;padding:12px 16px 0 4px;min-width:0;position:relative;z-index:5}
 .top>*{min-width:0}.top>.grow{flex:1;height:58px}
 .side{grid-row:1/3}
 .page.dark{--bg:#0f1316;--line:#2a323a;--faint:#5f6b76}
@@ -3977,12 +4080,16 @@ class WallLayoutCard extends HTMLElement {
 .grid{display:grid;gap:12px}
 .grid>*{aspect-ratio:1;min-width:0}
 .grid.free>*{aspect-ratio:auto}
+.grid.fix{grid-template-columns:repeat(var(--c),var(--u))!important}
+.grid.fix>*{width:var(--u);height:var(--u);aspect-ratio:auto}
+.grid.fix>.span2{grid-column:span 2;width:auto}
+.grid>.span2{grid-column:span 2;aspect-ratio:2/1}
 .bottom{display:flex;gap:14px;align-items:flex-start}
 .bottom>div{display:flex;flex-direction:column;gap:10px;flex:1;min-width:0}
 .bottom .fillw{flex:none;align-self:stretch}
 .bottom .grid{grid-template-columns:repeat(var(--c),1fr)}
 .push{margin-top:auto}
-</style><div class="page"><div class="area side"></div><div class="top"></div><div class="area mid"></div><div class="area right"></div></div>`;
+</style><div class="page">${(c.nav || []).length ? `<nav class="rail">${c.nav.map((n, i) => `${n.bottom ? '<span class="sp"></span>' : ''}<button data-n="${i}" title="${n.name || ''}">${n.icon}</button>`).join('')}</nav>` : ''}<div class="area side"></div><div class="top"></div><div class="area mid"></div><div class="area right"></div></div>`;
     const helpers = window.loadCardHelpers ? await window.loadCardHelpers() : null;
     const make = (cfg) => {
       const tag = cfg.type.startsWith('custom:') ? cfg.type.slice(7) : `hui-${cfg.type}-card`;
@@ -4000,10 +4107,12 @@ class WallLayoutCard extends HTMLElement {
         const g = document.createElement('div');
         g.className = it.row ? 'row' : 'grid';
         if (!it.row) g.style.gridTemplateColumns = `repeat(${it.columns || 2},1fr)`;
+        g.style.setProperty('--c', it.columns || 2);
+        if (it.fixed !== false && !it.rows && it.square !== false && !it.row) g.classList.add('fix');
         if (it.rows) { g.style.gridTemplateRows = it.rows; g.classList.add('free'); }
         if (it.square === false) g.classList.add('free');
         if (it.height) g.style.height = it.height;
-        it.cards.forEach((cc) => g.append(make(cc)));
+        it.cards.forEach((cc) => { const e = make(cc); if (cc.span === 2) e.classList.add('span2'); g.append(e); });
         host.append(g);
       } else if (it.bottom) {
         const b = document.createElement('div'); b.className = 'bottom';
@@ -4031,6 +4140,19 @@ class WallLayoutCard extends HTMLElement {
     fill(side, c.sidebar); fill(mid, c.center); fill(right, c.right);
     const top = this.shadowRoot.querySelector('.top');
     fill(top, c.top); top.hidden = !(c.top || []).length;
+    const rail = this.shadowRoot.querySelector('.rail');
+    if (rail) {
+      const mark = () => rail.querySelectorAll('[data-n]').forEach((b) => b.classList.toggle('sel', location.pathname === c.nav[b.dataset.n].path || location.pathname.endsWith('/' + c.nav[b.dataset.n].path)));
+      rail.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-n]'); if (!b) return;
+        const n = c.nav[b.dataset.n];
+        if (n.entity) return this._hass?.callService(...(n.entity.startsWith('script.') ? ['script', 'turn_on'] : ['homeassistant', 'toggle']), { entity_id: n.entity });
+        history.pushState(null, '', n.path);
+        window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));
+        mark();
+      });
+      mark();
+    }
     if (this._hass) this.hass = this._hass;
   }
   getCardSize() { return 12; }
@@ -4072,6 +4194,7 @@ register('wall-dehumidifier-card', WallDehumidifierCard, 'Wall · Αφυγραν
 register('wall-tile', WallTileCard, 'Wall v2 · Συσκευή', 'Ήσυχο πλακίδιο 1×1: εικονίδιο, ⏻, τιμή, −/+ ή πρόοδος, για κάθε συσκευή.');
 register('wall-today', WallTodayCard, 'Wall v2 · Ημερολόγιο', 'Ώρα, μήνας και τα επόμενα γεγονότα.');
 register('wall-sky', WallSkyCard, 'Wall v2 · Καιρός', 'Ουρανός με κίνηση, τρέχουσες συνθήκες και 3 ημέρες.');
+register('wall-stat', WallStatCard, 'Wall v2 · Μέτρηση', 'Μικρή κάρτα για θερμοκρασία, υγρασία, CO₂, PM2.5, VOC: τίτλος, τιμή, τάση, γράφημα.');
 register('wall-home', WallHomeCard, 'Wall v2 · Συνθήκες σπιτιού', 'Θερμοκρασία, υγρασία, CO₂/VOC, τάση και 24ωρο.');
 register('wall-person-tile', WallPersonTile, 'Wall v2 · Άτομο', 'Αχνός χάρτης και κατάσταση· «Έρχεται» με ώρα άφιξης και πρόοδο.');
 register('wall-car-tile', WallCarTile, 'Wall v2 · Αυτοκίνητο', 'Μπαταρία, αυτονομία, προθέρμανση ή φθηνότερη τιμή καυσίμου.');

@@ -51,22 +51,29 @@ const hass = {
   connection: { subscribeMessage: async (cb, m) => { setTimeout(() => cb({ forecast: m.forecast_type === 'daily' ? [0, 1, 2, 3].map((o, i) => ({ datetime: day(o), condition: ['partlycloudy', 'rainy', 'snowy', 'sunny'][i], temperature: [14, 11, 6, 13][i], templow: [5, 4, -1, 3][i] })) : [] }), 50); return () => {}; } },
 };
 const cfg = {
-  type: 'custom:wall-layout', theme: q.has('dark') ? 'dark' : 'light', style: q.has('B') ? 'B' : 'A', height: '100vh',
+  type: 'custom:wall-layout', theme: q.has('dark') ? 'dark' : 'light', style: q.has('B') ? 'B' : 'A', height: '100vh', unit: 136,
+  nav: [{ icon: 'home', name: 'Αρχική', path: '/dev/v2.html' }, { icon: 'calendar_month', name: 'Ημερολόγιο', path: '/wall-v2/calendar' }, { icon: 'play_circle', name: 'Media', path: '/wall-v2/media' },
+    { icon: 'monitoring', name: 'Στατιστικά', path: '/wall-v2/stats' }, { icon: 'local_pharmacy', name: 'Χρήσιμα', path: '/wall-v2/useful' }, { icon: 'videocam', name: 'Κάμερες', path: '/wall-v2/cameras' },
+    { icon: 'dns', name: 'Homelab', path: '/wall-v2/homelab' }, { icon: 'settings', name: 'Ρυθμίσεις', path: '/wall-v2/settings', bottom: true }],
   sidebar: [
-    { type: 'custom:wall-sky', entity: 'weather.home', height: '170px' },
-    { type: 'custom:wall-home', entity: 'sensor.home_t', humidity_entity: 'sensor.home_h', co2_entity: 'sensor.co2', temperature_trend_entity: 'sensor.home_t_rate', humidity_trend_entity: 'sensor.home_h_rate', height: '150px' },
-    { type: 'custom:wall-shopping', entity: 'todo.shopping', max: 5, grow: true },
-    { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'] },
+    { type: 'custom:wall-sky', entity: 'weather.home', height: '150px' },
+    { group: 'Σπίτι', columns: 2, rows: '74px 74px', cards: [
+      { type: 'custom:wall-stat', entity: 'sensor.home_t', name: 'Θερμοκρασία', trend_entity: 'sensor.home_t_rate' },
+      { type: 'custom:wall-stat', entity: 'sensor.home_h', name: 'Υγρασία', trend_entity: 'sensor.home_h_rate', trend_min: 4 },
+      { type: 'custom:wall-stat', entity: 'sensor.co2', name: 'CO₂', icon: 'co2', quality: 'co2', color: '#3f9a62', graph: false },
+      { type: 'custom:wall-stat', entity: 'sensor.pm25', name: 'PM2.5', icon: 'airwave', quality: 'pm25', color: '#7a5fd0', graph: false }] },
+    { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', height: '60px' },
+    { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'], push: true },
   ],
   top: [
     { type: 'custom:wall-notices', mode: 'bar', grow: true, items: [
       { entity: 'input_select.dryer', state: 'done', icon: 'cyclone', text: 'Το στεγνωτήριο τελείωσε', color: '#c98a1e', urgent: true },
       { entity: 'binary_sensor.bed_humid', icon: 'humidity_low', text: 'Υγρασία υπνοδωματίου 66%', color: '#3d8fe6' }] },
+    { type: 'custom:wall-actions', mode: 'menu', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] },
     { type: 'custom:wall-today', mode: 'clock', calendars: ['calendar.family'], events: 3 },
-    { type: 'custom:wall-actions', icons_only: true, items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] },
   ],
   center: [
-    { group: '', columns: 2, rows: '78px 56px', cards: [
+    { group: '', columns: 2, rows: '76px 54px', cards: [
       { type: 'custom:wall-person-tile', entity: 'person.chris', color: '#2f5fa8', driving_entity: 'binary_sensor.chris_driving', direction_entity: 'sensor.chris_dir', distance_entity: 'sensor.chris_km', eta_entity: 'sensor.chris_eta', usual_minutes: 8 },
       { type: 'custom:wall-person-tile', entity: 'person.ioanna', color: '#b0548a' },
       { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
@@ -83,12 +90,14 @@ const cfg = {
   ],
   right: [
     { group: 'Συσκευές', columns: 2, cards: [
+      { type: 'custom:wall-tile', entity: 'input_select.washer', name: 'Πλυντήριο', remaining_entity: 'sensor.washer_rem', total_entity: 'sensor.washer_tot', icon: 'local_laundry_service', color: '#2f9a76' },
+      { type: 'custom:wall-tile', entity: 'input_select.dryer', name: 'Στεγνωτήριο', icon: 'cyclone', animation: 'spin', color: '#c98a1e', attention_entity: 'input_select.dryer', attention_state: 'done' },
+      { type: 'custom:wall-tile', entity: 'input_select.dish', name: 'Πλυντήριο πιάτων', icon: 'dishwasher', color: '#3a8fa6' },
       { type: 'custom:wall-tile', entity: 'input_boolean.water_heater', name: 'Θερμοσίφωνας', icon: 'water_heater', animation: 'flame', color: '#d9573b', finish_entity: 'input_datetime.wh_finish', duration_entity: 'input_number.wh_duration' },
-      { type: 'custom:wall-tile', entity: 'input_select.washer', remaining_entity: 'sensor.washer_rem', total_entity: 'sensor.washer_tot', icon: 'local_laundry_service', color: '#2f9a76' },
-      { type: 'custom:wall-tile', entity: 'input_select.dryer', icon: 'cyclone', animation: 'spin', color: '#c98a1e', attention_entity: 'input_select.dryer', attention_state: 'done' },
-      { type: 'custom:wall-tile', entity: 'input_select.dish', icon: 'dishwasher', color: '#3a8fa6' },
-      { type: 'custom:wall-tile', entity: 'vacuum.robo' },
-      { type: 'custom:wall-tile', entity: 'sensor.printer3d', name: 'Εκτυπωτής 3D', icon: 'view_in_ar', animation: 'flame', color: '#d0662f', remaining_entity: 'sensor.p3d_rem', progress_entity: 'sensor.p3d_progress' }] },
+      { type: 'custom:wall-tile', entity: 'vacuum.robo', name: 'Σκούπα', span: 2 }] },
+    { group: 'Εξοπλισμός', columns: 2, cards: [
+      { type: 'custom:wall-tile', entity: 'sensor.printer3d', name: 'Εκτυπωτής 3D', icon: 'view_in_ar', animation: 'flame', color: '#d0662f', remaining_entity: 'sensor.p3d_rem', progress_entity: 'sensor.p3d_progress' },
+      { type: 'custom:wall-tile', entity: 'sensor.net', name: 'Δίκτυο', icon: 'router', secondary_entity: 'sensor.net_clients' }] },
   ],
 };
 const el = document.createElement('wall-layout');
