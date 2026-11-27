@@ -50,13 +50,14 @@ const states = {
   'media_player.tv': S('off', { friendly_name: 'TV σαλονιού', device_class: 'tv' }),
   'todo.shopping': S(3), 'script.morning': S('off'), 'script.movie': S('off'), 'script.night': S('off'), 'script.leave': S('off'),
 };
+const TODOS = { 'todo.family_board': [{ uid: 'r1', summary: 'Ραντεβού παιδίατρου', status: 'needs_action', due: new Date().toISOString().slice(0,10) }, { uid: 'r2', summary: 'Πληρωμή ΔΕΗ', status: 'needs_action', due: '2026-11-25' }], 'todo.chores': [{ uid: 'c1', summary: 'Βγάλε τα σκουπίδια', status: 'needs_action' }, { uid: 'c2', summary: 'Πότισμα', status: 'completed' }] };
 const todo = [{ uid: '1', summary: 'Γάλα', status: 'needs_action' }, { uid: '2', summary: 'Ψωμί', status: 'needs_action' }, { uid: '3', summary: 'Απορρυπαντικό πιάτων', status: 'needs_action' }, { uid: '4', summary: 'Μπανάνες', status: 'completed' }];
 const hist = (base, amp) => Array.from({ length: 48 }, (_, i) => ({ lu: (Date.now() - (47 - i) * 1800000) / 1000, s: String(base + Math.sin(i / 6) * amp) }));
 const day = (o) => new Date(Date.now() + o * 864e5).toISOString();
 const hass = { services: { scheduler: { add: {}, remove: {} } },
   states, themes: { darkMode: q.has('dark') }, language: 'el',
   callService: (d, s, data) => { console.log('service', d, s, data); if (d === 'homeassistant' || d === 'light') { const id = data.entity_id; states[id] = S(states[id].state === 'on' ? 'off' : 'on', states[id].attributes); push(); } if (d === 'climate' && s === 'set_temperature') { states[data.entity_id].attributes.temperature = data.temperature; states[data.entity_id] = { ...states[data.entity_id], last_updated: now() }; push(); } return Promise.resolve(); },
-  callWS: async (m) => m.type === 'todo/item/list' ? { items: todo } : m.type === 'history/history_during_period' ? Object.fromEntries(m.entity_ids.map((id) => [id, hist(id.includes('_h') ? 52 : 20.5, id.includes('_h') ? 4 : 1)])) : {},
+  callWS: async (m) => m.type === 'todo/item/list' ? { items: TODOS[m.entity_id] || todo } : m.type === 'history/history_during_period' ? Object.fromEntries(m.entity_ids.map((id) => [id, hist(id.includes('_h') ? 52 : 20.5, id.includes('_h') ? 4 : 1)])) : {},
   callApi: async (m, path) => path.startsWith('calendars/calendar.family') ? [{ summary: 'Γυμναστήριο', start: { dateTime: new Date(new Date().setHours(19, 30)).toISOString() } }, { summary: 'Οδοντίατρος', start: { dateTime: new Date(new Date(Date.now() + 864e5).setHours(10, 0)).toISOString() } }, { summary: 'Γενέθλια Μαρίας', start: { date: day(5).slice(0, 10) } }] : [],
   connection: { subscribeMessage: async (cb, m) => { setTimeout(() => cb({ forecast: m.forecast_type === 'daily' ? [0, 1, 2, 3].map((o, i) => ({ datetime: day(o), condition: ['partlycloudy', 'rainy', 'snowy', 'sunny'][i], temperature: [14, 11, 6, 13][i], templow: [5, 4, -1, 3][i] })) : [] }), 50); return () => {}; } },
 };
@@ -72,8 +73,8 @@ const cfg = {
       { type: 'custom:wall-car-tile', entity: 'sensor.tesla_battery', name: 'Tesla Model 3', electric: true, range_entity: 'sensor.tesla_range', status_entity: 'device_tracker.tesla', climate_entity: 'climate.tesla', charging_entity: 'binary_sensor.tesla_charging' },
       { type: 'custom:wall-car-tile', entity: 'device_tracker.corsa', name: 'Opel Corsa', status_entity: 'device_tracker.corsa', price_entity: 'sensor.diesel', price_label: 'Φθηνότερο πετρέλαιο' },
     ] },
-    { type: 'custom:wall-shopping', entity: 'todo.shopping', mode: 'compact', reminders: 'todo.family_board', height: '104px' },
-    { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'], push: true },
+    { type: 'custom:wall-family', shopping: 'todo.shopping', reminders: 'todo.family_board', chores: 'todo.chores', grow: true },
+    { type: 'custom:wall-media', entities: ['media_player.salon', 'media_player.tv'] },
   ],
   rail: [{ type: 'custom:wall-actions', mode: 'rail', items: [{ entity: 'script.morning', name: 'Καλημέρα', icon: 'light_mode' }, { entity: 'script.movie', name: 'Ταινία', icon: 'movie' }, { entity: 'script.night', name: 'Καληνύχτα', icon: 'bedtime' }, { entity: 'script.leave', name: 'Φεύγουμε', icon: 'logout' }] }],
   top: [

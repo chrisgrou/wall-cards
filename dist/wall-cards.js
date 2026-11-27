@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.10.1';
+const VERSION = '0.11.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4465,6 +4465,80 @@ class WallShopCard extends Wall2Card {
   }
 }
 
+/* ── Family Matters: ψώνια, υπενθυμίσεις, δουλειές σε μία κάρτα με καρτέλες ── */
+class WallFamilyCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:10px 12px 8px;gap:6px}
+.tabs{display:flex;gap:4px;background:var(--chip);border-radius:14px;padding:3px}
+.tab{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;height:36px;border:0;border-radius:11px;background:none;color:var(--mut);font:700 12px var(--w-font);cursor:pointer;transition:background .25s,color .25s}
+.tab .ms{font-size:19px;color:var(--tc)}.tab i{font:800 11px var(--w-font);font-style:normal;min-width:18px;padding:1px 5px;border-radius:9px;background:color-mix(in srgb,var(--tc) 18%,transparent);color:var(--tc)}
+.tab.sel{background:var(--box);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.08)}.tab .tn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab .tn{display:none}.ft b{font:800 13px var(--w-font);color:var(--tc)}
+.body{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;animation:ffade .3s}
+@keyframes ffade{from{opacity:0;transform:translateY(4px)}}
+.it{display:flex;align-items:center;gap:10px;min-height:36px;font:600 14px var(--w-font);cursor:pointer;flex:none}.it+.it{border-top:1px solid var(--line)}
+.cb{width:20px;height:20px;border-radius:6px;border:2px solid var(--faint);flex:none;display:grid;place-items:center;transition:all .2s}
+.done .cb{background:#3f9a62;border-color:#3f9a62}.done .cb::after{content:'';width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.done .tx{color:var(--faint);text-decoration:line-through}
+.tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.due{font:700 11px var(--w-font);color:var(--mut);white-space:nowrap}.due.late{color:#d9573b}.due.today{color:#c98a1e}
+.empty{margin:auto;font:600 13px var(--w-font);color:var(--faint);text-align:center}.empty .ms{display:block;font-size:30px;margin-bottom:4px}
+.ft{display:flex;align-items:center;gap:6px}.ft small{flex:1;font:600 12px var(--w-font);color:var(--mut)}
+.add{height:34px;padding:0 12px 0 8px;border:0;border-radius:11px;background:var(--chip);color:var(--ink);font:700 13px var(--w-font);display:flex;align-items:center;gap:4px;cursor:pointer}.add .ms{font-size:20px;color:var(--tc)}
+`;
+  static getConfigForm() {
+    return form([['shopping', 'Ψώνια', ent('todo')], ['reminders', 'Υπενθυμίσεις', ent('todo')], ['chores', 'Δουλειές', ent('todo')], ['title', 'Τίτλος', TEXT]]);
+  }
+  static getStubConfig(hass) { return { shopping: firstEntity(hass, 'todo') }; }
+  getGridOptions() { return { columns: 6, rows: 4 }; }
+  lists() {
+    const c = this._config;
+    return [['shopping', 'Ψώνια', 'shopping_cart', '#2f9a76', 'Τι χρειάζεται;'], ['reminders', 'Υπενθυμίσεις', 'notifications_active', '#c98a1e', 'Τι να θυμηθούμε;'], ['chores', 'Δουλειές', 'cleaning_services', '#7a5fd0', 'Ποια δουλειά;']]
+      .filter(([k]) => c[k]).map(([k, title, icon, color, ask]) => ({ k, entity: c[k], title: c[`${k}_title`] || title, icon, color, ask }));
+  }
+  watched() { return this.lists().map((l) => l.entity); }
+  template() {
+    return `<div class="card"><div class="tabs">${this.lists().map((l, i) => `<button class="tab" data-t="${i}" style="--tc:${l.color}"><span class="ms fill">${l.icon}</span><span class="tn">${l.title}</span><i></i></button>`).join('')}</div>
+<div class="body"></div><div class="ft"><small></small><button class="add"><span class="ms">add</span>Προσθήκη</button></div></div>`;
+  }
+  bind() {
+    this._sel = 0;
+    this.$('.tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (b) { this._sel = +b.dataset.t; this._bk = ''; this.paint(); } });
+    this.$('.add').addEventListener('click', () => { const l = this.lists()[this._sel], v = prompt(l.ask); if (v && v.trim()) this.call('todo', 'add_item', { entity_id: l.entity, item: v.trim() }); });
+    this.$('.body').addEventListener('click', (e) => {
+      const r = e.target.closest('[data-uid]'); if (!r) return;
+      r.classList.toggle('done');
+      this.call('todo', 'update_item', { entity_id: this.lists()[this._sel].entity, item: r.dataset.uid, status: r.classList.contains('done') ? 'completed' : 'needs_action' });
+    });
+  }
+  due(i) {
+    if (!i.due) return '';
+    const d = new Date(i.due.length <= 10 ? i.due + 'T23:59' : i.due), now = new Date();
+    const days = Math.floor((new Date(d.toDateString()) - new Date(now.toDateString())) / 864e5);
+    const txt = days < 0 ? (days === -1 ? 'χθες' : `πριν ${-days} μέρες`) : days === 0 ? (i.due.length > 10 ? d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' }) : 'σήμερα') : days === 1 ? 'αύριο' : d.toLocaleDateString('el-GR', { weekday: 'short', day: 'numeric' });
+    return `<span class="due ${days < 0 ? 'late' : days === 0 ? 'today' : ''}">${txt}</span>`;
+  }
+  async update() {
+    const ls = this.lists();
+    this._items = await Promise.all(ls.map((l) => this._hass.callWS({ type: 'todo/item/list', entity_id: l.entity }).then((r) => r?.items || []).catch(() => [])));
+    this.paint();
+  }
+  paint() {
+    const ls = this.lists(), all = this._items || [];
+    const open = all.map((it) => it.filter((i) => i.status === 'needs_action'));
+    this.shadowRoot.querySelectorAll('.tab').forEach((b, k) => { b.classList.toggle('sel', k === this._sel); const n = (open[k] || []).length; b.querySelector('i').textContent = n; b.querySelector('i').hidden = !n; });
+    const l = ls[this._sel]; if (!l) return;
+    this.$('.card').style.setProperty('--tc', l.color);
+    const o = [...(open[this._sel] || [])].sort((a, b) => (a.due || '9') < (b.due || '9') ? -1 : 1);
+    const done = (all[this._sel] || []).filter((i) => i.status === 'completed').slice(0, 2);
+    const h = o.length || done.length ? [...o, ...done].map((i) => `<div class="it${i.status === 'completed' ? ' done' : ''}" data-uid="${i.uid}"><span class="cb"></span><span class="tx">${i.summary}</span>${i.status === 'completed' ? '' : this.due(i)}</div>`).join('')
+      : `<div class="empty"><span class="ms" style="color:${l.color}">${l.icon}</span>${{ shopping: 'Δεν λείπει τίποτα', reminders: 'Καμία υπενθύμιση', chores: 'Όλες οι δουλειές έγιναν' }[l.k]}</div>`;
+    if (h !== this._bk) { this._bk = h; this.$('.body').innerHTML = h; }
+    const late = o.filter((i) => i.due && new Date(i.due.length <= 10 ? i.due + 'T23:59' : i.due) < new Date()).length;
+    this.$('.ft small').innerHTML = `<b>${l.title}</b> · ` + (late ? `${late} εκπρόθεσμ${late === 1 ? 'η' : 'α'}` : o.length ? `${o.length} ανοιχτ${o.length === 1 ? 'ό' : 'ά'}` : 'όλα εντάξει');
+  }
+}
+
 /* ── Μουσική και τηλεόραση: ό,τι παίζει τώρα, και κάτω οι υπόλοιπες πηγές ── */
 class WallMediaCard extends Wall2Card {
   static css2 = `
@@ -4845,6 +4919,7 @@ register('wall-shopping', WallShopCard, 'Wall v2 · Ψώνια', 'Λίστα ψ�
 register('wall-media', WallMediaCard, 'Wall v2 · Μουσική και TV', 'Ό,τι παίζει τώρα, με εναλλαγή πηγής.');
 register('wall-actions', WallActionsCard, 'Wall v2 · Γρήγορες ενέργειες', 'Κουμπιά για σκηνές και scripts.');
 register('wall-status', WallStatusCard, 'Wall v2 · Μπάρα κατάστασης', 'Καιρός ή συνθήκες σπιτιού σαν εικονίδιο στη μπάρα· με πάτημα ανοίγει panel με πρόγνωση ή διαγράμματα.');
+register('wall-family', WallFamilyCard, 'Wall v2 · Family Matters', 'Ψώνια, υπενθυμίσεις και δουλειές σε μία κάρτα με καρτέλες.');
 register('wall-layout', WallLayoutCard, 'Wall v2 · Σελίδα', 'Η σελίδα του tablet: sidebar, κέντρο και δεξιά στήλη, με θέμα και στιλ.');
 
 /* Για τη σελίδα δοκιμής και για πειραματισμό από την κονσόλα */
