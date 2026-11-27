@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>Wall Cards · Templates καρτών</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0..1&display=block" rel="stylesheet">
+<style>
+:root{--bg:#14181c;--box:#1d2227;--box2:#242a30;--line:#2c333a;--ink:#eef1f3;--mut:#8b959e;--faint:#59636c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Manrope,sans-serif;padding:22px 26px}
+h1{font:800 20px Manrope;margin:0 0 4px}p.i{color:var(--mut);margin:0 0 18px;font:600 13px Manrope}
+.set{margin-bottom:26px}.set h2{font:800 15px Manrope;margin:0 0 2px}.set>small{display:block;color:var(--mut);font:600 12px Manrope;margin-bottom:10px}
+.row{display:grid;grid-template-columns:repeat(4,150px) 312px 150px 150px;gap:12px}
+.t{position:relative;height:150px;border-radius:22px;overflow:hidden}.t.w{width:312px}
+.ms{font-family:'Material Symbols Rounded';font-feature-settings:'liga';font-size:22px;line-height:1;font-variation-settings:'FILL' 1}
+button{font-family:inherit;border:0;cursor:pointer;color:inherit}
+
+/* ── A · Quiet ── */
+.A{background:var(--box);padding:14px;display:flex;flex-direction:column}
+.A .hd{display:flex;align-items:center;gap:8px}
+.A .ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--box2);color:var(--mut)}
+.A .nm{font:700 11px Manrope;color:var(--mut);letter-spacing:.2px}
+.A .v{margin-top:auto;font:800 30px Manrope;letter-spacing:-1px;line-height:1}.A .v small{font:700 13px Manrope;color:var(--mut);letter-spacing:0;margin-left:2px}
+.A .s{font:600 11px Manrope;color:var(--mut);margin-top:3px}
+.A .pg{position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--line)}.A .pg i{display:block;height:100%;background:var(--a)}
+.A.on .ic{background:color-mix(in srgb,var(--a) 22%,var(--box2));color:var(--a)}
+.A .sw{position:absolute;right:12px;top:14px;width:38px;height:22px;border-radius:11px;background:var(--line)}
+.A .sw::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--mut)}
+.A.on .sw{background:var(--a)}.A.on .sw::after{left:19px;background:#fff}
+.A .pm{display:flex;gap:6px;margin-top:8px}.A:has(.pm) .s{display:none}.A:has(.pm) .nm{margin-top:6px!important}.A .pm button{flex:1;height:30px;border-radius:10px;background:var(--box2);font-size:20px}
+.A.att{box-shadow:inset 0 0 0 2px var(--a)}.A.att .v{color:var(--a)}
+.A.done{box-shadow:inset 0 0 0 2px #3fb87a}.A.done .ic{background:#3fb87a;color:#fff}.A .ok{position:absolute;right:12px;top:14px;font:700 10px Manrope;color:#3fb87a}
+.A .vac{position:absolute;right:12px;bottom:14px;display:flex;gap:6px}.A .vac button{width:36px;height:36px;border-radius:11px;background:var(--box2)}
+
+/* ── B · Edge ── */
+.B{background:var(--box);padding:14px 14px 14px 18px;display:flex;flex-direction:column}
+.B::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--line)}
+.B.on::before,.B.att::before{background:var(--a)}
+.B .nm{font:800 10px Manrope;letter-spacing:1px;text-transform:uppercase;color:var(--faint)}
+.B .ic{position:absolute;right:12px;top:12px;font-size:26px;color:var(--faint)}.B.on .ic,.B.att .ic{color:var(--a)}
+.B .v{margin-top:auto;white-space:nowrap;font:800 30px Manrope;letter-spacing:-1.2px;line-height:1}.B .v small{font:700 13px Manrope;color:var(--mut);letter-spacing:0}
+.B .s{font:600 11px Manrope;color:var(--mut);margin-top:4px;display:flex;align-items:center;gap:6px}
+.B .bar{flex:1;height:3px;border-radius:2px;background:var(--line)}.B .bar i{display:block;height:100%;border-radius:2px;background:var(--a)}
+.B .seg{display:flex;margin-top:8px;border-radius:10px;overflow:hidden;background:var(--box2)}.B .seg button{flex:1;height:30px;background:none;font-size:20px}.B .seg button+button{border-left:1px solid var(--line)}
+.B .tg{position:absolute;right:10px;bottom:12px;width:36px;height:36px;border-radius:50%;background:var(--box2);display:grid;place-items:center;color:var(--mut)}.B.on .tg{background:var(--a);color:#fff}
+.B .vac{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}.B .vac button{width:36px;height:36px;border-radius:50%;background:var(--box2)}
+
+/* ── C · Ring ── */
+.C{background:var(--box);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px}
+.C .rg{position:relative;width:64px;height:64px;display:grid;place-items:center}
+.C .rg svg{position:absolute;inset:0;transform:rotate(-90deg)}.C .rg circle{fill:none;stroke-width:5}.C .rg .bk{stroke:var(--line)}.C .rg .fg{stroke:var(--a);stroke-linecap:round}
+.C .rg .ms{font-size:26px;color:var(--faint)}.C.on .rg .ms,.C.att .rg .ms{color:var(--a)}
+.C .v{font:800 19px Manrope;letter-spacing:-.4px}.C .v small{font:700 11px Manrope;color:var(--mut)}
+.C .nm{font:700 10px Manrope;color:var(--faint)}
+.C .pm{position:absolute;inset:auto 8px 8px;display:flex;justify-content:space-between}.C .pm button{width:30px;height:30px;border-radius:50%;background:var(--box2);font-size:18px}
+.C.pmc{justify-content:flex-start;padding-top:16px}
+.C.att{background:color-mix(in srgb,var(--a) 18%,var(--box))}
+.C.w{flex-direction:row;justify-content:flex-start;gap:14px;padding:0 18px}.C.w .tx{display:flex;flex-direction:column;align-items:flex-start;white-space:nowrap}.C.w .v{font-size:22px}
+.C .vac{margin-left:auto;display:flex;gap:6px}.C .vac button{width:36px;height:36px;border-radius:50%;background:var(--box2)}
+
+/* ── D · Fill ── */
+.D{background:var(--box);padding:14px;display:flex;flex-direction:column}
+.D .fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,color-mix(in srgb,var(--a) 34%,transparent),color-mix(in srgb,var(--a) 14%,transparent));transition:height 1s}
+.D>*:not(.fill){position:relative}
+.D .top{display:flex;justify-content:space-between;align-items:flex-start}
+.D .top .ms{font-size:24px;color:var(--faint)}.D.on .top .ms,.D.att .top .ms{color:var(--a)}
+.D .nm{font:700 11px Manrope;color:var(--mut);margin-top:6px}
+.D .v{margin-top:auto;font:800 28px Manrope;letter-spacing:-1px;line-height:1}.D .v small{font:700 12px Manrope;color:var(--mut);letter-spacing:0}
+.D .s{font:600 11px Manrope;color:var(--mut);margin-top:3px}
+.D .dot{width:10px;height:10px;border-radius:50%;background:var(--line);margin:6px 4px}.D.on .dot{background:var(--a);box-shadow:0 0 8px var(--a)}
+.D .pm{position:absolute;right:10px;top:40px;bottom:12px;display:flex;flex-direction:column;justify-content:space-between}.D .pm button{width:34px;height:34px;border-radius:12px;background:var(--box2);font-size:20px}
+.D.att{box-shadow:inset 0 0 0 2px var(--a)}
+.D .vac{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}.D .vac button{width:36px;height:36px;border-radius:12px;background:var(--box2)}
+</style></head><body>
+<h1>Templates για τις κάρτες συσκευών</h1>
+<p class="i">Ίδιες 6 κάρτες σε 4 στιλ: πλυντήριο σε λειτουργία (πρόοδος) · στεγνωτήριο σβηστό · θερμοσίφωνας (−/+) · κλιματιστικό αναμμένο (toggle) · σκούπα 2×1 · εκτυπωτής «τελείωσε».</p>
+<div id="sets"></div>
+<script>
+const D = [
+  { k: 'washer', nm: 'Πλυντήριο', ic: 'local_laundry_service', a: '#2fbf8f', on: 1, v: '42', u: '′', s: 'Cotton · λήγει 16:12', p: 64 },
+  { k: 'dryer', nm: 'Στεγνωτήριο', ic: 'cyclone', a: '#e0a030', on: 0, v: '—', u: '', s: 'τελευταία πριν 3ω' },
+  { k: 'heater', nm: 'Θερμοσίφωνας', ic: 'water_heater', a: '#e8603c', on: 0, v: '12', u: '′', s: 'διάρκεια', pm: 1 },
+  { k: 'ac', nm: 'Κλιματιστικό', ic: 'mode_heat', a: '#ff7a3d', on: 1, v: '26', u: '°', s: 'χώρος 28°', sw: 1 },
+  { k: 'vac', nm: 'Σκούπα', ic: 'robot_2', a: '#8f73e6', on: 0, v: 'Στη βάση', u: '', s: 'μπαταρία 100%', w: 1 },
+  { k: 'printer', nm: 'Εκτυπωτής 3D', ic: 'view_in_ar', a: '#ff7a3d', att: 1, v: 'Τελείωσε', u: '', s: 'πάτα για OK' },
+  { k: 'dish', nm: 'Πλυντήριο πιάτων', ic: 'dishwasher', a: '#3fb87a', done: 1, v: '1ω 42′', u: '', s: '0,92 kWh' },
+];
+const vac = '<div class="vac"><button class="ms">play_arrow</button><button class="ms">pause</button><button class="ms">home</button></div>';
+const ONLY = location.search.includes('a') ? ['A'] : null;
+const S = {
+  A: ['Quiet', 'Ουδέτερη κάρτα· η κατάσταση φαίνεται μόνο στο χρώμα του εικονιδίου. Μικρό όνομα δίπλα στο εικονίδιο, πρόοδος ως λεπτή γραμμή στο κάτω άκρο.', (d) =>
+    `<div class="hd"><span class="ic ms">${d.done ? 'check' : d.ic}</span>${d.done ? '<span class="ok">ΕΤΟΙΜΟ</span>' : ''}${d.w ? `<span class="nm">${d.nm}</span>` : ''}</div>${d.w ? '' : `<span class="nm" style="margin-top:8px">${d.nm}</span>`}
+     <div class="v">${d.v}<small>${d.u}</small></div><div class="s">${d.s}</div>${d.pm ? '<div class="pm"><button class="ms">remove</button><button class="ms">add</button></div>' : ''}
+     ${d.p ? `<div class="pg"><i style="width:${d.p}%"></i></div>` : ''}${d.sw ? '<span class="sw"></span>' : ''}${d.w ? vac : ''}`],
+  B: ['Edge', 'Χρωματιστή λωρίδα στην αριστερή άκρη όταν δουλεύει. Όνομα μικρό με κεφαλαία πάνω, εικονίδιο διακριτικά δεξιά, μεγάλη τιμή κάτω.', (d) =>
+    `<span class="nm">${d.nm}</span><span class="ic ms">${d.ic}</span><div class="v">${d.v}<small>${d.u}</small></div>
+     <div class="s">${d.p ? `<span class="bar"><i style="width:${d.p}%"></i></span>` : ''}${d.s}</div>${d.pm ? '<div class="seg"><button class="ms">remove</button><button class="ms">add</button></div>' : ''}
+     ${d.sw ? '<span class="tg ms">power_settings_new</span>' : ''}${d.w ? vac : ''}`],
+  C: ['Ring', 'Κεντραρισμένο, σχεδόν σαν widget ρολογιού: δαχτυλίδι προόδου γύρω από το εικονίδιο, τιμή και μικρό όνομα από κάτω.', (d) => {
+    const r = 28, L = 2 * Math.PI * r, f = d.p ? d.p / 100 : d.on || d.att ? 1 : 0;
+    const ring = `<div class="rg"><svg viewBox="0 0 64 64"><circle class="bk" cx="32" cy="32" r="${r}"/>${f ? `<circle class="fg" cx="32" cy="32" r="${r}" stroke-dasharray="${L * f} ${L}"/>` : ''}</svg><span class="ms">${d.ic}</span></div>`;
+    if (d.w) return `${ring}<div class="tx"><span class="v">${d.v}</span><span class="nm">${d.nm} · ${d.s}</span></div>${vac}`;
+    return `${ring}<span class="v">${d.v}<small>${d.u}</small></span><span class="nm">${d.nm}</span>${d.pm ? '<div class="pm"><button class="ms">remove</button><button class="ms">add</button></div>' : ''}`; }],
+  D: ['Fill', 'Η πρόοδος «γεμίζει» την κάρτα από κάτω σαν υγρό· σβηστές κάρτες εντελώς ήσυχες. −/+ κάθετα στη δεξιά πλευρά για να μένει χώρος στην τιμή.', (d) =>
+    `${d.p ? `<div class="fill" style="height:${d.p}%"></div>` : d.att ? '<div class="fill" style="height:100%"></div>' : ''}
+     <div class="top"><span class="ms">${d.ic}</span>${d.sw ? '<span class="dot"></span>' : ''}</div><span class="nm">${d.nm}</span>
+     <div class="v">${d.v}<small>${d.u}</small></div><div class="s">${d.s}</div>${d.pm ? '<div class="pm"><button class="ms">add</button><button class="ms">remove</button></div>' : ''}${d.w ? vac : ''}`],
+};
+document.getElementById('sets').innerHTML = Object.entries(S).filter(([k]) => !ONLY || ONLY.includes(k)).map(([k, [n, desc, f]]) =>
+  `<div class="set"><h2>${k} · ${n}</h2><small>${desc}</small><div class="row">${D.map((d) =>
+    `<div class="t ${k}${d.w ? ' w' : ''}${d.on ? ' on' : ''}${d.att ? ' att' : ''}${d.done ? ' done' : ''}${k === 'C' && d.pm ? ' pmc' : ''}" style="--a:${d.a}">${f(d)}</div>`).join('')}</div></div>`).join('');
+</script></body></html>

@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.14.1';
+const VERSION = '0.15.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3314,9 +3314,9 @@ class WallTileCard extends Wall2Card {
 .ft:not([hidden])~.s,.ft:not([hidden])+.s{display:none}
 .vac{position:absolute;right:7cqh;bottom:7cqh;display:flex;gap:6px}.vac .btn{width:clamp(30px,26cqh,40px);height:clamp(30px,26cqh,40px);font-size:clamp(17px,15cqh,21px)}
 @container (max-aspect-ratio:3/2){.vac{display:none!important}}
-.ico{font-size:30px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
+.ico{font-size:24px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
 .pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
-.nm{margin-top:4px;font:700 13px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nm{margin-top:4px;font:700 11px var(--w-font);letter-spacing:.2px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v{margin-top:auto;font:800 25px var(--w-font);letter-spacing:-.8px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
 .s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3334,8 +3334,8 @@ class WallTileCard extends Wall2Card {
 .styleB.on :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)}
 .styleB.on .ft .btn{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.55);color:#fff}
 .styleB.on .pg{background:rgba(255,255,255,.3)}.styleB.on .pg i{background:#fff}
-.card.v2.att{background:var(--a);color:#fff;animation:attn 1.2s ease-out 1}
-.att :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)!important}
+.card.v2.att{--a:#3fb87a;background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,var(--box)) 20%,color-mix(in srgb,var(--a) 26%,var(--box)));box-shadow:inset 0 0 0 2px var(--a),var(--sh);animation:attn 1.2s ease-out 1}
+.att .ico{color:var(--a)!important}.att .v{color:var(--ink)}
 .styleB.att{box-shadow:0 0 0 3px var(--box),0 0 0 6px var(--a)}
 @keyframes attn{30%{transform:scale(1.04)}}
 .card.v2.unavail{opacity:.5}
@@ -3513,7 +3513,7 @@ class WallTileCard extends Wall2Card {
       this.$('.ico').style.display = pic ? 'none' : '';
     }
     card.classList.toggle('haspic', !!pic); card.classList.toggle('shownm', !!c.show_name);
-    this.$('.ico').textContent = icon;
+    this.$('.ico').textContent = att ? 'check_circle' : icon;
     this.$('.nm').textContent = c.name || a.friendly_name || id;
     const pwMode = c.power_button || (['climate', 'humidifier', 'fan', 'vacuum', 'switch', 'light', 'input_boolean'].includes(d) ? 'show' : 'hide');
     this.$('.pw').hidden = pwMode === 'hide';
@@ -3528,7 +3528,7 @@ class WallTileCard extends Wall2Card {
         v = ap.paused ? 'Σε παύση' : ap.remaining != null ? `${durText(ap.remaining)}<small> απομένουν</small>` : `${durText(ap.elapsed) || 'Λειτουργεί'}`;
         sub = [ap.program, ap.elapsed != null && ap.remaining != null ? `σε λειτουργία ${durText(ap.elapsed)}` : ''].filter(Boolean).join(' · ');
         prog = ap.progress;
-      } else if (ap.done) { v = 'Τελείωσε'; sub = [durText(ap.elapsed), agoText(ap.finished)].filter(Boolean).join(' · '); }
+      } else if (ap.done) { v = durText(ap.elapsed) || 'Έτοιμο'; sub = ap.energy ? `${fmt(ap.energy, 2)} kWh` : agoText(ap.finished) || ''; }
       else { v = ''; sub = ap.finished ? `τελευταία ${agoText(ap.finished)}` : ''; }
     }
     else if (d === 'climate') {
@@ -3561,7 +3561,7 @@ class WallTileCard extends Wall2Card {
       v = on ? (a.brightness ? `${Math.round(a.brightness / 2.55)}%` : a.preset_mode || 'Αναμμένο') : '';
     } else if (!on && OFFS.includes(st)) v = `<small>${grState(st)}</small>`;
     else v = `${grState(st)}<small> ${a.unit_of_measurement || ''}</small>`;
-    if (att && !ap) { v = c.attention_text || 'Τελείωσε'; sub = 'πάτα για ΟΚ'; steps = false; }
+    if (att && !ap) { v = c.attention_text || 'Έτοιμο'; sub = ''; steps = false; }
     if (att && ap) steps = false;
     if (c.secondary_entity && !att) { const ss = this.st(c.secondary_entity); if (ss) sub = `${grState(ss.state)} ${ss.attributes.unit_of_measurement || ''}`.trim(); }
 
@@ -3573,8 +3573,8 @@ class WallTileCard extends Wall2Card {
     }
     this.$('.v').innerHTML = v;
     this.$('.vac').hidden = d !== 'vacuum' || !ok;
-    this.$('.s').textContent = sub; this.$('.s').hidden = !sub;
     this.$('.ft').hidden = !steps || (prog != null && !this.timer());
+    this.$('.s').textContent = sub; this.$('.s').hidden = !sub || !this.$('.ft').hidden || (d === 'vacuum' && ok);
     const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
     if (!pg.hidden) pg.firstElementChild.style.width = `${prog}%`;
     this.tick((left != null && on) || !!ap);
