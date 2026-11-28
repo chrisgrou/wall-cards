@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.16.0';
+const VERSION = '0.18.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -264,9 +264,9 @@ const POPUP_IDLE_MS = 30000;
 const POPUP_CSS = `
 :host{position:fixed;inset:0;z-index:9999;height:auto;border-radius:0;box-shadow:none}
 .veil{position:absolute;inset:0;display:grid;place-items:center;padding:24px;background:rgba(20,30,40,0);transition:background .25s}
-.veil.in{background:rgba(20,30,40,.38)}
+.veil.in{background:rgba(10,14,18,.5);backdrop-filter:blur(10px) saturate(.85);-webkit-backdrop-filter:blur(10px) saturate(.85)}
 .sheet{width:100%;max-height:100%;display:flex;flex-direction:column;border-radius:30px;background:#f4f6f8;overflow:hidden;
-  box-shadow:0 22px 50px rgba(20,30,40,.3);opacity:0;transform:translate(var(--dx,0px),var(--dy,0px)) scale(.3);
+  box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);opacity:0;transform:translate(var(--dx,0px),var(--dy,0px)) scale(.3);
   transition:transform .22s ease-in,opacity .18s ease-in}
 .in .sheet{opacity:1;transform:none;transition:transform .42s var(--w-spring),opacity .2s}
 .s-sm{max-width:380px}
@@ -304,6 +304,20 @@ const POPUP_CSS = `
 .stepper{display:flex;align-items:center;justify-content:center;gap:18px}
 .stepper button{width:64px;height:64px;border-radius:50%;background:#fff;font-size:34px;box-shadow:0 1px 3px rgba(0,0,0,.1);transition:transform .15s}
 .stepper button:active{transform:scale(.94)}
+.pf{flex:none;display:flex;gap:8px;padding:12px 16px 16px;border-top:1px solid rgba(0,0,0,.06)}
+.pf button{flex:1;min-width:0;height:56px;border-radius:18px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);font:700 14px var(--w-font);display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .15s}
+.pf button:active{transform:scale(.96)}.pf button .ms{font-size:24px}
+.pf button.pri{background:var(--acc,var(--w-blue));color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--acc,#2f86d9) 40%,transparent)}
+.cam{position:relative;border-radius:18px;overflow:hidden;background:#111;aspect-ratio:16/10}.cam img{width:100%;height:100%;object-fit:cover;display:block}
+.cam .live{position:absolute;left:10px;top:10px;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font:800 10px var(--w-font);letter-spacing:.6px}
+.cam .ovl{position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;color:#fff;font:800 14px var(--w-font);text-shadow:0 1px 4px #000}
+.mapimg{width:100%;border-radius:18px;display:block;background:rgba(0,0,0,.06)}
+.pbar{height:8px;border-radius:4px;background:var(--w-track);overflow:hidden}.pbar i{display:block;height:100%;border-radius:4px;background:var(--acc,var(--w-blue))}
+.cons{display:flex;flex-direction:column;gap:10px}.cons div{display:grid;grid-template-columns:120px 1fr 64px;align-items:center;gap:10px;font:600 14px var(--w-font)}.cons em{font-style:normal;text-align:right;color:var(--w-muted)}
+.cons .bad i{background:#e8603c}
+.sheet.dk{background:#2c343b;color:#eef1f3;--w-ink:#eef1f3;--w-muted:#9aa6b0;--w-track:rgba(255,255,255,.1)}
+.dk .pi,.dk .chips button,.dk .stepper button,.dk .pf button:not(.pri),.dk [style*="background:#fff"]{background:#3a434c!important;color:#eef1f3;box-shadow:none!important}
+.dk .tabs button.sel{background:#4a545e;color:#fff}.dk .pf{border-top-color:rgba(255,255,255,.07)}.dk .px:active{background:rgba(255,255,255,.08)}
 .stepper b{min-width:160px;text-align:center;font:400 56px var(--w-font);letter-spacing:-2px;color:var(--acc,var(--w-ink))}
 `;
 
@@ -323,6 +337,7 @@ function openPopup(card, spec) {
   </header>
   <nav class="tabs" hidden></nav>
   <div class="pb"></div>
+  <footer class="pf" hidden></footer>
 </div></div>`;
   const $ = (s) => root.querySelector(s);
   const veil = $('.veil'), sheet = $('.sheet'), body = $('.pb'), nav = $('.tabs');
@@ -357,6 +372,16 @@ function openPopup(card, spec) {
       $('.pn').textContent = popTitle(card, spec);
       $('.ps').textContent = spec.status?.() || '';
       if (spec.accent) sheet.style.setProperty('--acc', spec.accent());
+      sheet.classList.toggle('dk', !!card.shadowRoot?.querySelector('.card.dark'));
+      const acts = spec.actions?.() || [], foot = $('.pf');
+      foot.hidden = !acts.length;
+      foot.replaceChildren(...acts.filter(Boolean).map(({ label, icon, pri, tap }) => {
+        const b = el('button', pri ? 'pri' : '');
+        if (icon) b.appendChild(el('span', 'ms fill', icon));
+        if (label) b.appendChild(el('span', '', label));
+        b.addEventListener('click', tap);
+        return b;
+      }));
       if (p.busy) return;
       const top = body.scrollTop;
       body.replaceChildren();
@@ -3149,6 +3174,8 @@ const SCENE_CSS = `
 .s-washer .bb{width:6px;height:6px;border-radius:50%;border:1.5px solid rgba(255,255,255,.9);bottom:8px;animation:sc-bub 2.2s ease-in infinite}
 .s-dryer .glow{inset:0;background:radial-gradient(circle at 50% 75%,rgba(255,170,70,.55),transparent 70%)}
 .s-dryer .tum{inset:5px;animation:sc-spin 2.2s cubic-bezier(.6,.1,.4,.9) infinite}
+.card:not(.on) .s-dryer .tum{animation:none;transform:none}
+.card:not(.on) .s-dryer .tum i:nth-child(1){left:3px;top:30px;transform:rotate(-8deg)}.card:not(.on) .s-dryer .tum i:nth-child(2){left:19px;top:33px;transform:rotate(4deg)}.card:not(.on) .s-dryer .tum i:nth-child(3){left:11px;top:27px;transform:rotate(-2deg)}
 .s-dryer .tum i{width:16px;height:9px;border-radius:5px}
 .s-dryer .tum i:nth-child(1){left:6px;top:20px;background:#e46a8a;transform:rotate(30deg)}.s-dryer .tum i:nth-child(2){left:22px;top:28px;background:#f2b43c;transform:rotate(-20deg)}.s-dryer .tum i:nth-child(3){left:14px;top:8px;background:#6aa7e4;transform:rotate(70deg)}
 .s-dryer .ht{width:4px;height:12px;border-radius:2px;background:linear-gradient(transparent,rgba(255,140,50,.8));bottom:4px;animation:sc-heat 1.6s ease-in infinite}
@@ -3296,6 +3323,125 @@ function popFacts(parent, rows) {
   });
   parent.append(g);
 }
+/* ── Popups συσκευών με δικά τους entities (με βάση το πρόθεμα του κύριου entity) ── */
+const pfx = (id, strip) => (id || '').split('.')[1]?.replace(strip || /$^/, '') || '';
+const hoursLeft = (v) => (isNaN(v) ? '—' : v <= 0 ? 'αλλαγή!' : v >= 48 ? `${Math.round(v / 24)} ημ.` : `${Math.round(v)} ώρες`);
+
+/* Σκούπα Roborock: χάρτης, μπαταρία, λειτουργία, ρουτίνες, συντήρηση */
+function vacuumPopup(card) {
+  const c = card._config, id = c.entity, P = c.prefix || pfx(id);
+  const s = (k) => `sensor.${P}_${k}`;
+  const VAC_GR = { cleaning: 'Καθαρίζει', docked: 'Στη βάση', returning: 'Επιστρέφει', paused: 'Σε παύση', idle: 'Αναμονή', error: 'Σφάλμα', charging: 'Φορτίζει' };
+  const MODES = { vacuum: 'Σκούπισμα', vac_and_mop: 'Σκούπισμα + σφουγγάρισμα', mop: 'Σφουγγάρισμα', vac_then_mop: 'Πρώτα σκούπισμα' };
+  openPopup(card, {
+    icon: 'robot_2', size: 'md', accent: () => c.color || '#3fb87a',
+    status: () => [VAC_GR[card.val(id)] || card.val(id), card.val(s('current_room'))].filter((x) => x && x !== 'unknown').join(' · '),
+    tabs: [{ id: 'now', label: 'Τώρα' }, { id: 'rt', label: 'Ρουτίνες' }, { id: 'mt', label: 'Συντήρηση' }],
+    actions: () => {
+      const run = card.val(id) === 'cleaning';
+      return [{ label: run ? 'Παύση' : 'Έναρξη', icon: run ? 'pause' : 'play_arrow', pri: true, tap: () => card.call('vacuum', run ? 'pause' : 'start', { entity_id: id }) },
+        { label: 'Βάση', icon: 'home', tap: () => card.call('vacuum', 'return_to_base', { entity_id: id }) },
+        { label: 'Πού είναι', icon: 'location_searching', tap: () => card.call('vacuum', 'locate', { entity_id: id }) }];
+    },
+    render: (pp, tab) => {
+      if (tab === 'rt') {
+        const btns = Object.keys(card._hass.states).filter((e) => e.startsWith(`button.${P}_`) && !/reset|resolve/.test(e));
+        popChips(popSection(pp, 'Πάτα για να ξεκινήσει'), btns.map((b) => ({ label: card.friendly(b).replace(/^.*?(Saros 10R|Roborock)\s*/i, ''), icon: 'play_circle', tap: () => card.call('button', 'press', { entity_id: b }) })));
+        return;
+      }
+      if (tab === 'mt') {
+        const list = [['Κύρια βούρτσα', 'main_brush_time_left'], ['Πλαϊνή βούρτσα', 'side_brush_time_left'], ['Φίλτρο', 'filter_time_left'], ['Αισθητήρες', 'sensor_time_left'], ['Φίλτρο βάσης', 'dock_strainer_time_left']];
+        const box = el('div', 'cons');
+        list.forEach(([n, k]) => { const v = card.num(s(k)); if (isNaN(v)) return; const pct = clamp((v / 300) * 100, 0, 100);
+          const r = el('div', v <= 0 ? 'bad' : ''); r.innerHTML = `<span>${n}</span><span class="pbar"><i style="width:${v <= 0 ? 100 : pct}%"></i></span><em>${hoursLeft(v)}</em>`; box.append(r); });
+        popSection(pp, 'Ώρες που απομένουν').append(box);
+        return;
+      }
+      const img = card.st(`image.${P}_home`)?.attributes?.entity_picture;
+      if (img) { const m = el('img', 'mapimg'); m.src = img; popSection(pp).append(m); }
+      popFacts(popSection(pp), [['Μπαταρία', isNaN(card.num(s('battery'))) ? null : `${card.num(s('battery'))}%`, 'battery_full'],
+        ['Καθαρίστηκαν', isNaN(card.num(s('cleaning_area'))) ? null : `${fmt(card.num(s('cleaning_area')), 1)} m²`, 'square_foot'],
+        ['Χρόνος', isNaN(card.num(s('cleaning_time'))) ? null : `${Math.round(card.num(s('cleaning_time')))}′`, 'timer']]);
+      const ms = card.st(`select.${P}_cleaning_mode`);
+      if (ms) popChips(popSection(pp, 'Λειτουργία'), (ms.attributes.options || []).map((o) => ({ label: MODES[o] || o, sel: o === ms.state,
+        tap: () => card.call('select', 'select_option', { entity_id: ms.entity_id, option: o }) })));
+    },
+  });
+}
+
+/* Εκτυπωτής 3D (Bambu Lab): ζωντανή κάμερα, πρόοδος, θερμοκρασίες, φως θαλάμου */
+function printerPopup(card) {
+  const c = card._config, P = c.prefix || pfx(c.entity, /_print_status$/);
+  const s = (k) => `sensor.${P}_${k}`, cam = c.camera_entity || `camera.${P}_camera`, light = `light.${P}_chamber_light`;
+  const ST = { running: 'Τυπώνει', printing: 'Τυπώνει', pause: 'Σε παύση', paused: 'Σε παύση', finish: 'Τελείωσε', idle: 'Αναμονή', failed: 'Απέτυχε', prepare: 'Προετοιμασία' };
+  openPopup(card, {
+    icon: 'view_in_ar', size: 'md', accent: () => c.color || '#f26a2a',
+    status: () => [ST[card.val(s('print_status'))] || card.val(s('print_status')), card.val(s('task_name')),
+      card.num(s('total_layer_count')) ? `στρώση ${card.val(s('current_layer'))}/${card.val(s('total_layer_count'))}` : ''].filter((x) => x && x !== 'unknown').join(' · '),
+    tabs: [{ id: 'cam', label: 'Κάμερα' }, { id: 'det', label: 'Λεπτομέρειες' }],
+    actions: () => {
+      const st = card.val(s('print_status')), paused = /pause/.test(st), run = /running|printing|prepare/.test(st);
+      return [run || paused ? { label: paused ? 'Συνέχεια' : 'Παύση', icon: paused ? 'play_arrow' : 'pause', pri: true, tap: () => card.call('button', 'press', { entity_id: `button.${P}_${paused ? 'resume' : 'pause'}` }) } : null,
+        card.st(light) ? { label: 'Φως', icon: card.val(light) === 'on' ? 'light' : 'light_off', pri: !run && !paused && card.val(light) === 'on', tap: () => card.call('light', 'toggle', { entity_id: light }) } : null,
+        run || paused ? { label: 'Διακοπή', icon: 'stop', tap: () => { if (confirm('Διακοπή εκτύπωσης;')) card.call('button', 'press', { entity_id: `button.${P}_stop` }); } } : null].filter(Boolean);
+    },
+    render: (pp, tab) => {
+      const prog = card.num(s('print_progress')), end = card.st(s('end_time'))?.state;
+      if (tab === 'det') {
+        popFacts(popSection(pp, 'Θερμοκρασίες'), [['Ακροφύσιο', card.st(s('nozzle_temperature')) ? `${card.val(s('nozzle_temperature'))}°` : null, 'local_fire_department'],
+          ['Πλάκα', card.st(s('bed_temperature')) ? `${card.val(s('bed_temperature'))}°` : null, 'heat'], ['Θάλαμος', card.st(s('chamber_temperature')) ? `${card.val(s('chamber_temperature'))}°` : null, 'thermostat'],
+          ['Ταχύτητα', card.val(s('speed_profile')) || null, 'speed']]);
+        popFacts(popSection(pp, 'Εργασία'), [['Βάρος', card.st(s('print_weight')) ? `${fmt(card.num(s('print_weight')), 0)} g` : null, 'scale'],
+          ['Μήκος νήματος', card.st(s('print_length')) ? `${fmt(card.num(s('print_length')), 1)} m` : null, 'straighten'],
+          ['Ξεκίνησε', card.st(s('start_time')) ? hhmm(new Date(card.val(s('start_time')))) : null, 'schedule'], ['Πλάκα', card.val(s('print_bed_type'))?.replace(/_/g, ' ') || null, 'grid_on']]);
+        return;
+      }
+      const tok = card.st(cam)?.attributes?.access_token;
+      if (tok) {
+        if (!pp._cam) { pp._cam = el('div', 'cam'); const im = el('img'); im.src = `/api/camera_proxy_stream/${cam}?token=${tok}`; pp._cam.append(im, el('span', 'live', 'LIVE'), el('div', 'ovl')); }
+        pp._cam.querySelector('.ovl').innerHTML = `<span>${isNaN(prog) ? '' : Math.round(prog) + '%'}</span><span>${end && !isNaN(new Date(end)) ? 'τέλος ' + hhmm(new Date(end)) : ''}</span>`;
+        popSection(pp).append(pp._cam);
+      }
+      if (!isNaN(prog)) { const b = el('div', 'pbar'); b.innerHTML = `<i style="width:${prog}%"></i>`; popSection(pp).append(b); }
+      popFacts(popSection(pp), [['Ακροφύσιο', card.st(s('nozzle_temperature')) ? `${card.val(s('nozzle_temperature'))}°` : null], ['Πλάκα', card.st(s('bed_temperature')) ? `${card.val(s('bed_temperature'))}°` : null]]);
+    },
+  });
+}
+
+/* Tesla: μπαταρία, κλείδωμα, κλίμα, φόρτιση, frunk/πορτμπαγκάζ */
+function teslaPopup(card) {
+  const c = card._config, P = c.prefix || pfx(c.entity, /_battery(_level)?$/);
+  const lock = `lock.${P}_lock`, clim = c.climate_entity || `climate.${P}_climate`;
+  openPopup(card, {
+    icon: 'electric_car', size: 'md', accent: () => c.color || '#d63a3a',
+    status: () => [card.val(lock) === 'locked' ? 'Κλειδωμένο' : card.val(lock) === 'unlocked' ? 'Ξεκλείδωτο' : '', card.val(c.charging_entity) === 'on' ? 'Φορτίζει' : ''].filter(Boolean).join(' · '),
+    tabs: [{ id: 'st', label: 'Κατάσταση' }, { id: 'ch', label: 'Φόρτιση' }],
+    actions: () => {
+      const locked = card.val(lock) === 'locked', on = card.val(clim) !== 'off';
+      return [card.st(lock) ? { label: locked ? 'Κλειδωμένο' : 'Ξεκλείδωτο', icon: locked ? 'lock' : 'lock_open', pri: locked, tap: () => card.call('lock', locked ? 'unlock' : 'lock', { entity_id: lock }) } : null,
+        card.st(clim) ? { label: 'Κλίμα', icon: 'mode_fan', pri: on, tap: () => card.call('climate', on ? 'turn_off' : 'turn_on', { entity_id: clim }) } : null,
+        card.st(`button.${P}_flash_lights`) ? { label: 'Φώτα', icon: 'flashlight_on', tap: () => card.call('button', 'press', { entity_id: `button.${P}_flash_lights` }) } : null].filter(Boolean);
+    },
+    render: (pp, tab) => {
+      const pct = card.num(c.entity), rng = card.num(c.range_entity);
+      if (tab === 'ch') {
+        const lim = `number.${P}_charge_limit`, cur = `number.${P}_charge_current`;
+        if (card.st(lim)) popStepper(popSection(pp, 'Όριο φόρτισης'), { text: `${card.val(lim)}%`, dec: () => card.call('number', 'set_value', { entity_id: lim, value: Math.max(50, +card.val(lim) - 5) }), inc: () => card.call('number', 'set_value', { entity_id: lim, value: Math.min(100, +card.val(lim) + 5) }) });
+        popFacts(popSection(pp), [['Ρεύμα', card.st(cur) ? `${card.val(cur)} A` : null, 'bolt'], ['Καλώδιο', card.st(`binary_sensor.${P}_charge_cable`) ? (card.val(`binary_sensor.${P}_charge_cable`) === 'on' ? 'Συνδεδεμένο' : 'Όχι') : null, 'power'],
+          ['Θυρίδα', card.st(`cover.${P}_charge_port_door`) ? (card.val(`cover.${P}_charge_port_door`) === 'open' ? 'Ανοιχτή' : 'Κλειστή') : null, 'ev_station']]);
+        return;
+      }
+      const b = el('div', 'pbar'); b.innerHTML = `<i style="width:${isNaN(pct) ? 0 : pct}%;background:#3fb87a"></i>`;
+      popFacts(popSection(pp), [['Μπαταρία', isNaN(pct) ? null : `${Math.round(pct)}%`, 'battery_full'], ['Αυτονομία', isNaN(rng) ? null : `${Math.round(rng)} km`, 'route'],
+        ['Καμπίνα', card.st(clim)?.attributes?.current_temperature != null ? `${fmt(card.st(clim).attributes.current_temperature, 0)}°` : null, 'thermostat'],
+        ['Παράθυρα', card.st(`cover.${P}_windows`) ? (card.val(`cover.${P}_windows`) === 'closed' ? 'Κλειστά' : 'Ανοιχτά') : null, 'window']]);
+      pp.body.lastElementChild.prepend(b);
+      popChips(popSection(pp, 'Πόρτες'), [[`cover.${P}_frunk`, 'Frunk', 'directions_car'], [`cover.${P}_trunk`, 'Πορτμπαγκάζ', 'luggage']].filter(([e]) => card.st(e)).map(([e, l, ic]) => ({
+        label: `${l} · ${card.val(e) === 'open' ? 'ανοιχτό' : 'κλειστό'}`, icon: ic, sel: card.val(e) === 'open', tap: () => { if (confirm(`${l}: ${card.val(e) === 'open' ? 'κλείσιμο' : 'άνοιγμα'};`)) card.call('cover', card.val(e) === 'open' ? 'close_cover' : 'open_cover', { entity_id: e }); } })));
+    },
+  });
+}
+
 function appliancePopup(card) {
   const c = card._config;
   const p = openPopup(card, {
@@ -3390,7 +3536,8 @@ class WallTileCard extends Wall2Card {
 .v small:not(:empty){display:block;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v.txt{font:600 16px var(--w-font);letter-spacing:-.3px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .s{font:600 10.5px var(--w-font);color:var(--mut);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ft{display:flex;gap:7px;margin-top:6px}.ft .btn{flex:1;height:32px;border-radius:16px;border:0;background:var(--box);box-shadow:0 1px 4px rgba(0,0,0,.1);font:500 20px var(--w-font)}
+.ft{display:flex;gap:7px;margin-top:6px}.ft .btn{flex:1;height:32px;border-radius:16px;border:1.5px solid color-mix(in srgb,var(--ink) 18%,transparent);background:var(--box);box-shadow:0 1px 4px rgba(0,0,0,.1);font:500 20px var(--w-font);color:var(--ink)}
+.on .ft .btn{border-color:color-mix(in srgb,var(--a) 45%,transparent)}
 .pg{display:none!important}
 .vac{display:flex;gap:6px;margin-left:auto}.vac .btn{width:36px;height:36px;border-radius:50%;border:0;background:var(--box);box-shadow:0 1px 4px rgba(0,0,0,.1);font-size:20px}
 @container (max-aspect-ratio:3/2){.vac{display:none!important}}
@@ -3457,6 +3604,8 @@ class WallTileCard extends Wall2Card {
     const c = this._config, d = this.domain();
     if (this.$('.card').classList.contains('att') && (c.attention_entity || c.appliance)) { this._ack = this.st(c.attention_entity || c.entity)?.last_changed; if (c.ack_entity) this.call('input_select', 'select_option', { entity_id: c.ack_entity, option: 'off' }); this.update(); return; }
     if (this._config.appliance) return appliancePopup(this);
+    if (d === 'vacuum') return vacuumPopup(this);
+    if (c.printer || /_print_status$/.test(c.entity)) return printerPopup(this);
     if (this.timer()) return this.timerPopup();
     if (d === 'climate') return climatePopup(this);
     if (d === 'light') return lightPopup(this);
@@ -3585,12 +3734,12 @@ class WallTileCard extends Wall2Card {
         sub = [ap.program, ap.elapsed != null && ap.remaining != null ? `σε λειτουργία ${durText(ap.elapsed)}` : ''].filter(Boolean).join(' · ');
         prog = ap.progress;
       } else if (ap.done) { v = durText(ap.elapsed) || 'Έτοιμο'; sub = ap.energy ? `${fmt(ap.energy, 2)} kWh` : agoText(ap.finished) || ''; }
-      else { v = ''; sub = ap.finished ? `τελευταία ${agoText(ap.finished)}` : ''; }
+      else { v = ''; sub = ''; }
     }
     else if (d === 'climate') {
       const t = held ? this._hold.v : a.temperature;
       v = t != null ? `${fmt(t, t % 1 ? 1 : 0)}°` : '—';
-      sub = a.current_temperature != null && on ? `χώρος ${fmt(a.current_temperature, 1)}°` : '';
+      sub = '';
       steps = t != null;
     } else if (d === 'humidifier') {
       const cur = this.num(c.humidity_entity);
@@ -3634,9 +3783,8 @@ class WallTileCard extends Wall2Card {
     this.$('.v').classList.toggle('txt', !/^[\d—–-]/.test(v.replace(/<[^>]+>/g, '').trim()));
     /* υπότιτλος: πρόγραμμα ή κατάσταση */
     const HV = { heat: 'Θέρμανση', cool: 'Ψύξη', dry: 'Αφύγρανση', fan_only: 'Ανεμιστήρας', heat_cool: 'Αυτόματο', auto: 'Αυτόματο', off: 'Σβηστό' };
-    this.$('.sb').textContent = !ok ? '' : att ? 'Έτοιμο · πάτα για OK' : ap ? (ap.run ? ap.program || 'Σε λειτουργία' : ap.paused ? 'Σε παύση' : 'Σβηστό')
-      : d === 'climate' ? [HV[st] || grState(st), on && a.current_temperature != null ? `χώρος ${fmt(a.current_temperature, 1)}°` : ''].filter(Boolean).join(' · ')
-      : d === 'vacuum' ? '' : on ? (grState(st) || 'Αναμμένο') : 'Σβηστό';
+    this.$('.sb').textContent = !ok ? '' : att ? 'Έτοιμο · πάτα για OK' : ap ? (ap.run ? ap.program || '' : ap.paused ? 'Σε παύση' : '')
+      : ['climate', 'vacuum', 'humidifier'].includes(d) || !on ? '' : grState(st) === 'Αναμμένο' ? '' : grState(st) || '';
     if (this.$('.sb').textContent === sub) sub = '';
     this.$('.vac').hidden = d !== 'vacuum' || !ok;
     this.$('.ft').hidden = !steps || (prog != null && !this.timer());
@@ -3685,7 +3833,7 @@ class WallTodayCard extends Wall2Card {
 .bar2 .tp{border:0;background:none;color:var(--ink);cursor:pointer;padding:6px 8px;border-radius:14px;font-family:var(--w-font);text-align:left}
 .bar2 .tp:active{background:var(--chip)}
 .noclk :is(.clock,.date){display:none}.noclk .mon{margin-top:0}
-.bar2 .date{margin:0;font:700 16px var(--w-font);color:var(--mut);line-height:1.15;white-space:normal}
+.bar2 .date{margin:0;font:700 16px var(--w-font);color:var(--mut);line-height:1.15;white-space:nowrap}
 .bar2 .clock{font:800 40px var(--w-font);letter-spacing:-1.5px;line-height:1}
 .xp .mon{margin-top:4px}
 .tsec{font:800 11px var(--w-font);letter-spacing:.6px;color:var(--faint);text-transform:uppercase;margin:10px 2px 6px}
@@ -3818,7 +3966,7 @@ ${this._adding ? `<div class="afrm"><div class="atm"><button class="ib ms" data-
   clock() {
     const n = new Date();
     this.$('.clock').textContent = hhmm(n);
-    this.$('.date').textContent = `${DAYS_FULL[n.getDay()]} ${n.getDate()} ${MONTHS[n.getMonth()]}`;
+    this.$('.date').innerHTML = `${DAYS_FULL[n.getDay()]}<br>${n.getDate()} ${MONTHS[n.getMonth()]}`;
     if (this._day !== n.getDate()) { this._day = n.getDate(); this._fetched = 0; this.load(); }
   }
   async load() {
@@ -4186,7 +4334,8 @@ class WallCarTile extends Wall2Card {
   <div class="cv"></div><button class="btn ms pre" hidden>mode_heat</button></div>`;
   }
   bind() {
-    this.tapMore();
+    this.tapMore(() => (this._config.electric && this._config.popup !== false ? teslaPopup(this) : this.moreInfo(this._config.entity)));
+    this.$('.pre').addEventListener('click', (e) => e.stopPropagation());
     this.$('.pre').addEventListener('click', () => { const id = this._config.climate_entity; this.call('climate', this.val(id) === 'off' ? 'turn_on' : 'turn_off', { entity_id: id }); });
   }
   update() {

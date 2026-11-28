@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>Wall Cards · Νέα popups</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0..1&display=block" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Manrope,sans-serif;color:#eef1f3;background:#14181c;min-height:100vh}
+.ms{font-family:'Material Symbols Rounded';font-feature-settings:'liga';font-size:22px;line-height:1;font-variation-settings:'FILL' 1}
+button{font-family:inherit;border:0;cursor:pointer;color:inherit;padding:0}
+/* ψεύτικο dashboard από πίσω */
+.bg{position:fixed;inset:0;padding:24px;display:grid;grid-template-columns:repeat(8,1fr);gap:12px;align-content:start}
+.bg i{height:150px;border-radius:22px;background:#1d2227}.bg i:nth-child(3n){background:linear-gradient(170deg,#2a2622,#3a2c22)}
+/* σκίαση + blur για να ξεχωρίζει το popup */
+.veil{position:fixed;inset:0;background:rgba(8,10,12,.45);backdrop-filter:blur(10px) saturate(.8);-webkit-backdrop-filter:blur(10px) saturate(.8)}
+.wrap{position:relative;display:flex;gap:22px;padding:30px 26px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+h1{position:relative;font:800 18px Manrope;margin:22px 26px 0;color:#fff}
+p.i{position:relative;margin:4px 26px 0;font:600 12.5px Manrope;color:#aab4bd}
+
+/* popup: ανοιχτότερη επιφάνεια από τις κάρτες, μεγάλη σκιά, tabs κάτω */
+.pp{width:420px;height:640px;border-radius:30px;background:#2a3138;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);display:flex;flex-direction:column;overflow:hidden}
+.pp.light{background:#f7f9fa;color:#1c2228}
+.hd{display:flex;align-items:center;gap:12px;padding:18px 18px 10px}
+.hd .ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--a);color:#fff}
+.hd b{display:block;font:800 18px Manrope}.hd small{font:600 12.5px Manrope;color:#9aa6b0}
+.hd .x{margin-left:auto;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center}
+.bd>*{flex:none}.bd{flex:1;min-height:0;overflow:auto;padding:4px 18px 14px;display:flex;flex-direction:column;gap:12px;scrollbar-width:none}
+.sec{background:rgba(255,255,255,.05);border-radius:20px;padding:14px}
+.sec h4{margin:0 0 10px;font:800 11px Manrope;letter-spacing:.6px;text-transform:uppercase;color:#8b959e}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.st{background:rgba(255,255,255,.06);border-radius:14px;padding:10px 12px}.st small{display:block;font:600 11px Manrope;color:#8b959e}.st b{font:700 18px Manrope}
+.acts{display:flex;gap:8px}.acts button{flex:1;height:48px;border-radius:16px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:6px;font:700 13px Manrope}
+.acts button.pri{background:var(--a);color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.07);font:700 12.5px Manrope}.chips span.sel{background:var(--a);color:#fff}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}.bar i{display:block;height:100%;border-radius:4px;background:var(--a)}
+.cons{display:flex;flex-direction:column;gap:9px}.cons div{display:grid;grid-template-columns:110px 1fr 56px;align-items:center;gap:10px;font:600 12.5px Manrope}.cons em{font-style:normal;text-align:right;color:#aab4bd}
+.cons .bad i{background:#e8603c}
+.ht{margin-left:auto;display:flex;gap:4px;padding:4px;border-radius:16px;background:rgba(0,0,0,.25)}
+.ht button{width:40px;height:40px;border-radius:12px;background:none;display:grid;place-items:center;color:#8b959e}
+.ht button.sel{background:#3a434c;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.hd .x{margin-left:6px!important}
+.foot{display:flex;gap:8px;padding:12px 14px 14px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12)}
+.foot button{flex:1;height:54px;border-radius:18px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;gap:6px;font:700 13.5px Manrope}
+.foot button.pri{background:var(--a);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--a) 40%,transparent)}
+.foot button .ms{font-size:24px}
+/* tabs ΚΑΤΩ (παλιό) */
+.tabs{display:flex;gap:6px;margin:0 14px 14px;padding:5px;border-radius:20px;background:rgba(0,0,0,.25)}
+.tabs button{background:none;flex:1;height:46px;border-radius:15px;display:flex;align-items:center;justify-content:center;gap:6px;font:700 13px Manrope;color:#aab4bd}
+.tabs button.sel{background:#3a434c;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+
+/* σκούπα: χάρτης */
+.map{position:relative;height:190px;border-radius:18px;background:#1f262c;overflow:hidden}
+.map svg{position:absolute;inset:0;width:100%;height:100%}
+.robot{position:absolute;left:58%;top:46%;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(63,184,122,.4),0 0 12px #3fb87a;animation:mv 6s ease-in-out infinite}
+@keyframes mv{0%,100%{transform:translate(0,0)}33%{transform:translate(-40px,18px)}66%{transform:translate(20px,30px)}}
+/* εκτυπωτής: κάμερα */
+.cam{position:relative;height:220px;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse at 50% 85%,#5a4a3a,#1a1612 70%)}
+.cam .plate{position:absolute;left:12%;right:12%;bottom:12%;height:22%;border-radius:6px;background:linear-gradient(#3c3c3c,#222);transform:perspective(300px) rotateX(55deg)}
+.cam .part{position:absolute;left:50%;bottom:22%;width:56px;height:40px;margin-left:-28px;border-radius:6px 6px 2px 2px;background:repeating-linear-gradient(0deg,#ff8a4d 0 2px,#e26a2a 2px 4px)}
+.cam .head{position:absolute;left:50%;top:22%;width:44px;height:30px;margin-left:-22px;border-radius:6px;background:linear-gradient(#e9ecee,#9aa3aa);animation:hd 2.4s ease-in-out infinite}
+@keyframes hd{0%,100%{transform:translateX(-40px)}50%{transform:translateX(40px)}}
+.cam .live{position:absolute;left:10px;top:10px;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.5);font:800 10px Manrope;letter-spacing:.6px;display:flex;gap:5px;align-items:center}
+.cam .live i{width:7px;height:7px;border-radius:50%;background:#e8452a;animation:bl 1.2s infinite}@keyframes bl{50%{opacity:.2}}
+.cam .ovl{position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;font:800 13px Manrope;text-shadow:0 1px 4px #000}
+/* Tesla */
+.car{position:relative;height:150px;border-radius:18px;background:linear-gradient(180deg,#232a31,#1b2127);display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.car .body{width:300px;height:76px;margin-bottom:22px;border-radius:60px 80px 26px 26px/50px 60px 26px 26px;background:linear-gradient(180deg,#e9edf0,#9aa4ac);position:relative}
+.car .body::before{content:'';position:absolute;left:70px;right:90px;top:6px;height:30px;border-radius:30px 40px 6px 6px;background:linear-gradient(#2a3540,#151b21)}
+.car .w{position:absolute;bottom:12px;width:50px;height:50px;border-radius:50%;background:radial-gradient(circle,#555 30%,#111 32%)}
+.batt{display:flex;align-items:center;gap:14px}
+.ring{width:84px;height:84px;border-radius:50%;background:conic-gradient(#3fb87a 0 74%,rgba(255,255,255,.1) 74%);display:grid;place-items:center}
+.ring b{width:68px;height:68px;border-radius:50%;background:#2a3138;display:grid;place-items:center;font:800 20px Manrope}
+.sw{display:flex;align-items:center;justify-content:space-between;font:700 14px Manrope}.sw small{display:block;font:600 11px Manrope;color:#8b959e}
+.tg{width:48px;height:28px;border-radius:14px;background:#3fb87a;position:relative}.tg::after{content:'';position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff}
+.tg.off{background:rgba(255,255,255,.15)}.tg.off::after{right:auto;left:3px}
+</style></head><body>
+<div class="bg">${'<i></i>'.repeat(24)}</div>
+<div class="veil"></div>
+<h1>Νέα popups συσκευών</h1>
+<p class="i">Ανοιχτότερη επιφάνεια από τις κάρτες, blur και σκίαση στο φόντο, καρτέλες ως εικονίδια στην κεφαλίδα, βασικά κουμπιά σταθερά στο κάτω μέρος (κοντά στο χέρι). Σκούπα Roborock, Bambu Lab X2D με κάμερα, Tesla.</p>
+<div class="wrap">
+
+<!-- ΣΚΟΥΠΑ -->
+<div class="pp" style="--a:#3fb87a">
+  <div class="hd"><span class="ic ms">robot_2</span><div><b>Σκούπα</b><small>Καθαρίζει · Dining area</small></div><div class="ht"><button class="ms sel">map</button><button class="ms">restaurant</button><button class="ms">build</button></div><button class="x ms">close</button></div>
+  <div class="bd">
+    <div class="map"><svg viewBox="0 0 384 190"><path d="M30 30h130v60h60V30h134v130H220v-40h-60v40H30z" fill="#2c353d" stroke="#46515b" stroke-width="2"/><path d="M30 30h130v60H30z" fill="#2f4a3c" opacity=".7"/><path d="M160 90h60v30h-60z" fill="#2f4a3c" opacity=".5"/><text x="60" y="64" fill="#8fd1ad" font-size="11" font-family="Manrope" font-weight="700">Σαλόνι ✓</text><text x="240" y="70" fill="#9aa6b0" font-size="11" font-family="Manrope" font-weight="700">Κουζίνα</text><text x="70" y="140" fill="#9aa6b0" font-size="11" font-family="Manrope" font-weight="700">Υπνοδωμάτιο</text></svg><span class="robot"></span></div>
+    <div class="g3"><div class="st"><small>Μπαταρία</small><b>64%</b></div><div class="st"><small>Καθαρίστηκαν</small><b>19,3 m²</b></div><div class="st"><small>Χρόνος</small><b>30′</b></div></div>
+    <div class="sec"><h4>Λειτουργία</h4><div class="chips"><span>Σκούπισμα</span><span class="sel">Σκούπισμα + σφουγγάρισμα</span><span>Σφουγγάρισμα</span></div></div>
+    <div class="sec"><h4>Δωμάτια</h4><div class="chips"><span class="sel">Σαλόνι</span><span>Κουζίνα</span><span>Υπνοδωμάτιο</span><span>Παιδικό</span><span>Μπάνιο</span></div></div>
+  </div>
+    <div class="foot"><button class="pri"><span class="ms">pause</span>Παύση</button><button><span class="ms">home</span>Βάση</button><button><span class="ms">location_searching</span>Πού είναι</button></div>
+</div>
+
+<!-- ΕΚΤΥΠΩΤΗΣ -->
+<div class="pp" style="--a:#f26a2a">
+  <div class="hd"><span class="ic ms">view_in_ar</span><div><b>Bambu Lab X2D</b><small>Τυπώνει · Benchy · στρώση 25/120</small></div><div class="ht"><button class="ms sel">videocam</button><button class="ms">thermostat</button><button class="ms">history</button></div><button class="x ms">close</button></div>
+  <div class="bd">
+    <div class="cam"><div class="plate"></div><div class="part"></div><div class="head"></div><span class="live"><i></i>LIVE</span><div class="ovl"><span>38%</span><span>τέλος 17:40</span></div></div>
+    <div class="bar"><i style="width:38%"></i></div>
+    <div class="g3"><div class="st"><small>Ακροφύσιο</small><b>220°</b></div><div class="st"><small>Πλάκα</small><b>65°</b></div><div class="st"><small>Θάλαμος</small><b>29°</b></div></div>
+    <div class="sec"><div class="sw"><div>Φως θαλάμου<small>για την κάμερα</small></div><span class="tg"></span></div></div>
+  </div>
+    <div class="foot"><button class="pri"><span class="ms">pause</span>Παύση</button><button><span class="ms">light</span>Φως</button><button><span class="ms">stop</span>Διακοπή</button></div>
+</div>
+
+<!-- TESLA -->
+<div class="pp" style="--a:#d63a3a">
+  <div class="hd"><span class="ic ms">directions_car</span><div><b>Tesla Model 3</b><small>Στο σπίτι · κλειδωμένο</small></div><div class="ht"><button class="ms sel">info</button><button class="ms">ac_unit</button><button class="ms">ev_station</button></div><button class="x ms">close</button></div>
+  <div class="bd">
+    <div class="car"><div class="body"><i class="w" style="left:38px"></i><i class="w" style="right:44px"></i></div></div>
+    <div class="batt"><div class="ring"><b>74%</b></div><div class="g2" style="flex:1"><div class="st"><small>Αυτονομία</small><b>316 km</b></div><div class="st"><small>Όριο φόρτισης</small><b>80%</b></div><div class="st"><small>Καλώδιο</small><b>Όχι</b></div><div class="st"><small>Ρεύμα</small><b>16 A</b></div></div></div>
+    <div class="sec" style="display:flex;flex-direction:column;gap:12px">
+      <div class="sw"><div>Κλείδωμα<small>όλες οι πόρτες κλειστές</small></div><span class="tg"></span></div>
+      <div class="sw"><div>Κλιματισμός<small>καμπίνα 14°</small></div><span class="tg off"></span></div>
+    </div>
+  </div>
+  <div class="foot"><button class="pri"><span class="ms">lock</span>Κλειδωμένο</button><button><span class="ms">ac_unit</span>Κλίμα</button><button><span class="ms">ev_station</span>Φόρτιση</button></div>
+  </div>
+
+</div>
+<script>document.querySelector('.bg').innerHTML='<i></i>'.repeat(24)</script>
+</body></html>

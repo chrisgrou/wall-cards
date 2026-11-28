@@ -43,6 +43,8 @@ const states = {
   'sensor.dryer_total_duration': S(158), 'sensor.dryer_current_power': S(594, { unit_of_measurement: 'W' }), 'sensor.dryer_cycle_count': S(54), 'sensor.bedroom_dryer_last_cycle_duration': S(162), 'sensor.bedroom_dryer_last_cycle_energy': S(1.46),
   'sensor.bedroom_dryer_profile_bambakera_count': S(25, { friendly_name: 'Dryer Profile Βαμβακερά (Εντατικό) Count' }), 'button.dryer_pause_cycle': S('unknown'), 'button.dryer_force_end_cycle': S('unknown'),
   'vacuum.robo': S('cleaning', { friendly_name: 'Σκούπα', battery_level: 64 }),
+  'sensor.robo_battery': S('64'), 'sensor.robo_cleaning_area': S('19.3'), 'sensor.robo_cleaning_time': S('30.2'), 'sensor.robo_current_room': S('Σαλόνι'), 'sensor.robo_main_brush_time_left': S('124'), 'sensor.robo_side_brush_time_left': S('-12'), 'sensor.robo_filter_time_left': S('60'),
+  'select.robo_cleaning_mode': S('vac_and_mop', { options: ['vacuum', 'vac_and_mop', 'mop'] }), 'button.robo_full_cleaning': S('unknown', { friendly_name: 'Saros 10R Full Cleaning' }), 'button.robo_after_meal': S('unknown', { friendly_name: 'Saros 10R After meal' }),
   'sensor.printer3d': S('printing', { friendly_name: 'Εκτυπωτής 3D' }), 'sensor.p3d_progress': S(34), 'sensor.p3d_rem': S(114, { unit_of_measurement: 'min' }),
   'sensor.net': S(940, { friendly_name: 'Δίκτυο', unit_of_measurement: 'Mbps' }), 'sensor.net_clients': S(32, { unit_of_measurement: 'συσκευές' }),
   'binary_sensor.bed_humid': S('on', { friendly_name: 'Υγρασία υπνοδωματίου' }),
