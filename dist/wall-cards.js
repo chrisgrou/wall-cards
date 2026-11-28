@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.24.0';
+const VERSION = '0.25.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4902,11 +4902,36 @@ class WallHealthCard extends Wall2Card {
     const ing = { k: 'integrations', title: 'Integrations', icon: 'extension', items: [] };
     (Array.isArray(this._entries) ? this._entries : []).forEach((e) => { if (['setup_error', 'setup_retry', 'failed_unload', 'migration_error'].includes(e.state)) ing.items.push({ id: null, name: e.title || e.domain, lvl: e.state === 'setup_retry' ? 'warn' : 'bad', why: e.state === 'setup_retry' ? 'ξαναπροσπαθεί' : 'δεν φόρτωσε', since: null }); });
     if (!this._entT || Date.now() - this._entT > 300000) { this._entT = Date.now(); H.callWS?.({ type: 'config_entries/get' }).then((r) => { this._entries = Array.isArray(r) ? r : []; }).catch(() => {}); }
-    return [inf, ing, ...out].filter((g) => g.items.length);
+    const ig = this.ign(), all = [inf, ing, ...out].filter((g) => g.items.length);
+    all.forEach((g) => g.items.forEach((i) => { i.key = `${i.id || i.name}|${i.lvl}|${i.why}|${i.since || ''}`; i.ign = (i.id && ig.entities.includes(i.id)) ? 'entity' : ig.once.includes(i.key) ? 'once' : ''; }));
+    return all;
+  }
+  /* αγνοημένα: ολόκληρα entities, ή μία συγκεκριμένη ειδοποίηση (ξαναεμφανίζεται αν αλλάξει η κατάσταση) */
+  ign() {
+    if (!this._ig) {
+      this._ig = { entities: [], once: [] };
+      try { Object.assign(this._ig, JSON.parse(localStorage.getItem('wall_health_ignore') || '{}')); } catch (e) { /* χωρίς localStorage */ }
+      this._hass?.callWS?.({ type: 'frontend/get_user_data', key: 'wall_health_ignore' }).then((r) => { if (r?.value) { this._ig = { entities: [], once: [], ...r.value }; this.update(); this._popup?.refresh(); } }).catch(() => {});
+    }
+    return this._ig;
+  }
+  saveIgn() {
+    const v = this._ig;
+    try { localStorage.setItem('wall_health_ignore', JSON.stringify(v)); } catch (e) { /* χωρίς localStorage */ }
+    this._hass?.callWS?.({ type: 'frontend/set_user_data', key: 'wall_health_ignore', value: v }).catch(() => {});
+    this.update(); this._popup?.refresh();
+  }
+  setIgn(i, mode) {
+    const v = this.ign();
+    v.entities = v.entities.filter((x) => x !== i.id); v.once = v.once.filter((x) => x !== i.key);
+    if (mode === 'entity' && i.id) v.entities.push(i.id);
+    if (mode === 'once') v.once.push(i.key);
+    if (v.once.length > 200) v.once = v.once.slice(-200);
+    this.saveIgn();
   }
   update() {
     if (!this._hass) return;
-    const c = this._config, gs = this.scan(), all = gs.flatMap((g) => g.items);
+    const c = this._config, gs = this.scan(), all = gs.flatMap((g) => g.items).filter((i) => !i.ign);
     const bad = all.filter((i) => i.lvl === 'bad').length, warn = all.filter((i) => i.lvl === 'warn').length, ok = all.filter((i) => i.lvl === 'ok' || i.lvl === 'info').length;
     const card = this.$('.card'); card.classList.toggle('bad', bad > 0); card.classList.toggle('warn', !bad && warn > 0);
     this.$('.nm').textContent = c.name || 'Συσκευές';
@@ -4914,28 +4939,50 @@ class WallHealthCard extends Wall2Card {
     this.$('.rg').style.setProperty('--p', `${all.length ? Math.round((ok / all.length) * 100) : 100}%`);
     this.$('.rg span').textContent = bad ? 'error' : warn ? 'warning' : 'verified';
     this.$('.v').innerHTML = bad || warn ? `${bad + warn}<small>${bad ? 'προβλήματα' : 'για έλεγχο'}</small>` : `OK<small>όλα δουλεύουν</small>`;
-    this.$('.dots').innerHTML = gs.slice(0, 8).map((g) => `<i class="${g.items.some((i) => i.lvl === 'bad') ? 'b' : g.items.some((i) => i.lvl === 'warn') ? 'w' : ''}" title="${g.title}"></i>`).join('');
+    this.$('.dots').innerHTML = gs.slice(0, 8).map((g) => { const it = g.items.filter((i) => !i.ign); return `<i class="${it.some((i) => i.lvl === 'bad') ? 'b' : it.some((i) => i.lvl === 'warn') ? 'w' : ''}" title="${g.title}"></i>`; }).join('');
   }
   popup() {
     const LV = { bad: ['#e8603c', 'error'], warn: ['#f0a020', 'warning'], info: ['#7a858f', 'info'], ok: ['#3fb87a', 'check_circle'] };
+    const isIssue = (i, g) => i.lvl === 'bad' || i.lvl === 'warn' || (i.lvl === 'info' && g.k === 'updates');
+    let open = null;
     openPopup(this, {
       icon: 'health_and_safety', size: 'md', title: this._config.name || 'Συσκευές', accent: () => '#3fb87a',
-      status: () => { const all = this.scan().flatMap((g) => g.items), n = all.filter((i) => i.lvl === 'bad' || i.lvl === 'warn').length; return n ? `${n} θέλουν προσοχή από ${all.length}` : `Όλες οι ${all.length} συσκευές δουλεύουν`; },
-      tabs: [{ id: 'issues', label: 'Προβλήματα' }, { id: 'all', label: 'Όλες' }],
+      status: () => { const all = this.scan().flatMap((g) => g.items).filter((i) => !i.ign), n = all.filter((i) => i.lvl === 'bad' || i.lvl === 'warn').length; return n ? `${n} θέλουν προσοχή από ${all.length}` : `Όλες οι ${all.length} συσκευές δουλεύουν`; },
+      tabs: [{ id: 'issues', label: 'Προβλήματα' }, { id: 'ign', label: 'Αγνοημένα' }, { id: 'all', label: 'Όλες' }],
       render: (pp, tab) => {
         const gs = this.scan();
-        const row = (i) => { const b = el('button'); b.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:6px 12px;border-radius:14px;background:#fff;text-align:left;font:600 14px var(--w-font);box-shadow:0 1px 3px rgba(0,0,0,.06)';
-          b.innerHTML = `<span class="ms fill" style="font-size:20px;color:${LV[i.lvl][0]}">${LV[i.lvl][1]}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.name}</span><small style="font:600 12px var(--w-font);color:${LV[i.lvl][0]};white-space:nowrap">${i.why}${i.lvl !== 'ok' && i.since ? ' · ' + agoText(new Date(i.since)) : ''}</small>`;
-          if (i.id) b.addEventListener('click', () => this.moreInfo(i.id)); return b; };
+        const btn = (txt, ic, fn) => { const b = el('button'); b.style.cssText = 'flex:1;height:40px;border-radius:12px;background:var(--w-track);font:700 12.5px var(--w-font);display:flex;align-items:center;justify-content:center;gap:5px'; b.innerHTML = `<span class="ms" style="font-size:18px">${ic}</span>${txt}`; b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); }); return b; };
+        const row = (i, g) => {
+          const w = el('div'); w.style.cssText = 'border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden';
+          const b = el('div'); b.style.cssText = `display:flex;align-items:center;gap:10px;min-height:46px;padding:4px 4px 4px 12px;font:600 14px var(--w-font);${i.ign ? 'opacity:.6' : ''}`;
+          b.innerHTML = `<span class="ms fill" style="font-size:20px;color:${LV[i.lvl][0]}">${i.ign ? 'visibility_off' : LV[i.lvl][1]}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.name}</span><small style="font:600 12px var(--w-font);color:${LV[i.lvl][0]};white-space:nowrap">${i.ign === 'entity' ? 'αγνοείται πάντα' : i.ign === 'once' ? 'αγνοήθηκε αυτή η φορά' : i.why + (i.lvl !== 'ok' && i.since ? ' · ' + agoText(new Date(i.since)) : '')}</small>`;
+          const more = el('button', 'ms', 'more_horiz'); more.style.cssText = 'width:40px;height:40px;border-radius:12px;font-size:22px;color:var(--w-muted);flex:none';
+          more.addEventListener('click', (ev) => { ev.stopPropagation(); open = open === i.key ? null : i.key; pp.busy = false; this._popup?.refresh(); });
+          b.append(more); w.append(b);
+          if (i.id) b.querySelector('span:nth-child(2)').addEventListener('click', () => this.moreInfo(i.id));
+          if (open === i.key) {
+            const a = el('div'); a.style.cssText = 'display:flex;gap:6px;padding:0 8px 8px';
+            if (i.ign) a.append(btn('Επαναφορά', 'visibility', () => this.setIgn(i, '')));
+            else {
+              if (isIssue(i, g)) a.append(btn('Μόνο αυτή τη φορά', 'notifications_off', () => this.setIgn(i, 'once')));
+              if (i.id) a.append(btn('Πάντα αυτή τη συσκευή', 'visibility_off', () => this.setIgn(i, 'entity')));
+              if (i.id) a.append(btn('Λεπτομέρειες', 'open_in_new', () => this.moreInfo(i.id)));
+            }
+            w.append(a);
+          }
+          return w;
+        };
         let any = false;
         gs.forEach((g) => {
-          const list = tab === 'issues' ? g.items.filter((i) => i.lvl === 'bad' || i.lvl === 'warn' || (i.lvl === 'info' && g.k === 'updates')) : [...g.items].sort((x, y) => ['bad', 'warn', 'info', 'ok'].indexOf(x.lvl) - ['bad', 'warn', 'info', 'ok'].indexOf(y.lvl));
+          const list = tab === 'ign' ? g.items.filter((i) => i.ign)
+            : tab === 'issues' ? g.items.filter((i) => !i.ign && isIssue(i, g))
+            : [...g.items].sort((x, y) => ['bad', 'warn', 'info', 'ok'].indexOf(x.lvl) - ['bad', 'warn', 'info', 'ok'].indexOf(y.lvl));
           if (!list.length) return; any = true;
           const okN = g.items.filter((i) => i.lvl === 'ok').length;
-          const sec = popSection(pp, `${g.title} · ${okN}/${g.items.length} εντάξει`);
-          const box = el('div'); box.style.cssText = 'display:flex;flex-direction:column;gap:6px'; list.slice(0, tab === 'all' ? 40 : 20).forEach((i) => box.append(row(i))); sec.append(box);
+          const sec = popSection(pp, tab === 'ign' ? g.title : `${g.title} · ${okN}/${g.items.length} εντάξει`);
+          const box = el('div'); box.style.cssText = 'display:flex;flex-direction:column;gap:6px'; list.slice(0, tab === 'all' ? 60 : 30).forEach((i) => box.append(row(i, g))); sec.append(box);
         });
-        if (!any) { const p = el('p', 'grp', 'Όλα δουλεύουν κανονικά ✓'); p.style.cssText = 'text-align:center;padding:24px 0;font-size:17px'; pp.body.append(p); }
+        if (!any) { const p = el('p', 'grp', tab === 'ign' ? 'Δεν αγνοείς τίποτα.' : 'Όλα δουλεύουν κανονικά ✓'); p.style.cssText = 'text-align:center;padding:24px 0;font-size:17px'; pp.body.append(p); }
       },
     });
   }
