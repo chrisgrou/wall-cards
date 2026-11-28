@@ -51,6 +51,13 @@ const states = {
   'sensor.prn_current_layer': S('25'), 'sensor.prn_total_layers': S('120'), 'sensor.prn_remaining_time': S('84'), 'sensor.prn_print_stage': S('printing'),
   'sensor.prn_left_nozzle_temperature': S('220'), 'sensor.prn_right_nozzle_temperature': S('29'), 'sensor.prn_bed_temperature': S('65'), 'sensor.prn_chamber_temperature': S('35'),
   'sensor.prn_hms_errors': S('2'), 'light.prn_chamber_light': S('on'),
+  'binary_sensor.smoke_kitchen': S('off', { friendly_name: 'Καπνός κουζίνας', device_class: 'smoke' }),
+  'binary_sensor.leak_bath': S('unavailable', { friendly_name: 'Διαρροή μπάνιου', device_class: 'moisture' }),
+  'binary_sensor.win_bed': S('off', { friendly_name: 'Παράθυρο υπνοδωματίου', device_class: 'window' }),
+  'sensor.temp_kids': S('unavailable', { friendly_name: 'Θερμοκρασία παιδικού', device_class: 'temperature' }),
+  'sensor.door_batt': S('14', { friendly_name: 'Μπαταρία πόρτας', device_class: 'battery', unit_of_measurement: '%' }),
+  'sensor.backup_last_successful_automatic_backup': S(new Date(Date.now() - 864e5).toISOString()), 'binary_sensor.zigbee2mqtt_bridge_connection_state': S('on'),
+  'sensor.bambuddy_10_0_0_5_disk_usage': S('92.1', { friendly_name: 'Bambuddy disk usage' }), 'sensor.cloud_gateway_fiber_state': S('connected'), 'sensor.cloud_gateway_fiber_cloudflare_wan_latency': S('3'),
   'vacuum.robo': S('cleaning', { friendly_name: 'Σκούπα', battery_level: 64 }),
   'sensor.robo_battery': S('64'), 'sensor.robo_cleaning_area': S('19.3'), 'sensor.robo_cleaning_time': S('30.2'), 'sensor.robo_current_room': S('Σαλόνι'), 'sensor.robo_main_brush_time_left': S('124'), 'sensor.robo_side_brush_time_left': S('-12'), 'sensor.robo_filter_time_left': S('60'),
   'select.robo_cleaning_mode': S('vac_and_mop', { options: ['vacuum', 'vac_and_mop', 'mop'] }), 'button.robo_full_cleaning': S('unknown', { friendly_name: 'Saros 10R Full Cleaning' }), 'button.robo_after_meal': S('unknown', { friendly_name: 'Saros 10R After meal' }),
@@ -115,7 +122,7 @@ const cfg = {
       { type: 'custom:wall-tile', entity: 'vacuum.robo', name: 'Σκούπα', span: 2 }] },
     { group: 'Εξοπλισμός', columns: 2, cards: [
       { type: 'custom:wall-tile', entity: 'sensor.printer3d', name: 'Εκτυπωτής 3D', icon: 'view_in_ar', animation: 'flame', color: '#d0662f', remaining_entity: 'sensor.p3d_rem', progress_entity: 'sensor.p3d_progress' },
-      { type: 'custom:wall-tile', entity: 'sensor.net', name: 'Δίκτυο', icon: 'router', secondary_entity: 'sensor.net_clients' }] },
+      { type: 'custom:wall-tile', entity: 'sensor.net', name: 'Δίκτυο', icon: 'router', secondary_entity: 'sensor.net_clients' }, { type: 'custom:wall-health' }] },
   ],
 };
 const el = document.createElement('wall-layout');

@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.22.0';
+const VERSION = '0.24.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4824,6 +4824,123 @@ class WallFamilyCard extends Wall2Card {
   }
 }
 
+/* ── Υγεία συστήματος: οι κρίσιμες συσκευές ανά κατηγορία, και ποιες έχουν πρόβλημα (offline, χαμηλή μπαταρία…) ──
+   Βρίσκει μόνη της τις συσκευές από το είδος τους· με include / exclude προσθέτεις ή βγάζεις entities. */
+const HEALTH_GROUPS = [
+  ['safety', 'Ασφάλεια', 'local_fire_department', (id, a) => id.startsWith('binary_sensor.') && ['smoke', 'gas', 'carbon_monoxide', 'moisture', 'safety', 'problem'].includes(a.device_class)],
+  ['locks', 'Κλειδαριές', 'lock', (id) => id.startsWith('lock.')],
+  ['doors', 'Πόρτες & παράθυρα', 'sensor_door', (id, a) => id.startsWith('binary_sensor.') && ['door', 'window', 'opening', 'garage_door'].includes(a.device_class)],
+  ['motion', 'Κίνηση', 'motion_sensor_active', (id, a) => id.startsWith('binary_sensor.') && ['motion', 'occupancy', 'presence'].includes(a.device_class)],
+  ['climate', 'Θερμοκρασία & υγρασία', 'thermostat', (id, a) => id.startsWith('sensor.') && ['temperature', 'humidity'].includes(a.device_class)],
+  ['cameras', 'Κάμερες', 'videocam', (id) => id.startsWith('camera.')],
+  ['lights', 'Φώτα', 'lightbulb', (id) => id.startsWith('light.')],
+  ['battery', 'Μπαταρίες', 'battery_alert', (id, a) => id.startsWith('sensor.') && a.device_class === 'battery' && a.unit_of_measurement === '%'],
+  ['updates', 'Ενημερώσεις', 'system_update', (id) => id.startsWith('update.')],
+];
+/* Έλεγχοι υποδομής: [μοτίβο entity, όνομα, έλεγχος(state, attributes, now) → [επίπεδο, λόγος] ή null] */
+const _age = (s) => (Date.now() - new Date(s).getTime()) / 864e5;
+const INFRA_RULES = [
+  [/^sensor\..*(gateway|router|wan).*_state$/, 'Internet', (s) => (s === 'connected' || s === 'online' ? null : ['bad', 'χωρίς σύνδεση'])],
+  [/^sensor\..*wan_latency$/, 'Καθυστέρηση internet', (s) => (+s > 100 ? ['bad', `${s} ms`] : +s > 40 ? ['warn', `${s} ms`] : null)],
+  [/^sensor\.backup_last_successful_automatic_backup$/, 'Τελευταίο backup', (s) => { const d = _age(s); return isNaN(d) ? ['warn', 'ποτέ'] : d > 7 ? ['bad', `πριν ${Math.round(d)} μέρες`] : d > 3 ? ['warn', `πριν ${Math.round(d)} μέρες`] : null; }],
+  [/^binary_sensor\.backups?_stale$/, 'Backups', (s) => (s === 'on' ? ['bad', 'παλιά'] : null)],
+  [/^binary_sensor\..*(zigbee2mqtt_bridge_connection_state|zwave.*(status|connection))$/, 'Zigbee / Z-Wave', (s) => (s === 'on' ? null : ['bad', 'εκτός σύνδεσης'])],
+  [/^sensor\..*disk_usage$/, 'Δίσκος', (s) => (+s >= 95 ? ['bad', `${Math.round(+s)}% γεμάτος`] : +s >= 90 ? ['warn', `${Math.round(+s)}% γεμάτος`] : null)],
+  [/^sensor\..*drive_\d+_status$/, 'Δίσκος NAS', (s) => (s === 'normal' ? null : ['bad', s])],
+  [/^binary_sensor\..*(below_min_remaining_life|exceeded_max_bad_sectors)$/, 'Υγεία δίσκου NAS', (s) => (s === 'on' ? ['bad', 'χρειάζεται αλλαγή'] : null)],
+  [/^sensor\..*(ups).*(status|state)$/, 'UPS', (s) => (/ol|online/i.test(s) ? null : ['warn', s])],
+  [/^sensor\..*tablet.*battery_level$/, 'Μπαταρία tablet', (s) => (+s <= 15 ? ['bad', `${s}%`] : +s <= 30 ? ['warn', `${s}%`] : null)],
+  [/^sensor\.bambuddy_.*printers_online$/, 'Bambuddy', (s) => (+s > 0 ? null : ['warn', 'κανένας εκτυπωτής'])],
+];
+class WallHealthCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:13px 12px 12px 14px;cursor:pointer;--a:#3fb87a}
+.card.v2.bad{--a:#e8603c}.card.v2.warn{--a:#f0a020}
+.nm{font:700 12px var(--w-font)}.sb{font:600 10.5px var(--w-font);color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt{margin-top:auto;display:flex;align-items:center;gap:10px}
+.rg{position:relative;width:56px;height:56px;flex:none;border-radius:50%;background:conic-gradient(var(--a) 0 var(--p,100%),rgba(128,128,128,.18) var(--p,100%) 100%)}
+.rg span{position:absolute;inset:5px;border-radius:50%;display:grid;place-items:center;background:var(--box);color:var(--a);font-size:28px}
+.v{font:500 26px var(--w-font);letter-spacing:-1px;line-height:1}.v small{display:block;font:600 11px var(--w-font);color:var(--mut);letter-spacing:0;margin-top:2px}
+.dots{position:absolute;right:12px;top:13px;display:flex;gap:3px}.dots i{width:7px;height:7px;border-radius:50%;background:#3fb87a}.dots i.b{background:#e8603c}.dots i.w{background:#f0a020}
+`;
+  static getConfigForm() { return form([['name', 'Όνομα', TEXT], ['include', 'Επιπλέον entities', { entity: { multiple: true } }], ['exclude', 'Εξαίρεση entities', { entity: { multiple: true } }]]); }
+  static getStubConfig() { return {}; }
+  getGridOptions() { return { columns: 3, rows: 2 }; }
+  watched() { return []; }
+  set hass(h) { this._hass = h; if (!this._built) return super.hass = h; const now = Date.now(); if (now - (this._t || 0) > 5000) { this._t = now; this.update(); } if (this._popup) this._popup.refresh(); }
+  template() { return `<div class="card"><div class="nm"></div><div class="sb"></div><div class="dots"></div><div class="bt"><div class="rg"><span class="ms fill"></span></div><div class="v"></div></div></div>`; }
+  bind() { this.tapMore(() => this.popup()); }
+  /* συλλογή ανά κατηγορία: κάθε entity με κατάσταση ok / warn / bad και λόγο */
+  scan() {
+    const c = this._config, H = this._hass, reg = H.entities || {}, ex = new Set(c.exclude || []), inc = new Set(c.include || []);
+    const out = HEALTH_GROUPS.map(([k, title, icon]) => ({ k, title, icon, items: [] }));
+    Object.entries(H.states).forEach(([id, s]) => {
+      const a = s.attributes || {}, r = reg[id];
+      if (ex.has(id) || (!inc.has(id) && (r?.hidden || r?.entity_category || r?.disabled_by))) return;
+      const gi = HEALTH_GROUPS.findIndex(([, , , f]) => f(id, a));
+      if (gi < 0 && !inc.has(id)) return;
+      const g = out[gi < 0 ? 0 : gi];
+      let lvl = 'ok', why = '';
+      if (s.state === 'unavailable') { lvl = g.k === 'lights' ? 'info' : 'bad'; why = g.k === 'lights' ? 'σβηστό από διακόπτη;' : 'εκτός σύνδεσης'; }
+      else if (s.state === 'unknown' && g.k !== 'updates') { lvl = 'warn'; why = 'άγνωστη κατάσταση'; }
+      else if (g.k === 'battery') { const v = +s.state; if (v <= 10) { lvl = 'bad'; why = `μπαταρία ${v}%`; } else if (v <= 20) { lvl = 'warn'; why = `μπαταρία ${v}%`; } }
+      else if (g.k === 'safety' && s.state === 'on') { lvl = 'bad'; why = a.device_class === 'moisture' ? 'διαρροή νερού!' : a.device_class === 'problem' ? 'πρόβλημα' : 'ΣΥΝΑΓΕΡΜΟΣ'; }
+      else if (g.k === 'updates' && s.state === 'on') { lvl = 'info'; why = `νέα έκδοση ${a.latest_version || ''}`.trim(); }
+      g.items.push({ id, name: a.friendly_name || id, lvl, why, since: s.last_changed });
+    });
+    /* υποδομή */
+    const inf = { k: 'infra', title: 'Υποδομή', icon: 'dns', items: [] };
+    Object.entries(H.states).forEach(([id, s]) => {
+      if (ex.has(id)) return;
+      const rule = INFRA_RULES.find(([re]) => re.test(id)); if (!rule) return;
+      let lvl = 'ok', why = '';
+      if (s.state === 'unavailable' || s.state === 'unknown') { lvl = 'warn'; why = 'χωρίς τιμή'; }
+      else { const r = rule[2](s.state, s.attributes || {}); if (r) [lvl, why] = r; }
+      inf.items.push({ id, name: rule[1] + (s.attributes?.friendly_name && rule[1] === 'Δίσκος' ? ` · ${s.attributes.friendly_name.replace(/ disk usage/i, '')}` : ''), lvl, why, since: s.last_changed });
+    });
+    /* integrations που δεν φόρτωσαν (χρειάζεται διαχειριστή) */
+    const ing = { k: 'integrations', title: 'Integrations', icon: 'extension', items: [] };
+    (Array.isArray(this._entries) ? this._entries : []).forEach((e) => { if (['setup_error', 'setup_retry', 'failed_unload', 'migration_error'].includes(e.state)) ing.items.push({ id: null, name: e.title || e.domain, lvl: e.state === 'setup_retry' ? 'warn' : 'bad', why: e.state === 'setup_retry' ? 'ξαναπροσπαθεί' : 'δεν φόρτωσε', since: null }); });
+    if (!this._entT || Date.now() - this._entT > 300000) { this._entT = Date.now(); H.callWS?.({ type: 'config_entries/get' }).then((r) => { this._entries = Array.isArray(r) ? r : []; }).catch(() => {}); }
+    return [inf, ing, ...out].filter((g) => g.items.length);
+  }
+  update() {
+    if (!this._hass) return;
+    const c = this._config, gs = this.scan(), all = gs.flatMap((g) => g.items);
+    const bad = all.filter((i) => i.lvl === 'bad').length, warn = all.filter((i) => i.lvl === 'warn').length, ok = all.filter((i) => i.lvl === 'ok' || i.lvl === 'info').length;
+    const card = this.$('.card'); card.classList.toggle('bad', bad > 0); card.classList.toggle('warn', !bad && warn > 0);
+    this.$('.nm').textContent = c.name || 'Συσκευές';
+    this.$('.sb').textContent = bad || warn ? [bad && `${bad} με πρόβλημα`, warn && `${warn} για έλεγχο`].filter(Boolean).join(' · ') : `${all.length} συσκευές`;
+    this.$('.rg').style.setProperty('--p', `${all.length ? Math.round((ok / all.length) * 100) : 100}%`);
+    this.$('.rg span').textContent = bad ? 'error' : warn ? 'warning' : 'verified';
+    this.$('.v').innerHTML = bad || warn ? `${bad + warn}<small>${bad ? 'προβλήματα' : 'για έλεγχο'}</small>` : `OK<small>όλα δουλεύουν</small>`;
+    this.$('.dots').innerHTML = gs.slice(0, 8).map((g) => `<i class="${g.items.some((i) => i.lvl === 'bad') ? 'b' : g.items.some((i) => i.lvl === 'warn') ? 'w' : ''}" title="${g.title}"></i>`).join('');
+  }
+  popup() {
+    const LV = { bad: ['#e8603c', 'error'], warn: ['#f0a020', 'warning'], info: ['#7a858f', 'info'], ok: ['#3fb87a', 'check_circle'] };
+    openPopup(this, {
+      icon: 'health_and_safety', size: 'md', title: this._config.name || 'Συσκευές', accent: () => '#3fb87a',
+      status: () => { const all = this.scan().flatMap((g) => g.items), n = all.filter((i) => i.lvl === 'bad' || i.lvl === 'warn').length; return n ? `${n} θέλουν προσοχή από ${all.length}` : `Όλες οι ${all.length} συσκευές δουλεύουν`; },
+      tabs: [{ id: 'issues', label: 'Προβλήματα' }, { id: 'all', label: 'Όλες' }],
+      render: (pp, tab) => {
+        const gs = this.scan();
+        const row = (i) => { const b = el('button'); b.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:6px 12px;border-radius:14px;background:#fff;text-align:left;font:600 14px var(--w-font);box-shadow:0 1px 3px rgba(0,0,0,.06)';
+          b.innerHTML = `<span class="ms fill" style="font-size:20px;color:${LV[i.lvl][0]}">${LV[i.lvl][1]}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.name}</span><small style="font:600 12px var(--w-font);color:${LV[i.lvl][0]};white-space:nowrap">${i.why}${i.lvl !== 'ok' && i.since ? ' · ' + agoText(new Date(i.since)) : ''}</small>`;
+          if (i.id) b.addEventListener('click', () => this.moreInfo(i.id)); return b; };
+        let any = false;
+        gs.forEach((g) => {
+          const list = tab === 'issues' ? g.items.filter((i) => i.lvl === 'bad' || i.lvl === 'warn' || (i.lvl === 'info' && g.k === 'updates')) : [...g.items].sort((x, y) => ['bad', 'warn', 'info', 'ok'].indexOf(x.lvl) - ['bad', 'warn', 'info', 'ok'].indexOf(y.lvl));
+          if (!list.length) return; any = true;
+          const okN = g.items.filter((i) => i.lvl === 'ok').length;
+          const sec = popSection(pp, `${g.title} · ${okN}/${g.items.length} εντάξει`);
+          const box = el('div'); box.style.cssText = 'display:flex;flex-direction:column;gap:6px'; list.slice(0, tab === 'all' ? 40 : 20).forEach((i) => box.append(row(i))); sec.append(box);
+        });
+        if (!any) { const p = el('p', 'grp', 'Όλα δουλεύουν κανονικά ✓'); p.style.cssText = 'text-align:center;padding:24px 0;font-size:17px'; pp.body.append(p); }
+      },
+    });
+  }
+}
+
 /* ── Εκτυπωτής 3D (Bambuddy ή ha-bambulab): κάμερα, κατάσταση, πρόοδος, θερμοκρασίες, κουμπιά ── */
 class WallPrinterCard extends Wall2Card {
   static css2 = `
@@ -4904,7 +5021,7 @@ class WallPrinterCard extends Wall2Card {
     /* κάμερα: ζωντανή όταν τυπώνει, αλλιώς η εικόνα της εργασίας */
     const camId = this.first('camera', ['camera']), tok = this.st(camId)?.attributes?.access_token;
     const cover = this.first('image', ['cover_image']), coverUrl = this.st(cover)?.attributes?.entity_picture;
-    const every = run || paused ? 3000 : 20000;
+    const every = run || paused ? 3000 : 1800000; /* όταν δεν τυπώνει: κάθε μισή ώρα */
     if (tok && (!this._snapT || Date.now() - this._snapT > every)) {
       this._snapT = Date.now(); const cam = this.$('.cam');
       let im = cam.querySelector('img'); if (!im) { im = document.createElement('img'); im.onerror = () => { if (coverUrl) im.src = coverUrl; }; cam.prepend(im); }
@@ -5380,6 +5497,7 @@ register('wall-shopping', WallShopCard, 'Wall v2 · Ψώνια', 'Λίστα ψ�
 register('wall-media', WallMediaCard, 'Wall v2 · Μουσική και TV', 'Ό,τι παίζει τώρα, με εναλλαγή πηγής.');
 register('wall-actions', WallActionsCard, 'Wall v2 · Γρήγορες ενέργειες', 'Κουμπιά για σκηνές και scripts.');
 register('wall-status', WallStatusCard, 'Wall v2 · Μπάρα κατάστασης', 'Καιρός ή συνθήκες σπιτιού σαν εικονίδιο στη μπάρα· με πάτημα ανοίγει panel με πρόγνωση ή διαγράμματα.');
+register('wall-health', WallHealthCard, 'Wall v2 · Υγεία συσκευών', 'Ποιες κρίσιμες συσκευές δουλεύουν και ποιες έχουν πρόβλημα (offline, μπαταρία, συναγερμός).');
 register('wall-printer', WallPrinterCard, 'Wall v2 · Εκτυπωτής 3D', 'Κάμερα, πρόοδος, θερμοκρασίες και κουμπιά του εκτυπωτή (Bambuddy ή ha-bambulab).');
 register('wall-ams', WallAmsCard, 'Wall v2 · AMS', 'Οι θέσεις νήματος του AMS: χρώμα, υλικό, υπόλοιπο, υγρασία.');
 register('wall-family', WallFamilyCard, 'Wall v2 · Family Matters', 'Ψώνια, υπενθυμίσεις και δουλειές σε μία κάρτα με καρτέλες.');
