@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="el"><head><meta charset="utf-8"><title>Wall Cards · Στιλ αρχικού design</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL@24,400,0..1&display=block" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Manrope,sans-serif;padding:22px 26px;background:#e9edf1;color:#1c2228}
+h1{font:800 20px Manrope;margin:0 0 4px}p.i{color:#6b7680;margin:0 0 16px;font:600 13px Manrope}
+.th{border-radius:26px;padding:18px 18px 22px;margin-bottom:18px}
+.th h2{font:800 15px Manrope;margin:0 0 2px}.th>small{display:block;font:600 12px Manrope;margin-bottom:12px;opacity:.7}
+.row{display:grid;grid-template-columns:repeat(5,150px) 312px;gap:12px}
+.light{--box:#fff;--ink:#1c2228;--mut:#6b7680;--chip:#fff;--track:#e3e7eb;background:#eef1f4}
+.dark{--box:#1d2227;--ink:#eef1f3;--mut:#8b959e;--chip:#2a3138;--track:#2f363d;background:#14181c;color:#eef1f3}
+.ms{font-family:'Material Symbols Rounded';font-feature-settings:'liga';font-size:22px;line-height:1;font-variation-settings:'FILL' 1}
+button{font-family:inherit;border:0;cursor:pointer;color:inherit;padding:0}
+
+.t{position:relative;height:150px;border-radius:22px;padding:13px 13px 12px 15px;background:var(--box);color:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+.t.w{width:312px}
+/* ζεστή/κρύα απόχρωση όταν είναι ενεργή — όπως στο αρχικό */
+.light .t.on{background:linear-gradient(170deg,color-mix(in srgb,var(--a) 7%,#fff),color-mix(in srgb,var(--a) 20%,#fff))}
+.dark .t.on{background:linear-gradient(170deg,color-mix(in srgb,var(--a) 12%,var(--box)),color-mix(in srgb,var(--a) 28%,var(--box)))}
+.nm{font:700 13px Manrope;letter-spacing:-.2px;line-height:1.15;padding-right:40px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sb{font:600 11px Manrope;color:var(--mut);margin-top:2px;padding-right:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* το στρογγυλό κουμπί πάνω δεξιά */
+.act{position:absolute;right:9px;top:9px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--chip);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.act .ms{font-size:22px}
+.on .act{background:var(--a);color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--a) 40%,transparent)}
+.act2{top:62px;width:38px;height:38px}.act2 .ms{font-size:20px}
+.bt{margin-top:auto;display:flex;align-items:center;gap:10px}
+.v{font:500 28px Manrope;letter-spacing:-1px;line-height:1;white-space:nowrap}.v small{font:600 14px Manrope;color:var(--mut);letter-spacing:0;margin-left:1px}
+.on .v.tint{color:color-mix(in srgb,var(--a) 85%,var(--ink))}
+.vs{font:600 11px Manrope;color:var(--mut);margin-top:3px;white-space:nowrap}
+.rg{position:relative;width:46px;height:46px;flex:none}.rg svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.rg circle{fill:none;stroke-width:5}.rg .bk{stroke:var(--track)}.rg .fg{stroke:var(--a);stroke-linecap:round}
+.rg .ms{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;color:var(--mut)}
+.on .rg .ms{color:var(--a)}
+.pm{display:flex;gap:8px;margin-top:auto}.pm button{flex:1;height:34px;border-radius:17px;background:var(--chip);box-shadow:0 1px 4px rgba(0,0,0,.08);font-size:20px}
+.pmv{display:flex;align-items:baseline;gap:6px;margin-top:auto;margin-bottom:8px}
+.done .act{background:#3fb87a;color:#fff}.light .t.done{background:linear-gradient(170deg,#f2fbf6,#d8f2e3)}.dark .t.done{background:linear-gradient(170deg,#1f2b25,#1f3d2e)}
+.vac{display:flex;gap:6px;margin-left:auto}.vac button{width:36px;height:36px;border-radius:50%;background:var(--chip);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.lock .v{font:600 22px Manrope}
+</style></head><body>
+<h1>Κάρτες στο στιλ του αρχικού design</h1>
+<p class="i">Όνομα πάνω αριστερά (με μικρό υπότιτλο), στρογγυλό κουμπί πάνω δεξιά, τιμή κάτω με δαχτυλίδι προόδου. Ίδιες κάρτες σε ανοιχτό και σκούρο θέμα.</p>
+<div id="o"></div>
+<script>
+const ring = (p, ic) => { const r = 19, L = 2 * Math.PI * r; return `<div class="rg"><svg viewBox="0 0 46 46"><circle class="bk" cx="23" cy="23" r="${r}"/>${p ? `<circle class="fg" cx="23" cy="23" r="${r}" stroke-dasharray="${L * p / 100} ${L}"/>` : ''}</svg>${ic ? `<span class="ms">${ic}</span>` : ''}</div>`; };
+const C = [
+  ['on', '#2f9a76', `<div class="nm">Πλυντήριο</div><div class="sb">Βαμβακερά 40°</div><button class="act ms">pause</button>
+    <div class="bt">${ring(64, 'local_laundry_service')}<div><div class="v">42<small>′</small></div><div class="vs">τέλος 21:23</div></div></div>`],
+  ['', '#c98a1e', `<div class="nm">Στεγνωτήριο</div><div class="sb">Σβηστό</div><button class="act ms">play_arrow</button>
+    <div class="bt">${ring(0, 'cyclone')}<div><div class="v" style="font-size:20px;color:var(--mut)">—</div><div class="vs">τελευταία πριν 3ω</div></div></div>`],
+  ['done', '#3fb87a', `<div class="nm">Πλυντήριο πιάτων</div><div class="sb">Έτοιμο · πάτα για OK</div><button class="act ms">check</button>
+    <div class="bt">${ring(100, 'dishwasher').replace('var(--a)', '#3fb87a')}<div><div class="v">1:42</div><div class="vs">0,92 kWh</div></div></div>`],
+  ['on', '#e8603c', `<div class="nm">Κλιματιστικό</div><div class="sb">Θέρμανση · χώρος 28°</div><button class="act ms">power_settings_new</button>
+    <div class="pmv"><span class="v tint">26,0°</span></div><div class="pm" style="margin-top:0"><button class="ms">remove</button><button class="ms">add</button></div>`],
+  ['', '#d9573b', `<div class="nm">Θερμοσίφωνας</div><div class="sb">Κλειστός</div><button class="act ms">power_settings_new</button>
+    <div class="pmv"><span class="v">12<small>′ διάρκεια</small></span></div><div class="pm" style="margin-top:0"><button class="ms">remove</button><button class="ms">add</button></div>`],
+  ['on w', '#7a5fd0', `<div class="nm">Σκούπα</div><div class="sb">Καθαρίζει · Σαλόνι</div><button class="act ms">pause</button>
+    <div class="bt">${ring(64, 'robot_2')}<div><div class="v">18<small>′</small></div><div class="vs">μπαταρία 64%</div></div><div class="vac"><button class="ms">stop</button><button class="ms">home</button><button class="ms">location_searching</button></div></div>`],
+];
+const C2 = [
+  ['on', '#2f86d9', `<div class="nm">Καθαριστής αέρα</div><div class="sb">Καλή ποιότητα · Auto</div><button class="act ms">power_settings_new</button>
+    <div class="bt">${ring(70, 'mode_fan')}<div><div class="v">8</div><div class="vs">PM2.5 μg/m³</div></div></div>`],
+  ['on', '#3d8fe6', `<div class="nm">Αφυγραντήρας</div><div class="sb">Στόχος 55%</div><button class="act ms">power_settings_new</button>
+    <div class="pmv"><span class="v tint">67<small>%</small></span></div><div class="pm" style="margin-top:0"><button class="ms">remove</button><button class="ms">add</button></div>`],
+  ['on', '#d0662f', `<div class="nm">Εκτυπωτής 3D</div><div class="sb">Τυπώνει · Benchy</div><button class="act ms">pause</button>
+    <div class="bt">${ring(38, 'view_in_ar')}<div><div class="v">1:54</div><div class="vs">τέλος 17:40</div></div></div>`],
+  ['on lock', '#3f9a62', `<div class="nm">Εξώπορτα</div><div class="sb">Πόρτα διαμερίσματος</div><button class="act ms">lock</button>
+    <div class="bt"><div><div class="v tint">Κλειδωμένη</div><div class="vs">από 18:42</div></div></div>`],
+  ['', '#2f9a76', `<div class="nm">Δίκτυο</div><div class="sb">Cloud Gateway</div><button class="act ms">router</button>
+    <div class="bt"><div><div class="v">940<small> Mbps</small></div><div class="vs">3 ms · 32 συσκευές</div></div></div>`],
+];
+const row = (L) => `<div class="row">${L.map(([c, a, h]) => `<div class="t ${c}" style="--a:${a}">${h}</div>`).join('')}</div>`;
+document.getElementById('o').innerHTML = ['light', 'dark'].map((th) => `<div class="th ${th}"><h2>${th === 'light' ? 'Ανοιχτό θέμα' : 'Σκούρο θέμα'}</h2><small>Ενεργές κάρτες με απαλή απόχρωση του χρώματός τους· σβηστές λευκές/ουδέτερες· «έτοιμο» πράσινο με ✓ στο κουμπί.</small>${row(C)}<div style="height:12px"></div>${row(C2)}</div>`).join('');
+</script></body></html>

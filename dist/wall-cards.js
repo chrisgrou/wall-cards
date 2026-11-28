@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.15.0';
+const VERSION = '0.16.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -2862,7 +2862,7 @@ class WallDehumidifierCard extends WallBaseCard {
 
   bind() {
     this.tapMore(() => this.popup());
-    this.$('.pw').addEventListener('click', () => this.power());
+    this.$('.pw').addEventListener('click', (e) => { e.stopPropagation(); if (this.$('.card').classList.contains('att')) return this.open(); this.power(); });
     /* −/+ : η οθόνη δείχνει τον στόχο να αναβοσβήνει για 3″ και μετά επιστρέφει στην υγρασία του χώρου */
     const step = (dir) => () => {
       const id = this._config.entity;
@@ -3113,6 +3113,76 @@ const PIC_CSS = `
 @keyframes pslide{50%{transform:translateX(7px)}}
 .haspic .nm{visibility:hidden;height:0;line-height:0}.haspic.shownm .nm{display:block}
 `;
+/* ── Κινούμενα εικονίδια συσκευών (CSS), στο στιλ του αρχικού concept: μια μικρή σκηνή μέσα στο δαχτυλίδι προόδου ── */
+const _row = (cls, xs, dl) => xs.map((l, i) => `<i class="${cls}" style="left:${l}px;animation-delay:${i * dl}s"></i>`).join('');
+const SCENES = {
+  washer: `<i class="water"></i><i class="drum"></i>${_row('bb', [10, 22, 34], .7)}`,
+  dryer: `<i class="glow"></i><i class="tum"><i></i><i></i><i></i></i>${_row('ht', [12, 22, 32], .5)}`,
+  dishwasher: `<i class="steam"></i><i class="rack"><b></b><b></b><b></b><b></b><b></b></i><i class="arm"></i>${_row('dp', [12, 22, 32], .35)}`,
+  vacuum: `<i class="dock"></i><i class="bot"></i>`,
+  purifier: `<i class="fan">${[0, 72, 144, 216, 288].map((d) => `<i style="transform:rotate(${d}deg)"></i>`).join('')}</i>`,
+  heater: `<i class="tank"></i><i class="hot"></i><i class="fl"></i>`,
+  boiler: `<i class="box"></i><i class="fl"></i>`,
+  ac: `<i class="unit"></i>${_row('air', [14, 22, 30], .4)}`,
+  dehumidifier: `<i class="tank"></i><i class="dr"></i><i class="dr"></i>`,
+  printer: `<i class="bar"></i><i class="obj"></i><i class="bed"></i><i class="noz"></i>`,
+};
+const SCENE_BY_ICON = { local_laundry_service: 'washer', cyclone: 'dryer', dishwasher: 'dishwasher', water_heater: 'heater', robot_2: 'vacuum', view_in_ar: 'printer',
+  local_fire_department: 'boiler', heat: 'ac', ac_unit: 'ac', mode_heat: 'ac', water_drop: 'dehumidifier', mode_fan: 'purifier', air_purifier: 'purifier' };
+const SCENE_CSS = `
+.art>i,.art i{position:absolute}
+@keyframes sc-spin{to{transform:rotate(360deg)}}@keyframes sc-wave{to{transform:translateX(-50%) rotate(360deg)}}
+@keyframes sc-bub{0%{transform:translateY(0) scale(.6);opacity:0}20%{opacity:.9}100%{transform:translateY(-30px) scale(1.1);opacity:0}}
+@keyframes sc-heat{0%{transform:translateY(6px) scaleY(.8);opacity:0}40%{opacity:.8}100%{transform:translateY(-22px) scaleY(1.3);opacity:0}}
+@keyframes sc-spray{0%,100%{opacity:0;transform:translateY(0)}30%{opacity:1}100%{transform:translateY(-12px)}}
+@keyframes sc-jig{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-3px,2px) rotate(-10deg)}75%{transform:translate(3px,-1px) rotate(8deg)}}
+@keyframes sc-flick{0%,100%{transform:scale(1,1)}30%{transform:scale(1.08,.92)}60%{transform:scale(.94,1.08)}}
+@keyframes sc-drip{0%{transform:translateY(-14px) rotate(180deg);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateY(16px) rotate(180deg);opacity:0}}
+@keyframes sc-slide{0%,100%{transform:translateX(-9px)}50%{transform:translateX(9px)}}
+@keyframes sc-blow{0%{transform:translateY(-2px);opacity:0}30%{opacity:.8}100%{transform:translateY(16px);opacity:0}}
+.card:not(.on) .art *{animation-play-state:paused!important}
+.card:not(.on) .art .bb,.card:not(.on) .art .ht,.card:not(.on) .art .dp,.card:not(.on) .art .air,.card:not(.on) .art .dr,.card:not(.on) .art .glow,.card:not(.on) .art .steam{opacity:0!important}
+.s-washer .water{width:110px;height:110px;left:50%;top:var(--lvl,60%);border-radius:42%;background:rgba(61,143,230,.45);animation:sc-wave 3s linear infinite;transition:top .8s}
+.s-washer .drum{inset:6px;border-radius:50%;border:2px dashed rgba(40,80,130,.35);animation:sc-spin 1.8s linear infinite}
+.s-washer .drum::before{content:'';position:absolute;left:50%;top:2px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:rgba(40,80,130,.4)}
+.dark .s-washer .drum{border-color:rgba(160,200,240,.35)}
+.s-washer .bb{width:6px;height:6px;border-radius:50%;border:1.5px solid rgba(255,255,255,.9);bottom:8px;animation:sc-bub 2.2s ease-in infinite}
+.s-dryer .glow{inset:0;background:radial-gradient(circle at 50% 75%,rgba(255,170,70,.55),transparent 70%)}
+.s-dryer .tum{inset:5px;animation:sc-spin 2.2s cubic-bezier(.6,.1,.4,.9) infinite}
+.s-dryer .tum i{width:16px;height:9px;border-radius:5px}
+.s-dryer .tum i:nth-child(1){left:6px;top:20px;background:#e46a8a;transform:rotate(30deg)}.s-dryer .tum i:nth-child(2){left:22px;top:28px;background:#f2b43c;transform:rotate(-20deg)}.s-dryer .tum i:nth-child(3){left:14px;top:8px;background:#6aa7e4;transform:rotate(70deg)}
+.s-dryer .ht{width:4px;height:12px;border-radius:2px;background:linear-gradient(transparent,rgba(255,140,50,.8));bottom:4px;animation:sc-heat 1.6s ease-in infinite}
+.s-dishwasher .rack{left:8px;right:8px;bottom:12px;height:22px;display:flex;justify-content:space-between;align-items:flex-end}
+.s-dishwasher .rack b{width:5px;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,#fff,#c9d4dc);box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+.s-dishwasher .rack b:nth-child(odd){height:22px}.s-dishwasher .rack b:nth-child(even){height:17px}
+.s-dishwasher .arm{left:50%;bottom:7px;width:34px;height:4px;margin-left:-17px;border-radius:2px;background:#3aa8b8;animation:sc-spin 1s linear infinite}
+.s-dishwasher .dp{width:3px;height:6px;border-radius:2px;background:#4fc0d0;bottom:12px;animation:sc-spray 1.1s ease-out infinite}
+.s-dishwasher .steam{left:0;right:0;top:0;height:50%;background:linear-gradient(rgba(79,192,208,.25),transparent)}
+.s-vacuum .dock{left:10px;right:10px;top:4px;height:12px;border-radius:5px 5px 2px 2px;background:linear-gradient(#d5dbe0,#aeb7bf);transition:opacity .4s}
+.s-vacuum .dock::after{content:'';position:absolute;left:50%;top:4px;width:10px;height:3px;margin-left:-5px;border-radius:2px;background:#5ad08a;box-shadow:0 0 5px #5ad08a}
+.s-vacuum .bot{left:50%;top:15px;width:28px;height:28px;margin-left:-14px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#4a525a,#0e1114);box-shadow:0 2px 3px rgba(0,0,0,.4);animation:sc-jig 2.4s ease-in-out infinite}
+.s-vacuum .bot::after{content:'';position:absolute;left:9px;top:4px;width:10px;height:10px;border-radius:50%;background:#20262b}
+.on .s-vacuum .dock{opacity:.35}
+.s-purifier .fan{inset:6px;animation:sc-spin 1.3s linear infinite}
+.s-purifier .fan i{left:50%;top:1px;width:9px;height:17px;margin-left:-4.5px;border-radius:50% 50% 40% 40%;background:color-mix(in srgb,var(--a) 60%,transparent);transform-origin:4.5px 17px}
+.s-heater .tank{left:13px;right:13px;top:6px;bottom:6px;border-radius:10px;background:linear-gradient(#fff,#d9dfe4);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.s-heater .hot{left:13px;right:13px;bottom:6px;height:var(--lvl,30%);border-radius:0 0 10px 10px;background:linear-gradient(rgba(232,96,60,.25),rgba(232,96,60,.6));transition:height 1s}
+.s-heater .fl,.s-boiler .fl{left:50%;bottom:9px;width:14px;height:18px;margin-left:-7px;border-radius:50%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#ffd25a,#ff7a2a 60%,#e8452a);transform-origin:50% 100%;animation:sc-flick .9s ease-in-out infinite}
+.s-boiler .box{left:9px;right:9px;top:7px;bottom:7px;border-radius:7px;background:linear-gradient(#fff,#d9dfe4);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.s-boiler .fl{bottom:12px;width:18px;height:22px;margin-left:-9px}
+.card:not(.on) :is(.s-heater,.s-boiler) .fl{background:#b9c1c8}
+.s-ac .unit{left:5px;right:5px;top:12px;height:14px;border-radius:5px;background:linear-gradient(#fff,#dde3e8);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.s-ac .unit::after{content:'';position:absolute;left:6px;right:6px;bottom:2px;height:2px;border-radius:1px;background:#9aa6b0}
+.s-ac .air{width:3px;height:10px;border-radius:2px;top:28px;background:linear-gradient(var(--a),transparent);animation:sc-blow 1.3s ease-in infinite}
+.s-dehumidifier .tank{left:10px;right:10px;bottom:6px;height:13px;border-radius:2px 2px 8px 8px;background:rgba(61,143,230,.35);box-shadow:inset 0 0 0 1.5px rgba(61,143,230,.5)}
+.s-dehumidifier .dr{left:50%;top:10px;width:9px;height:12px;margin-left:-4.5px;border-radius:50%/65% 65% 35% 35%;background:#3d8fe6;animation:sc-drip 1.5s ease-in infinite}
+.s-dehumidifier .dr:nth-child(3){margin-left:-12px;width:6px;height:8px;animation-delay:.5s}
+.s-printer .bar{left:6px;right:6px;top:12px;height:3px;background:#8b959e}
+.s-printer .noz{left:50%;top:9px;width:10px;height:10px;margin-left:-5px;border-radius:2px 2px 4px 4px;background:#3d4851;animation:sc-slide 1.6s ease-in-out infinite}
+.s-printer .noz::after{content:'';position:absolute;left:3px;bottom:-4px;border:2px solid transparent;border-top:4px solid #ff7a3d}
+.s-printer .obj{left:50%;bottom:8px;width:24px;height:var(--lvl,40%);max-height:24px;margin-left:-12px;border-radius:3px 3px 1px 1px;background:repeating-linear-gradient(0deg,#ff8a4d 0 2px,#f26a2a 2px 4px);transition:height 1s}
+.s-printer .bed{left:6px;right:6px;bottom:5px;height:3px;border-radius:1px;background:#8b959e}
+`;
 /* ── Συσκευή (template 1×1): εικονίδιο, ⏻, όνομα, τιμή, γραμμή, −/+ ή πρόοδος ── */
 const TILE_KINDS = {
   climate: { icon: 'heat', color: '#e0702a', anim: 'wave' },
@@ -3302,52 +3372,36 @@ function appliancePopup(card) {
 }
 
 class WallTileCard extends Wall2Card {
-  static css2 = PIC_CSS + `
+  static css2 = SCENE_CSS + `
 :host{container-type:size}
-.card.v2{padding:7cqmin 7cqmin 6cqmin;cursor:pointer;--a:#7a858f}
-.ico{font-size:clamp(22px,19cqmin,30px)!important}
-.nm{font-size:clamp(11px,8.6cqmin,13px)!important}
-.v{font-size:clamp(17px,16cqmin,25px)!important}
-.v small,.s{font-size:clamp(10px,7.8cqmin,12px)!important}
-.pw{width:clamp(32px,27cqmin,42px)!important;height:clamp(32px,27cqmin,42px)!important;font-size:clamp(18px,15cqmin,23px)!important}
-.ft .btn{height:clamp(24px,21cqmin,32px)!important;font-size:clamp(16px,13cqmin,20px)!important}
-.ft:not([hidden])~.s,.ft:not([hidden])+.s{display:none}
-.vac{position:absolute;right:7cqh;bottom:7cqh;display:flex;gap:6px}.vac .btn{width:clamp(30px,26cqh,40px);height:clamp(30px,26cqh,40px);font-size:clamp(17px,15cqh,21px)}
+.card.v2{padding:13px 12px 12px 14px;cursor:pointer;--a:#7a858f;--track:rgba(0,0,0,.08);--well:#f2f4f6}
+.dark .card.v2,.card.v2.dark{--track:rgba(255,255,255,.1);--well:#262d33}
+.nm{font:700 12px var(--w-font);line-height:1.15;padding-right:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.sb{font:600 10.5px var(--w-font);color:var(--mut);margin-top:2px;padding-right:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:12px}
+.pw{position:absolute;right:9px;top:9px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:22px!important;background:var(--box);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background .3s,color .3s}
+.pw:active{transform:scale(.94)}
+.bt{margin-top:auto;display:flex;align-items:center;gap:9px;min-width:0}
+.rg{position:relative;width:56px;height:56px;flex:none;border-radius:50%;background:conic-gradient(var(--a) 0 var(--p,0%),var(--track) var(--p,0%) 100%);transition:--p 1s}
+.art{position:absolute;inset:5px;border-radius:50%;background:var(--well);overflow:hidden}
+.ico{position:absolute;inset:0;display:grid!important;place-items:center;font-size:24px!important;color:var(--faint);transition:color .4s}
+.vw{min-width:0;flex:1}
+.v{font:500 26px var(--w-font);letter-spacing:-1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v small{font:600 13px var(--w-font);color:var(--mut);letter-spacing:0}
+.v small:not(:empty){display:block;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v.txt{font:600 16px var(--w-font);letter-spacing:-.3px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.s{font:600 10.5px var(--w-font);color:var(--mut);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft{display:flex;gap:7px;margin-top:6px}.ft .btn{flex:1;height:32px;border-radius:16px;border:0;background:var(--box);box-shadow:0 1px 4px rgba(0,0,0,.1);font:500 20px var(--w-font)}
+.pg{display:none!important}
+.vac{display:flex;gap:6px;margin-left:auto}.vac .btn{width:36px;height:36px;border-radius:50%;border:0;background:var(--box);box-shadow:0 1px 4px rgba(0,0,0,.1);font-size:20px}
 @container (max-aspect-ratio:3/2){.vac{display:none!important}}
-.ico{font-size:24px!important;color:var(--faint);transition:color .4s;align-self:flex-start}
-.pw{position:absolute;right:5px;top:5px;width:42px;height:42px;display:grid;place-items:center;font-size:23px!important;color:var(--faint);border-radius:12px}
-.nm{margin-top:4px;font:700 11px var(--w-font);letter-spacing:.2px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v{margin-top:auto;font:800 25px var(--w-font);letter-spacing:-.8px;line-height:1.08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.v small{font:700 12px var(--w-font);color:var(--mut);letter-spacing:0}
-.s{font:600 12px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ft{display:flex;gap:6px;margin-top:6px}.ft .btn{flex:1;font:500 20px var(--w-font);height:32px}
-.pg{height:4px;border-radius:2px;background:var(--line);margin-top:5px;overflow:hidden}.pg i{display:block;height:100%;width:0;background:var(--a);border-radius:3px;transition:width 1s}
-.card.v2:not(.on):not(.att){background:color-mix(in srgb,var(--box) 55%,var(--bg));box-shadow:inset 0 0 0 1px var(--line)}
-.card.v2:not(.on):not(.att) :is(.v,.nm){color:var(--mut)}
-.card.v2:not(.on):not(.att) .ico{color:var(--faint);opacity:.7}
-.on .ico,.on .pw{color:var(--a)}
-.card.v2.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,var(--box)) 20%,color-mix(in srgb,var(--a) 30%,var(--box)));box-shadow:inset 0 0 0 2px var(--a),var(--sh)}
-.dark .card.v2.on,.card.v2.dark.on{background:linear-gradient(160deg,color-mix(in srgb,var(--a) 22%,var(--box)) 20%,color-mix(in srgb,var(--a) 42%,var(--box)))}
-
-.on .ft .btn{border-color:color-mix(in srgb,var(--a) 55%,transparent)}
-.styleB.on{background:var(--a)!important;color:#fff}
-.styleB.on :is(.ico,.pw,.nm,.s,.v small){color:rgba(255,255,255,.92)}
-.styleB.on .ft .btn{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.55);color:#fff}
-.styleB.on .pg{background:rgba(255,255,255,.3)}.styleB.on .pg i{background:#fff}
-.card.v2.att{--a:#3fb87a;background:linear-gradient(160deg,color-mix(in srgb,var(--a) 10%,var(--box)) 20%,color-mix(in srgb,var(--a) 26%,var(--box)));box-shadow:inset 0 0 0 2px var(--a),var(--sh);animation:attn 1.2s ease-out 1}
-.att .ico{color:var(--a)!important}.att .v{color:var(--ink)}
-.styleB.att{box-shadow:0 0 0 3px var(--box),0 0 0 6px var(--a)}
+.card.v2:not(.on):not(.att){background:var(--box);box-shadow:var(--sh)}
+.card.v2.on{background:linear-gradient(170deg,color-mix(in srgb,var(--a) 6%,var(--box)),color-mix(in srgb,var(--a) 18%,var(--box)));box-shadow:var(--sh)}
+.dark .card.v2.on,.card.v2.dark.on{background:linear-gradient(170deg,color-mix(in srgb,var(--a) 10%,var(--box)),color-mix(in srgb,var(--a) 26%,var(--box)))}
+.on .pw,.att .pw{background:var(--a);color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--a) 40%,transparent)}
+.on .ico{color:var(--a)}
+.card.v2.att{--a:#3fb87a;background:linear-gradient(170deg,color-mix(in srgb,var(--a) 6%,var(--box)),color-mix(in srgb,var(--a) 22%,var(--box)));animation:attn 1.2s ease-out 1}
 @keyframes attn{30%{transform:scale(1.04)}}
 .card.v2.unavail{opacity:.5}
-.on.a-flame .ico{animation:flick 1.6s ease-in-out infinite;transform-origin:50% 90%}
-@keyframes flick{25%{transform:scale(1.06,.95)}50%{transform:scale(.96,1.05)}}
-.on.a-spin .ico{animation:spin 2.6s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-.on.a-wob .ico{animation:wob .5s ease-in-out infinite}@keyframes wob{25%{transform:translate(-1px,1px)}75%{transform:translate(1px,-1px)}}
-.on.a-drop .ico{animation:drop 1.8s ease-in infinite}@keyframes drop{0%{transform:translateY(-4px);opacity:.3}40%{opacity:1}100%{transform:translateY(4px);opacity:.3}}
-.on.a-wave .ico{animation:wave 2.2s ease-in-out infinite}@keyframes wave{50%{transform:translateY(-3px)}}
-.on.a-roam .ico{animation:roam 4s ease-in-out infinite}@keyframes roam{25%{transform:translateX(-3px) rotate(-8deg)}75%{transform:translateX(3px) rotate(8deg)}}
-.on.a-pulse .ico{animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.5}}
-.on.a-glow .ico{animation:glw 2.4s ease-in-out infinite}@keyframes glw{50%{filter:drop-shadow(0 0 6px var(--a))}}
 `;
   static getConfigForm() {
     return form([
@@ -3385,10 +3439,10 @@ class WallTileCard extends Wall2Card {
       c.finish_entity, c.duration_entity, c.humidity_entity, c.attention_entity];
   }
   template() {
-    return `<div class="card"><span class="ms fill ico"></span><button class="ms pw" aria-label="On/Off">power_settings_new</button>
-  <div class="nm"></div><div class="v"></div><div class="s" hidden></div>
-  <div class="ft" hidden><button class="btn dn">−</button><button class="btn up">+</button></div><div class="pg" hidden><i></i></div>
-  <div class="vac" hidden><button class="btn ms" data-v="start">play_arrow</button><button class="btn ms" data-v="pause">pause</button><button class="btn ms" data-v="return_to_base">home</button></div></div>`;
+    return `<div class="card"><div class="nm"></div><div class="sb"></div><button class="ms fill pw" aria-label="On/Off">power_settings_new</button>
+  <div class="bt"><div class="rg"><div class="art"><span class="ms fill ico"></span></div></div><div class="vw"><div class="v"></div><div class="s" hidden></div></div>
+  <div class="vac" hidden><button class="btn ms" data-v="stop">stop</button><button class="btn ms" data-v="return_to_base">home</button><button class="btn ms" data-v="locate">location_searching</button></div></div>
+  <div class="ft" hidden><button class="btn dn">−</button><button class="btn up">+</button></div><div class="pg" hidden><i></i></div></div>`;
   }
   domain() { return (this._config.entity || '').split('.')[0]; }
   kind() { return TILE_KINDS[this.domain()] || TILE_KINDS.sensor; }
@@ -3506,17 +3560,19 @@ class WallTileCard extends Wall2Card {
     card.classList.toggle('unavail', !ok);
     const icon = c.icon || (d === 'climate' && ['cool', 'dry'].includes(st) ? 'ac_unit' : k.icon);
     /* εικονογραφημένα μόνο αν ζητηθούν (pic: auto ή όνομα)· προεπιλογή: απλό εικονίδιο και όνομα */
-    const pic = !c.pic || c.pic === 'none' ? null : PICS[c.pic] ? c.pic : c.pic === 'auto' ? PIC_BY_ICON[icon] || (d === 'vacuum' ? 'vacuum' : null) : null;
-    if (pic !== this._pic) {
-      this._pic = pic; this.$('.pic')?.remove();
-      if (pic) this.$('.ico').insertAdjacentHTML('afterend', `<svg class="pic" viewBox="0 0 48 48">${PIC_DEFS}${PICS[pic]}</svg>`);
-      this.$('.ico').style.display = pic ? 'none' : '';
+    const scene = c.scene === 'none' ? null : SCENES[c.scene] ? c.scene : SCENE_BY_ICON[icon] || (d === 'vacuum' ? 'vacuum' : d === 'humidifier' ? 'dehumidifier' : null);
+    const art = this.$('.art');
+    if (scene !== this._scene) {
+      this._scene = scene; art.querySelectorAll(':scope>i').forEach((x) => x.remove());
+      art.className = 'art' + (scene ? ' s-' + scene : '');
+      if (scene) art.insertAdjacentHTML('beforeend', SCENES[scene]);
     }
-    card.classList.toggle('haspic', !!pic); card.classList.toggle('shownm', !!c.show_name);
-    this.$('.ico').textContent = att ? 'check_circle' : icon;
+    this.$('.ico').style.display = scene && !att ? 'none' : '';
+    this.$('.ico').textContent = att ? 'check' : icon;
     this.$('.nm').textContent = c.name || a.friendly_name || id;
     const pwMode = c.power_button || (['climate', 'humidifier', 'fan', 'vacuum', 'switch', 'light', 'input_boolean'].includes(d) ? 'show' : 'hide');
-    this.$('.pw').hidden = pwMode === 'hide';
+    this.$('.pw').hidden = pwMode === 'hide' && !att;
+    this.$('.pw').textContent = att ? 'check' : d === 'vacuum' ? (st === 'cleaning' ? 'pause' : 'play_arrow') : 'power_settings_new';
 
     const held = this._hold && Date.now() < this._hold.until;
     if (!held) this._hold = null;
@@ -3540,7 +3596,7 @@ class WallTileCard extends Wall2Card {
       const cur = this.num(c.humidity_entity);
       const now = isNaN(cur) ? a.current_humidity : cur;
       const t = held ? this._hold.v : a.humidity;
-      v = `${now != null ? Math.round(now) + '%' : '—'}<small> → ${t ?? '—'}</small>`;
+      v = `${now != null ? Math.round(now) + '%' : '—'}<small>στόχος ${t ?? '—'}%</small>`;
       sub = on ? '' : st === 'on' ? 'σε αναμονή' : '';
       steps = t != null;
     } else if (d === 'vacuum') {
@@ -3571,12 +3627,23 @@ class WallTileCard extends Wall2Card {
       const total = c.total_entity ? toMinutes(this.st(c.total_entity)) : c.duration_entity ? this.num(c.duration_entity) : null;
       if (total) prog = clamp(100 - (left / total) * 100, 0, 100);
     }
+    /* λέξεις όπως «απομένουν» πάνε στη μικρή γραμμή, για να χωράει η τιμή δίπλα στο δαχτυλίδι */
+    const word = /<small> (απομένουν|διάρκεια)<\/small>/.exec(v);
+    if (word) { v = v.replace(word[0], ''); if (!sub) sub = word[1]; }
     this.$('.v').innerHTML = v;
+    this.$('.v').classList.toggle('txt', !/^[\d—–-]/.test(v.replace(/<[^>]+>/g, '').trim()));
+    /* υπότιτλος: πρόγραμμα ή κατάσταση */
+    const HV = { heat: 'Θέρμανση', cool: 'Ψύξη', dry: 'Αφύγρανση', fan_only: 'Ανεμιστήρας', heat_cool: 'Αυτόματο', auto: 'Αυτόματο', off: 'Σβηστό' };
+    this.$('.sb').textContent = !ok ? '' : att ? 'Έτοιμο · πάτα για OK' : ap ? (ap.run ? ap.program || 'Σε λειτουργία' : ap.paused ? 'Σε παύση' : 'Σβηστό')
+      : d === 'climate' ? [HV[st] || grState(st), on && a.current_temperature != null ? `χώρος ${fmt(a.current_temperature, 1)}°` : ''].filter(Boolean).join(' · ')
+      : d === 'vacuum' ? '' : on ? (grState(st) || 'Αναμμένο') : 'Σβηστό';
+    if (this.$('.sb').textContent === sub) sub = '';
     this.$('.vac').hidden = d !== 'vacuum' || !ok;
     this.$('.ft').hidden = !steps || (prog != null && !this.timer());
     this.$('.s').textContent = sub; this.$('.s').hidden = !sub || !this.$('.ft').hidden || (d === 'vacuum' && ok);
-    const pg = this.$('.pg'); pg.hidden = prog == null || isNaN(prog) || att;
-    if (!pg.hidden) pg.firstElementChild.style.width = `${prog}%`;
+    const pct = att ? 100 : prog != null && !isNaN(prog) ? clamp(prog, 0, 100) : 0;
+    this.$('.rg').style.setProperty('--p', `${pct}%`);
+    art.style.setProperty('--lvl', scene === 'washer' ? (on ? '40%' : '85%') : `${Math.max(8, pct)}%`);
     this.tick((left != null && on) || !!ap);
   }
 }
