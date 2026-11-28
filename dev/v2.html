@@ -28,7 +28,7 @@ const states = {
   'sensor.salon_t': S(21.6), 'sensor.salon_h': S(48), 'sensor.kitchen_t': S(20.8), 'sensor.bed_t': S(19.2), 'sensor.bed_h': S(66), 'sensor.kid_t': S(20.1),
   'lock.door': S('locked', { friendly_name: 'Πόρτα' }), 'lock.opener': S('locked', { friendly_name: 'Είσοδος' }),
   'sensor.power': S(1.2, { unit_of_measurement: 'kW', device_class: 'power' }), 'sensor.water': S(126, { unit_of_measurement: 'L', device_class: 'water' }), 'sensor.gas': S(1.8, { unit_of_measurement: 'm³', device_class: 'gas' }),
-  'climate.ac': S('heat', { friendly_name: 'Κλιματιστικό', temperature: 22, current_temperature: 21.1, target_temp_step: 0.5, min_temp: 16, max_temp: 30, hvac_modes: ['off', 'heat', 'cool'] }),
+  'climate.ac': S('heat', { friendly_name: 'Κλιματιστικό', temperature: 22, current_temperature: 21.1, target_temp_step: 0.5, min_temp: 16, max_temp: 30, fan_modes: ['Auto', 'Silence', '1', '2', '3', '4', '5'], fan_mode: 'Silence', swing_modes: ['Off', 'Vertical', 'Horizontal', '3D'], swing_mode: 'Horizontal', preset_modes: ['none', 'away', 'eco', 'boost'], preset_mode: 'none', hvac_modes: ['off', 'heat', 'cool', 'dry', 'fan_only', 'heat_cool'] }),
   'climate.boiler': S('off', { friendly_name: 'Λέβητας', temperature: 21, target_temp_step: 0.5, hvac_modes: ['off', 'heat'] }),
   'humidifier.dehum': S('on', { friendly_name: 'Αφυγραντήρας', humidity: 55, current_humidity: 66, min_humidity: 30, max_humidity: 80 }), 'sensor.dehum_w': S(305),
   'fan.purifier': S('off', { friendly_name: 'Καθαριστής' }), 'sensor.pm25': S(8, { unit_of_measurement: 'µg/m³' }),

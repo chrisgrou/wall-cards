@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.18.0';
+const VERSION = '0.19.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -279,6 +279,7 @@ const POPUP_CSS = `
 .pn{font:700 20px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ps{font:500 15px var(--w-font);color:var(--w-muted);min-height:20px}
 .px{flex:none;width:48px;height:48px;border-radius:50%;font-size:26px;color:var(--w-muted);transition:transform .15s,background .2s}
+.phx{flex:none;display:flex;gap:3px;padding:3px;border-radius:15px;background:var(--w-track)}.phx button{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;color:var(--w-muted);transition:background .2s,color .2s}.phx button.sel{background:var(--acc,var(--w-blue));color:#fff}
 .px:active{transform:scale(.92);background:rgba(0,0,0,.06)}
 .tabs{flex:none;display:flex;gap:6px;margin:0 20px 14px;padding:4px;border-radius:18px;background:var(--w-track)}
 .tabs button{flex:1;height:44px;border-radius:14px;font:600 15px var(--w-font);color:var(--w-muted);
@@ -290,7 +291,9 @@ const POPUP_CSS = `
 .sw{display:flex;flex-wrap:wrap;gap:12px}
 .sw button{width:60px;height:60px;border-radius:50%;background:var(--c);box-shadow:0 3px 6px rgba(0,0,0,.2),inset 0 0 0 4px #fff;transition:transform .15s}
 .sw button:active{transform:scale(.92)}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;scrollbar-width:none}.chips button{flex:1 1 0;min-width:0;justify-content:center;white-space:nowrap;padding:0 8px!important;gap:5px!important}.chips button span:last-child{overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;gap:3px;padding:4px;border-radius:18px;background:var(--w-track)}.seg button{flex:1 1 0;min-width:0;height:46px;border-radius:14px;font:700 14px var(--w-font);color:var(--w-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .2s,color .2s}.seg button.sel{background:var(--acc,var(--w-blue));color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.chips.stack button{flex-direction:column;height:62px;gap:3px!important;font-size:12.5px;padding:0 4px!important}.chips.stack .ms{font-size:22px}
 .chips button{min-height:48px;padding:0 16px;border-radius:16px;background:#fff;font:600 15px var(--w-font);
   display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);transition:background .2s,color .2s,transform .15s}
 .chips button:active{transform:scale(.96)}
@@ -333,7 +336,7 @@ function openPopup(card, spec) {
 <div class="veil"><div class="sheet s-${spec.size || 'sm'}" role="dialog" aria-modal="true">
   <header class="ph">
     <span class="pi ms fill"></span><div class="pt"><span class="pn"></span><span class="ps"></span></div>
-    <button class="px ms" aria-label="Κλείσιμο">close</button>
+    <div class="phx" hidden></div><button class="px ms" aria-label="Κλείσιμο">close</button>
   </header>
   <nav class="tabs" hidden></nav>
   <div class="pb"></div>
@@ -373,6 +376,9 @@ function openPopup(card, spec) {
       $('.ps').textContent = spec.status?.() || '';
       if (spec.accent) sheet.style.setProperty('--acc', spec.accent());
       sheet.classList.toggle('dk', !!card.shadowRoot?.querySelector('.card.dark'));
+      const hx = spec.head?.() || [], phx = $('.phx');
+      phx.hidden = !hx.length;
+      phx.replaceChildren(...hx.map(({ icon, label, sel, tap }) => { const b = el('button', 'ms fill' + (sel ? ' sel' : ''), icon); b.setAttribute('aria-label', label || icon); b.addEventListener('click', tap); return b; }));
       const acts = spec.actions?.() || [], foot = $('.pf');
       foot.hidden = !acts.length;
       foot.replaceChildren(...acts.filter(Boolean).map(({ label, icon, pri, tap }) => {
@@ -436,7 +442,8 @@ function popSection(p, title) {
 
 /* Κουμπιά-επιλογές: [{ label, icon, sel, tap }] */
 function popChips(parent, items) {
-  const g = el('div', 'chips');
+  /* 4+ επιλογές με εικονίδια: εικονίδιο πάνω, κείμενο κάτω, για να χωράνε σε μία γραμμή */
+  const g = el('div', items.length >= 4 && items.every((i) => i.icon) ? 'chips stack' : 'chips');
   items.forEach(({ label, icon, sel, tap }) => {
     const b = el('button');
     if (icon) b.appendChild(el('span', 'ms', icon));
@@ -445,6 +452,13 @@ function popChips(parent, items) {
     b.addEventListener('click', tap);
     g.appendChild(b);
   });
+  parent.appendChild(g);
+}
+
+/* Ενωμένα κουμπιά (multi button): [{ label, sel, tap }] */
+function popSegment(parent, items) {
+  const g = el('div', 'seg');
+  items.forEach(({ label, sel, tap }) => { const b = el('button', sel ? 'sel' : '', label); b.addEventListener('click', tap); g.appendChild(b); });
   parent.appendChild(g);
 }
 
@@ -566,6 +580,7 @@ const HVAC = {
 
 /* Ελληνικά για τις συνηθισμένες τιμές ανεμιστήρα/περσίδων· ό,τι λείπει εμφανίζεται όπως το δίνει το HA */
 const MODE_GR = {
+  silence: 'Αθόρυβη', '3d': '3D', none: 'Κανονική', eco: 'Eco', boost: 'Boost', away: 'Απουσία',
   auto: 'Αυτόματο', low: 'Χαμηλή', medium: 'Μεσαία', middle: 'Μεσαία', high: 'Υψηλή', quiet: 'Αθόρυβη', turbo: 'Turbo', diffuse: 'Διάχυτη',
   off: 'Σταθερές', on: 'Κίνηση', vertical: 'Κάθετη', horizontal: 'Οριζόντια', both: 'Και οι δύο',
 };
@@ -583,6 +598,16 @@ function climatePopup(card) {
       const cur = s?.attributes?.current_temperature;
       return [HVAC[s?.state]?.[0] || s?.state, cur != null && `χώρος ${fmt(cur, 1)}°`].filter(Boolean).join(' · ');
     },
+    /* άναμμα / κλείσιμο στη μπάρα κάτω, όχι ανάμεσα στις λειτουργίες */
+    actions: () => {
+      const off = card.val(id) === 'off';
+      return [{ label: off ? 'Άναμμα' : 'Κλείσιμο', icon: 'power_settings_new', pri: !off, tap: () => set(off ? 'turn_on' : 'turn_off', {}) }];
+    },
+    /* θέρμανση / ψύξη: αλλάζει σπάνια, οπότε μικρά εικονίδια δίπλα στο ✕ */
+    head: () => {
+      const s = card.st(id), modes = (card._config.hvac_modes || ['heat', 'cool']).filter((m) => (s?.attributes?.hvac_modes || []).includes(m));
+      return modes.map((m) => ({ icon: HVAC[m]?.[1] || 'tune', label: HVAC[m]?.[0] || m, sel: s?.state === m, tap: () => set('set_hvac_mode', { hvac_mode: m }) }));
+    },
     render: (p) => {
       const s = card.st(id);
       const a = s?.attributes || {};
@@ -596,9 +621,14 @@ function climatePopup(card) {
           sel: cur === m, tap: () => set(service, { [key]: m }),
         })));
       };
-      chips('Λειτουργία', a.hvac_modes, s?.state, 'set_hvac_mode', 'hvac_mode');
-      chips('Ανεμιστήρας', a.fan_modes, a.fan_mode, 'set_fan_mode', 'fan_mode');
-      chips('Περσίδες', a.swing_modes, a.swing_mode, 'set_swing_mode', 'swing_mode');
+      const seg = (title, list, cur, service, key) => { if (!list?.length) return;
+        popSegment(popSection(p, title), list.map((m) => ({ label: MODE_GR[String(m).toLowerCase()] || m, sel: cur === m, tap: () => set(service, { [key]: m }) }))); };
+      /* ταχύτητα: σύντομα ονόματα για να χωράνε όλες σε μία γραμμή */
+      const FS = { auto: 'Auto', silence: 'Σιγή', quiet: 'Σιγή', low: 'Χαμ.', medium: 'Μεσ.', middle: 'Μεσ.', high: 'Υψ.', turbo: 'Turbo' };
+      if (a.fan_modes?.length) popSegment(popSection(p, 'Ταχύτητα'), a.fan_modes.map((m) => ({ label: FS[String(m).toLowerCase()] || m, sel: a.fan_mode === m, tap: () => set('set_fan_mode', { fan_mode: m }) })));
+      seg('Περσίδες', a.swing_modes, a.swing_mode, 'set_swing_mode', 'swing_mode');
+      seg('Λειτουργία', (a.preset_modes || []).filter((m) => m !== 'away'), a.preset_mode, 'set_preset_mode', 'preset_mode');
+      if (a.swing_horizontal_modes?.length) seg('Οριζόντιες περσίδες', a.swing_horizontal_modes, a.swing_horizontal_mode, 'set_swing_horizontal_mode', 'swing_horizontal_mode');
     },
   });
 }
@@ -3357,7 +3387,10 @@ function vacuumPopup(card) {
         popSection(pp, 'Ώρες που απομένουν').append(box);
         return;
       }
-      const img = card.st(`image.${P}_home`)?.attributes?.entity_picture;
+      /* χάρτης: πρώτα από το Roborock Custom Map (image.*_custom), αλλιώς ο χάρτης του Roborock */
+      const maps = Object.keys(card._hass.states).filter((e) => e.startsWith(`image.${P}_`));
+      const mapId = c.map_entity || maps.find((e) => e.endsWith('_custom')) || maps[0];
+      const img = card.st(mapId)?.attributes?.entity_picture;
       if (img) { const m = el('img', 'mapimg'); m.src = img; popSection(pp).append(m); }
       popFacts(popSection(pp), [['Μπαταρία', isNaN(card.num(s('battery'))) ? null : `${card.num(s('battery'))}%`, 'battery_full'],
         ['Καθαρίστηκαν', isNaN(card.num(s('cleaning_area'))) ? null : `${fmt(card.num(s('cleaning_area')), 1)} m²`, 'square_foot'],
