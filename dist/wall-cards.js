@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.21.0';
+const VERSION = '0.22.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -3196,6 +3196,7 @@ const SCENE_CSS = `
 @keyframes sc-slide{0%,100%{transform:translateX(-9px)}50%{transform:translateX(9px)}}
 @keyframes sc-blow{0%{transform:translateY(-2px);opacity:0}30%{opacity:.8}100%{transform:translateY(16px);opacity:0}}
 .card:not(.on) .art *{animation-play-state:paused!important}
+.art .ico[hidden]{display:none!important}.art.hidescene>i{display:none}
 .card:not(.on) .art .bb,.card:not(.on) .art .ht,.card:not(.on) .art .dp,.card:not(.on) .art .air,.card:not(.on) .art .dr,.card:not(.on) .art .glow,.card:not(.on) .art .steam{opacity:0!important}
 .s-washer .water{width:110px;height:110px;left:50%;top:var(--lvl,60%);border-radius:42%;background:rgba(61,143,230,.45);animation:sc-wave 3s linear infinite;transition:top .8s}
 .s-washer .drum{inset:6px;border-radius:50%;border:2px dashed rgba(40,80,130,.35);animation:sc-spin 1.8s linear infinite}
@@ -3222,12 +3223,16 @@ const SCENE_CSS = `
 .on .s-vacuum .dock{opacity:.35}
 .s-purifier .fan{inset:6px;animation:sc-spin 1.3s linear infinite}
 .s-purifier .fan i{left:50%;top:1px;width:9px;height:17px;margin-left:-4.5px;border-radius:50% 50% 40% 40%;background:color-mix(in srgb,var(--a) 60%,transparent);transform-origin:4.5px 17px}
-.s-heater .tank{left:13px;right:13px;top:6px;bottom:6px;border-radius:10px;background:linear-gradient(#fff,#d9dfe4);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
-.s-heater .hot{left:13px;right:13px;bottom:6px;height:var(--lvl,30%);border-radius:0 0 10px 10px;background:linear-gradient(rgba(232,96,60,.25),rgba(232,96,60,.6));transition:height 1s}
-.s-heater .fl,.s-boiler .fl{left:50%;bottom:9px;width:14px;height:18px;margin-left:-7px;border-radius:50%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#ffd25a,#ff7a2a 60%,#e8452a);transform-origin:50% 100%;animation:sc-flick .9s ease-in-out infinite}
+.s-heater .tank{left:16px;right:16px;top:4px;bottom:9px;border-radius:9px/6px;background:linear-gradient(90deg,#c9d1d8,#fff 40%,#d5dce2);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.s-heater .tank::before{content:'';position:absolute;left:50%;top:7px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#3d4851;box-shadow:0 0 0 1.5px #9aa6b0}
+.s-heater .tank::after{content:'';position:absolute;left:5px;right:5px;bottom:-5px;height:5px;background:linear-gradient(90deg,#3d8fe6 0 30%,transparent 30% 70%,#e8603c 70%)}
+.s-heater .hot{left:16px;right:16px;bottom:9px;height:calc(var(--lvl,30%) * .7);border-radius:0 0 9px 9px/0 0 6px 6px;background:linear-gradient(rgba(232,96,60,.25),rgba(232,96,60,.6));transition:height 1s}
+.s-boiler .fl{left:50%;bottom:9px;width:14px;height:18px;margin-left:-7px;border-radius:50%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#ffd25a,#ff7a2a 60%,#e8452a);transform-origin:50% 100%;animation:sc-flick .9s ease-in-out infinite}
+.s-heater .fl{left:50%;bottom:11px;width:8px;height:11px;margin-left:-4px;border-radius:50%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 70%,#ffd25a,#ff7a2a 60%,#e8452a);transform-origin:50% 100%;animation:sc-flick .9s ease-in-out infinite}
+.card:not(.on) .s-heater .fl{opacity:0}
 .s-boiler .box{left:9px;right:9px;top:7px;bottom:7px;border-radius:7px;background:linear-gradient(#fff,#d9dfe4);box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 .s-boiler .fl{bottom:12px;width:18px;height:22px;margin-left:-9px}
-.card:not(.on) :is(.s-heater,.s-boiler) .fl{background:#b9c1c8}
+.card:not(.on) .s-boiler .fl{background:#b9c1c8}
 .s-ac .unit{left:5px;right:5px;top:12px;height:14px;border-radius:5px;background:linear-gradient(#fff,#dde3e8);box-shadow:0 1px 2px rgba(0,0,0,.15)}
 .s-ac .unit::after{content:'';position:absolute;left:6px;right:6px;bottom:2px;height:2px;border-radius:1px;background:#9aa6b0}
 .s-ac .air{width:3px;height:10px;border-radius:2px;top:28px;background:linear-gradient(var(--a),transparent);animation:sc-blow 1.3s ease-in infinite}
@@ -3353,6 +3358,8 @@ function popFacts(parent, rows) {
   });
   parent.append(g);
 }
+const goPage = (path) => { activePopup?.close(); history.pushState(null, '', path); window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } })); };
+
 /* ── Popups συσκευών με δικά τους entities (με βάση το πρόθεμα του κύριου entity) ── */
 const pfx = (id, strip) => (id || '').split('.')[1]?.replace(strip || /$^/, '') || '';
 const hoursLeft = (v) => (isNaN(v) ? '—' : v <= 0 ? 'αλλαγή!' : v >= 48 ? `${Math.round(v / 24)} ημ.` : `${Math.round(v)} ώρες`);
@@ -3415,7 +3422,7 @@ function printerPopup(card) {
     actions: () => {
       const st = card.val(s('print_status')), paused = /pause/.test(st), run = /running|printing|prepare/.test(st);
       return [run || paused ? { label: paused ? 'Συνέχεια' : 'Παύση', icon: paused ? 'play_arrow' : 'pause', pri: true, tap: () => card.call('button', 'press', { entity_id: `button.${P}_${paused ? 'resume' : 'pause'}` }) } : null,
-        card.st(light) ? { label: 'Φως', icon: card.val(light) === 'on' ? 'light' : 'light_off', pri: !run && !paused && card.val(light) === 'on', tap: () => card.call('light', 'toggle', { entity_id: light }) } : null,
+        { label: 'Homelab', icon: 'dns', tap: () => goPage(c.homelab_path || '/wall-v2/homelab') },
         run || paused ? { label: 'Διακοπή', icon: 'stop', tap: () => { if (confirm('Διακοπή εκτύπωσης;')) card.call('button', 'press', { entity_id: `button.${P}_stop` }); } } : null].filter(Boolean);
     },
     render: (pp, tab) => {
@@ -3427,11 +3434,18 @@ function printerPopup(card) {
         popFacts(popSection(pp, 'Εργασία'), [['Βάρος', card.st(s('print_weight')) ? `${fmt(card.num(s('print_weight')), 0)} g` : null, 'scale'],
           ['Μήκος νήματος', card.st(s('print_length')) ? `${fmt(card.num(s('print_length')), 1)} m` : null, 'straighten'],
           ['Ξεκίνησε', card.st(s('start_time')) ? hhmm(new Date(card.val(s('start_time')))) : null, 'schedule'], ['Πλάκα', card.val(s('print_bed_type'))?.replace(/_/g, ' ') || null, 'grid_on']]);
+        if (card.st(light)) popChips(popSection(pp), [{ label: 'Φως θαλάμου', icon: card.val(light) === 'on' ? 'light' : 'light_off', sel: card.val(light) === 'on', tap: () => card.call('light', 'toggle', { entity_id: light }) }]);
         return;
       }
       const tok = card.st(cam)?.attributes?.access_token;
       if (tok) {
-        if (!pp._cam) { pp._cam = el('div', 'cam'); const im = el('img'); im.src = `/api/camera_proxy_stream/${cam}?token=${tok}`; pp._cam.append(im, el('span', 'live', 'LIVE'), el('div', 'ovl')); }
+        if (!pp._cam) {
+          pp._cam = el('div', 'cam'); const im = el('img');
+          /* στιγμιότυπα κάθε 2″: δουλεύουν παντού, σε αντίθεση με το stream */
+          const snap = () => { const tk = card.st(cam)?.attributes?.access_token; if (tk) im.src = `/api/camera_proxy/${cam}?token=${tk}&t=${Date.now()}`; };
+          snap(); const iv = setInterval(() => { if (!im.isConnected && pp._camGone) return clearInterval(iv); pp._camGone = !im.isConnected; snap(); }, 2000);
+          pp._cam.append(im, el('span', 'live', 'LIVE'), el('div', 'ovl'));
+        }
         pp._cam.querySelector('.ovl').innerHTML = `<span>${isNaN(prog) ? '' : Math.round(prog) + '%'}</span><span>${end && !isNaN(new Date(end)) ? 'τέλος ' + hhmm(new Date(end)) : ''}</span>`;
         popSection(pp).append(pp._cam);
       }
@@ -3447,30 +3461,33 @@ function teslaPopup(card) {
   const lock = `lock.${P}_lock`, clim = c.climate_entity || `climate.${P}_climate`;
   openPopup(card, {
     icon: 'electric_car', size: 'md', accent: () => c.color || '#d63a3a',
-    status: () => [card.val(lock) === 'locked' ? 'Κλειδωμένο' : card.val(lock) === 'unlocked' ? 'Ξεκλείδωτο' : '', card.val(c.charging_entity) === 'on' ? 'Φορτίζει' : ''].filter(Boolean).join(' · '),
+    status: () => { const asleep = !card.available(lock); return asleep ? 'Κοιμάται · πάτα Ξύπνημα για νέα δεδομένα' : [card.val(lock) === 'locked' ? 'Κλειδωμένο' : card.val(lock) === 'unlocked' ? 'Ξεκλείδωτο' : '', card.val(c.charging_entity) === 'on' ? 'Φορτίζει' : ''].filter(Boolean).join(' · '); },
     tabs: [{ id: 'st', label: 'Κατάσταση' }, { id: 'ch', label: 'Φόρτιση' }],
     actions: () => {
-      const locked = card.val(lock) === 'locked', on = card.val(clim) !== 'off';
-      return [card.st(lock) ? { label: locked ? 'Κλειδωμένο' : 'Ξεκλείδωτο', icon: locked ? 'lock' : 'lock_open', pri: locked, tap: () => card.call('lock', locked ? 'unlock' : 'lock', { entity_id: lock }) } : null,
-        card.st(clim) ? { label: 'Κλίμα', icon: 'mode_fan', pri: on, tap: () => card.call('climate', on ? 'turn_off' : 'turn_on', { entity_id: clim }) } : null,
-        card.st(`button.${P}_flash_lights`) ? { label: 'Φώτα', icon: 'flashlight_on', tap: () => card.call('button', 'press', { entity_id: `button.${P}_flash_lights` }) } : null].filter(Boolean);
+      const st = card.val(lock), locked = st === 'locked', known = st === 'locked' || st === 'unlocked';
+      const cs = card.val(clim), on = !!cs && cs !== 'off', wake = `button.${P}_wake`;
+      if (!known && card.st(wake)) return [{ label: 'Ξύπνημα', icon: 'bedtime_off', pri: true, tap: () => card.call('button', 'press', { entity_id: wake }) }];
+      return [known ? { label: locked ? 'Κλειδωμένο' : 'Ξεκλείδωτο', icon: locked ? 'lock' : 'lock_open', pri: !locked, tap: () => { if (locked && !confirm('Ξεκλείδωμα αυτοκινήτου;')) return; card.call('lock', locked ? 'unlock' : 'lock', { entity_id: lock }); } } : null,
+        cs ? { label: on ? 'Κλίμα ενεργό' : 'Κλίμα', icon: 'mode_fan', pri: on, tap: () => card.call('climate', on ? 'turn_off' : 'turn_on', { entity_id: clim }) } : null].filter(Boolean);
     },
     render: (pp, tab) => {
       const pct = card.num(c.entity), rng = card.num(c.range_entity);
       if (tab === 'ch') {
         const lim = `number.${P}_charge_limit`, cur = `number.${P}_charge_current`;
-        if (card.st(lim)) popStepper(popSection(pp, 'Όριο φόρτισης'), { text: `${card.val(lim)}%`, dec: () => card.call('number', 'set_value', { entity_id: lim, value: Math.max(50, +card.val(lim) - 5) }), inc: () => card.call('number', 'set_value', { entity_id: lim, value: Math.min(100, +card.val(lim) + 5) }) });
-        popFacts(popSection(pp), [['Ρεύμα', card.st(cur) ? `${card.val(cur)} A` : null, 'bolt'], ['Καλώδιο', card.st(`binary_sensor.${P}_charge_cable`) ? (card.val(`binary_sensor.${P}_charge_cable`) === 'on' ? 'Συνδεδεμένο' : 'Όχι') : null, 'power'],
+        if (card.available(lim)) popStepper(popSection(pp, 'Όριο φόρτισης'), { text: `${card.val(lim)}%`, dec: () => card.call('number', 'set_value', { entity_id: lim, value: Math.max(50, +card.val(lim) - 5) }), inc: () => card.call('number', 'set_value', { entity_id: lim, value: Math.min(100, +card.val(lim) + 5) }) });
+        popFacts(popSection(pp), [['Ρεύμα', card.available(cur) ? `${card.val(cur)} A` : null, 'bolt'], ['Καλώδιο', card.st(`binary_sensor.${P}_charge_cable`) ? (card.val(`binary_sensor.${P}_charge_cable`) === 'on' ? 'Συνδεδεμένο' : 'Όχι') : null, 'power'],
           ['Θυρίδα', card.st(`cover.${P}_charge_port_door`) ? (card.val(`cover.${P}_charge_port_door`) === 'open' ? 'Ανοιχτή' : 'Κλειστή') : null, 'ev_station']]);
         return;
       }
       const b = el('div', 'pbar'); b.innerHTML = `<i style="width:${isNaN(pct) ? 0 : pct}%;background:#3fb87a"></i>`;
       popFacts(popSection(pp), [['Μπαταρία', isNaN(pct) ? null : `${Math.round(pct)}%`, 'battery_full'], ['Αυτονομία', isNaN(rng) ? null : `${Math.round(rng)} km`, 'route'],
         ['Καμπίνα', card.st(clim)?.attributes?.current_temperature != null ? `${fmt(card.st(clim).attributes.current_temperature, 0)}°` : null, 'thermostat'],
-        ['Παράθυρα', card.st(`cover.${P}_windows`) ? (card.val(`cover.${P}_windows`) === 'closed' ? 'Κλειστά' : 'Ανοιχτά') : null, 'window']]);
+        ['Παράθυρα', { closed: 'Κλειστά', open: 'Ανοιχτά' }[card.val(`cover.${P}_windows`)] || null, 'window']]);
       pp.body.lastElementChild.prepend(b);
-      popChips(popSection(pp, 'Πόρτες'), [[`cover.${P}_frunk`, 'Frunk', 'directions_car'], [`cover.${P}_trunk`, 'Πορτμπαγκάζ', 'luggage']].filter(([e]) => card.st(e)).map(([e, l, ic]) => ({
-        label: `${l} · ${card.val(e) === 'open' ? 'ανοιχτό' : 'κλειστό'}`, icon: ic, sel: card.val(e) === 'open', tap: () => { if (confirm(`${l}: ${card.val(e) === 'open' ? 'κλείσιμο' : 'άνοιγμα'};`)) card.call('cover', card.val(e) === 'open' ? 'close_cover' : 'open_cover', { entity_id: e }); } })));
+      /* frunk / πορτμπαγκάζ: η κατάσταση γράφεται ρητά· πατώντας, ζητά επιβεβαίωση για άνοιγμα ή κλείσιμο */
+      const doors = [[`cover.${P}_frunk`, 'Frunk', 'directions_car'], [`cover.${P}_trunk`, 'Πορτμπαγκάζ', 'luggage']].filter(([e]) => card.available(e));
+      if (doors.length) popChips(popSection(pp, 'Πόρτες'), doors.map(([e, l, ic]) => { const open = card.val(e) === 'open';
+        return { label: `${l}: ${open ? 'ανοιχτό' : 'κλειστό'}`, icon: ic, tap: () => { if (confirm(`${open ? 'Κλείσιμο' : 'Άνοιγμα'} ${l.toLowerCase()};`)) card.call('cover', open ? 'close_cover' : 'open_cover', { entity_id: e }); } }; }));
     },
   });
 }
@@ -3555,14 +3572,15 @@ class WallTileCard extends Wall2Card {
 :host{container-type:size}
 .card.v2{padding:13px 12px 12px 14px;cursor:pointer;--a:#7a858f;--track:rgba(0,0,0,.08);--well:#f2f4f6}
 .dark .card.v2,.card.v2.dark{--track:rgba(255,255,255,.1);--well:#262d33}
-.nm{font:700 12px var(--w-font);line-height:1.15;padding-right:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
-.sb{font:600 10.5px var(--w-font);color:var(--mut);margin-top:2px;padding-right:42px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:12px}
-.pw{position:absolute;right:9px;top:9px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:22px!important;background:var(--box);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background .3s,color .3s}
+.nm{font:700 12px var(--w-font);line-height:1.15;white-space:normal;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:var(--ink)}
+.card:has(.pw:not([hidden])) .nm,.card:has(.pw:not([hidden])) .sb{padding-right:34px}.nm{hyphens:auto;letter-spacing:-.2px}
+.sb{font:600 10.5px var(--w-font);color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sb:empty{display:none}
+.pw{position:absolute;right:8px;top:8px;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:22px!important;background:var(--box);color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.1);transition:background .3s,color .3s}
 .pw:active{transform:scale(.94)}
 .bt{margin-top:auto;display:flex;align-items:center;gap:9px;min-width:0}
 .rg{position:relative;width:56px;height:56px;flex:none;border-radius:50%;background:conic-gradient(var(--a) 0 var(--p,0%),var(--track) var(--p,0%) 100%);transition:--p 1s}
 .art{position:absolute;inset:5px;border-radius:50%;background:var(--well);overflow:hidden}
-.ico{position:absolute;inset:0;display:grid!important;place-items:center;font-size:24px!important;color:var(--faint);transition:color .4s}
+.ico{position:absolute;inset:0;display:grid;place-items:center;font-size:24px!important;color:var(--faint);transition:color .4s}
 .vw{min-width:0;flex:1}
 .v{font:500 26px var(--w-font);letter-spacing:-1px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v small{font:600 13px var(--w-font);color:var(--mut);letter-spacing:0}
@@ -3749,7 +3767,8 @@ class WallTileCard extends Wall2Card {
       art.className = 'art' + (scene ? ' s-' + scene : '');
       if (scene) art.insertAdjacentHTML('beforeend', SCENES[scene]);
     }
-    this.$('.ico').style.display = scene && !att ? 'none' : '';
+    this.$('.ico').hidden = !!scene && !att;
+    art.classList.toggle('hidescene', !!att);
     this.$('.ico').textContent = att ? 'check' : icon;
     this.$('.nm').textContent = c.name || a.friendly_name || id;
     const pwMode = c.power_button || (['climate', 'humidifier', 'fan', 'vacuum', 'switch', 'light', 'input_boolean'].includes(d) ? 'show' : 'hide');
@@ -3778,7 +3797,7 @@ class WallTileCard extends Wall2Card {
       const cur = this.num(c.humidity_entity);
       const now = isNaN(cur) ? a.current_humidity : cur;
       const t = held ? this._hold.v : a.humidity;
-      v = `${now != null ? Math.round(now) + '%' : '—'}<small>στόχος ${t ?? '—'}%</small>`;
+      v = `${now != null ? Math.round(now) + '%' : '—'}${held ? `<small>στόχος ${t ?? '—'}%</small>` : ''}`;
       sub = on ? '' : st === 'on' ? 'σε αναμονή' : '';
       steps = t != null;
     } else if (d === 'vacuum') {
@@ -4885,12 +4904,14 @@ class WallPrinterCard extends Wall2Card {
     /* κάμερα: ζωντανή όταν τυπώνει, αλλιώς η εικόνα της εργασίας */
     const camId = this.first('camera', ['camera']), tok = this.st(camId)?.attributes?.access_token;
     const cover = this.first('image', ['cover_image']), coverUrl = this.st(cover)?.attributes?.entity_picture;
-    const want = (run || paused) && tok ? `/api/camera_proxy_stream/${camId}?token=${tok}` : coverUrl || (tok ? `/api/camera_proxy/${camId}?token=${tok}` : '');
-    if (want !== this._src) {
-      this._src = want; const cam = this.$('.cam'); cam.querySelector('img')?.remove();
-      if (want) { const im = document.createElement('img'); im.src = want; cam.prepend(im); }
-    }
-    this.$('.tt').textContent = (run || paused) && tok ? 'LIVE' : 'ΕΡΓΑΣΙΑ';
+    const every = run || paused ? 3000 : 20000;
+    if (tok && (!this._snapT || Date.now() - this._snapT > every)) {
+      this._snapT = Date.now(); const cam = this.$('.cam');
+      let im = cam.querySelector('img'); if (!im) { im = document.createElement('img'); im.onerror = () => { if (coverUrl) im.src = coverUrl; }; cam.prepend(im); }
+      im.src = `/api/camera_proxy/${camId}?token=${tok}&t=${this._snapT}`;
+    } else if (!tok && coverUrl && !this.$('.cam img')) { const im = document.createElement('img'); im.src = coverUrl; this.$('.cam').prepend(im); }
+    clearTimeout(this._snapTo); this._snapTo = setTimeout(() => this.update(), every);
+    this.$('.tt').textContent = tok ? (run || paused ? 'LIVE' : 'ΚΑΜΕΡΑ') : 'ΕΡΓΑΣΙΑ';
     this.$('.tag i').style.display = (run || paused) && tok ? '' : 'none';
   }
 }
