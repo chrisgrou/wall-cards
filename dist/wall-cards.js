@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.25.0';
+const VERSION = '0.26.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4874,12 +4874,15 @@ class WallHealthCard extends Wall2Card {
   scan() {
     const c = this._config, H = this._hass, reg = H.entities || {}, ex = new Set(c.exclude || []), inc = new Set(c.include || []);
     const out = HEALTH_GROUPS.map(([k, title, icon]) => ({ k, title, icon, items: [] }));
+    const off = this.ign(), pc = {}, gc = {}; this._pc = pc; this._gc = gc;
     Object.entries(H.states).forEach(([id, s]) => {
       const a = s.attributes || {}, r = reg[id];
       if (ex.has(id) || (!inc.has(id) && (r?.hidden || r?.entity_category || r?.disabled_by))) return;
       const gi = HEALTH_GROUPS.findIndex(([, , , f]) => f(id, a));
       if (gi < 0 && !inc.has(id)) return;
-      const g = out[gi < 0 ? 0 : gi];
+      const g = out[gi < 0 ? 0 : gi], plat = r?.platform || id.split('.')[0];
+      pc[plat] = (pc[plat] || 0) + 1; gc[g.k] = (gc[g.k] || 0) + 1;
+      if (off.groups.includes(g.k) || off.platforms.includes(plat)) return;
       let lvl = 'ok', why = '';
       if (s.state === 'unavailable') { lvl = g.k === 'lights' ? 'info' : 'bad'; why = g.k === 'lights' ? 'σβηστό από διακόπτη;' : 'εκτός σύνδεσης'; }
       else if (s.state === 'unknown' && g.k !== 'updates') { lvl = 'warn'; why = 'άγνωστη κατάσταση'; }
@@ -4893,6 +4896,8 @@ class WallHealthCard extends Wall2Card {
     Object.entries(H.states).forEach(([id, s]) => {
       if (ex.has(id)) return;
       const rule = INFRA_RULES.find(([re]) => re.test(id)); if (!rule) return;
+      const plat = reg[id]?.platform || id.split('.')[0]; pc[plat] = (pc[plat] || 0) + 1; gc.infra = (gc.infra || 0) + 1;
+      if (off.groups.includes('infra') || off.platforms.includes(plat)) return;
       let lvl = 'ok', why = '';
       if (s.state === 'unavailable' || s.state === 'unknown') { lvl = 'warn'; why = 'χωρίς τιμή'; }
       else { const r = rule[2](s.state, s.attributes || {}); if (r) [lvl, why] = r; }
@@ -4900,7 +4905,15 @@ class WallHealthCard extends Wall2Card {
     });
     /* integrations που δεν φόρτωσαν (χρειάζεται διαχειριστή) */
     const ing = { k: 'integrations', title: 'Integrations', icon: 'extension', items: [] };
-    (Array.isArray(this._entries) ? this._entries : []).forEach((e) => { if (['setup_error', 'setup_retry', 'failed_unload', 'migration_error'].includes(e.state)) ing.items.push({ id: null, name: e.title || e.domain, lvl: e.state === 'setup_retry' ? 'warn' : 'bad', why: e.state === 'setup_retry' ? 'ξαναπροσπαθεί' : 'δεν φόρτωσε', since: null }); });
+    (Array.isArray(this._entries) ? this._entries : []).forEach((e) => {
+      if (!['setup_error', 'setup_retry', 'failed_unload', 'migration_error'].includes(e.state)) return;
+      gc.integrations = (gc.integrations || 0) + 1; pc[e.domain] = (pc[e.domain] || 0) + 1;
+      if (off.groups.includes('integrations') || off.platforms.includes(e.domain) || e.disabled_by) return;
+      /* τίτλος όπως «Unknown None»: δείξε το integration και τη διεύθυνση από το μήνυμα λάθους */
+      const ip = /(\d+\.\d+\.\d+\.\d+)/.exec(e.reason || '')?.[1], bad = !e.title || /unknown|none/i.test(e.title);
+      const dom = e.domain.charAt(0).toUpperCase() + e.domain.slice(1).replace(/_/g, ' ');
+      ing.items.push({ id: null, plat: e.domain, name: bad ? `${dom}${ip ? ' · ' + ip : ''}` : `${e.title} (${dom})`, lvl: e.state === 'setup_retry' ? 'warn' : 'bad', why: e.state === 'setup_retry' ? 'δεν απαντά, ξαναπροσπαθεί' : 'δεν φόρτωσε', since: null });
+    });
     if (!this._entT || Date.now() - this._entT > 300000) { this._entT = Date.now(); H.callWS?.({ type: 'config_entries/get' }).then((r) => { this._entries = Array.isArray(r) ? r : []; }).catch(() => {}); }
     const ig = this.ign(), all = [inf, ing, ...out].filter((g) => g.items.length);
     all.forEach((g) => g.items.forEach((i) => { i.key = `${i.id || i.name}|${i.lvl}|${i.why}|${i.since || ''}`; i.ign = (i.id && ig.entities.includes(i.id)) ? 'entity' : ig.once.includes(i.key) ? 'once' : ''; }));
@@ -4909,9 +4922,9 @@ class WallHealthCard extends Wall2Card {
   /* αγνοημένα: ολόκληρα entities, ή μία συγκεκριμένη ειδοποίηση (ξαναεμφανίζεται αν αλλάξει η κατάσταση) */
   ign() {
     if (!this._ig) {
-      this._ig = { entities: [], once: [] };
+      this._ig = { entities: [], once: [], groups: [], platforms: [] };
       try { Object.assign(this._ig, JSON.parse(localStorage.getItem('wall_health_ignore') || '{}')); } catch (e) { /* χωρίς localStorage */ }
-      this._hass?.callWS?.({ type: 'frontend/get_user_data', key: 'wall_health_ignore' }).then((r) => { if (r?.value) { this._ig = { entities: [], once: [], ...r.value }; this.update(); this._popup?.refresh(); } }).catch(() => {});
+      this._hass?.callWS?.({ type: 'frontend/get_user_data', key: 'wall_health_ignore' }).then((r) => { if (r?.value) { this._ig = { entities: [], once: [], groups: [], platforms: [], ...r.value }; this.update(); this._popup?.refresh(); } }).catch(() => {});
     }
     return this._ig;
   }
@@ -4920,6 +4933,11 @@ class WallHealthCard extends Wall2Card {
     try { localStorage.setItem('wall_health_ignore', JSON.stringify(v)); } catch (e) { /* χωρίς localStorage */ }
     this._hass?.callWS?.({ type: 'frontend/set_user_data', key: 'wall_health_ignore', value: v }).catch(() => {});
     this.update(); this._popup?.refresh();
+  }
+  toggleOff(kind, key) {
+    const v = this.ign(), list = v[kind] || (v[kind] = []);
+    v[kind] = list.includes(key) ? list.filter((x) => x !== key) : [...list, key];
+    this.saveIgn();
   }
   setIgn(i, mode) {
     const v = this.ign();
@@ -4948,9 +4966,20 @@ class WallHealthCard extends Wall2Card {
     openPopup(this, {
       icon: 'health_and_safety', size: 'md', title: this._config.name || 'Συσκευές', accent: () => '#3fb87a',
       status: () => { const all = this.scan().flatMap((g) => g.items).filter((i) => !i.ign), n = all.filter((i) => i.lvl === 'bad' || i.lvl === 'warn').length; return n ? `${n} θέλουν προσοχή από ${all.length}` : `Όλες οι ${all.length} συσκευές δουλεύουν`; },
-      tabs: [{ id: 'issues', label: 'Προβλήματα' }, { id: 'ign', label: 'Αγνοημένα' }, { id: 'all', label: 'Όλες' }],
+      tabs: [{ id: 'issues', label: 'Προβλήματα' }, { id: 'ign', label: 'Αγνοημένα' }, { id: 'all', label: 'Όλες' }, { id: 'cat', label: 'Κατηγορίες' }],
       render: (pp, tab) => {
         const gs = this.scan();
+        if (tab === 'cat') {
+          const v = this.ign();
+          const sw = (title, sub, on, fn) => { const b = el('button'); b.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:6px 12px;border-radius:14px;background:#fff;text-align:left;font:600 14px var(--w-font);box-shadow:0 1px 3px rgba(0,0,0,.06)';
+            b.innerHTML = `<span style="flex:1;min-width:0"><span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title}</span><small style="font:600 11.5px var(--w-font);color:var(--w-muted)">${sub}</small></span><span style="position:relative;flex:none;width:44px;height:26px;border-radius:13px;background:${on ? '#3fb87a' : 'rgba(128,128,128,.35)'}"><i style="position:absolute;top:3px;${on ? 'right' : 'left'}:3px;width:20px;height:20px;border-radius:50%;background:#fff"></i></span>`;
+            b.addEventListener('click', fn); return b; };
+          const s1 = popSection(pp, 'Τι ελέγχεται'); const b1 = el('div'); b1.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+          [['infra', 'Υποδομή'], ['integrations', 'Integrations'], ...HEALTH_GROUPS.map(([k, n]) => [k, n])].forEach(([k, n]) => b1.append(sw(n, `${this._gc[k] || 0} entities`, !v.groups.includes(k), () => this.toggleOff('groups', k)))); s1.append(b1);
+          const s2 = popSection(pp, 'Ανά integration'); const b2 = el('div'); b2.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+          Object.entries(this._pc).sort((x, y) => y[1] - x[1]).forEach(([k, n]) => b2.append(sw(k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' '), `${n} entities`, !v.platforms.includes(k), () => this.toggleOff('platforms', k)))); s2.append(b2);
+          return;
+        }
         const btn = (txt, ic, fn) => { const b = el('button'); b.style.cssText = 'flex:1;height:40px;border-radius:12px;background:var(--w-track);font:700 12.5px var(--w-font);display:flex;align-items:center;justify-content:center;gap:5px'; b.innerHTML = `<span class="ms" style="font-size:18px">${ic}</span>${txt}`; b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); }); return b; };
         const row = (i, g) => {
           const w = el('div'); w.style.cssText = 'border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden';
