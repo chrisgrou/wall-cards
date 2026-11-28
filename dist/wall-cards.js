@@ -10,7 +10,7 @@
  * Νέα κάρτα = νέα κλάση που κληρονομεί το WallBaseCard + μία γραμμή στο register().
  * Κανόνες και design language: AGENTS.md
  */
-const VERSION = '0.19.0';
+const VERSION = '0.21.0';
 
 /* ───────────────────────── 1. Κοινή βάση ───────────────────────── */
 
@@ -4805,6 +4805,156 @@ class WallFamilyCard extends Wall2Card {
   }
 }
 
+/* ── Εκτυπωτής 3D (Bambuddy ή ha-bambulab): κάμερα, κατάσταση, πρόοδος, θερμοκρασίες, κουμπιά ── */
+class WallPrinterCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:0;flex-direction:row;overflow:hidden;cursor:pointer}
+.cam{position:relative;flex:0 0 46%;background:#111 center/cover}
+.cam img{width:100%;height:100%;object-fit:cover;display:block}
+.cam .tag{position:absolute;left:10px;top:10px;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font:800 10px var(--w-font);letter-spacing:.6px;display:flex;gap:5px;align-items:center}
+.cam .tag i{width:7px;height:7px;border-radius:50%;background:#e8452a}
+.cam .pct{position:absolute;left:12px;bottom:10px;color:#fff;font:500 34px var(--w-font);letter-spacing:-1px;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.cam .pct small{font:700 12px var(--w-font);display:block;letter-spacing:0;opacity:.9}
+.inf{flex:1;min-width:0;padding:14px 14px 12px 16px;display:flex;flex-direction:column;gap:8px}
+.inf>*{flex:none}.inf>.acts{margin-top:auto}
+.hd{display:flex;align-items:flex-start;gap:8px}.hd>div{flex:1;min-width:0}
+.hd b{display:block;font:700 13px var(--w-font)}.hd small{display:block;font:600 11px var(--w-font);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st{padding:4px 9px;border-radius:10px;font:800 11px var(--w-font);background:var(--chip);white-space:nowrap}
+.st.run{background:#f26a2a;color:#fff}.st.ok{background:#3fb87a;color:#fff}.st.err{background:#e8452a;color:#fff}
+.job{font:700 15px var(--w-font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb{height:6px;border-radius:3px;background:var(--line);overflow:hidden}.pb i{display:block;height:100%;border-radius:3px;background:#f26a2a;transition:width 1s}
+.meta{display:flex;justify-content:space-between;font:600 11px var(--w-font);color:var(--mut)}
+.tmp{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.tmp div{background:var(--chip);border-radius:11px;padding:6px 4px;text-align:center;font:700 14px var(--w-font)}
+.tmp small{display:block;font:600 9.5px var(--w-font);color:var(--mut)}
+.acts{margin-top:auto;display:flex;gap:6px}.acts button{flex:1;height:38px;border-radius:12px;border:0;background:var(--chip);color:var(--ink);display:flex;align-items:center;justify-content:center;gap:4px;font:700 12px var(--w-font)}
+.acts button .ms{font-size:20px}.acts button.on{background:#f0c040;color:#3a2a00}.acts button.pri{background:#f26a2a;color:#fff}
+.hms{display:flex;align-items:center;gap:5px;font:700 11px var(--w-font);color:#e8452a}.hms .ms{font-size:16px}
+`;
+  static getConfigForm() { return form([['prefix', 'Πρόθεμα εκτυπωτή (π.χ. x2d_combo_x2d_…)', TEXT], ['name', 'Όνομα', TEXT]]); }
+  static getStubConfig(hass) { const s = Object.keys(hass?.states || {}).find((e) => /^sensor\..+_print_status$/.test(e)); return { prefix: s ? s.slice(7, -13) : '' }; }
+  getGridOptions() { return { columns: 12, rows: 4 }; }
+  e(d, k) { return `${d}.${this._config.prefix}_${k}`; }
+  first(d, ks) { return ks.map((k) => this.e(d, k)).find((id) => this._hass?.states[id]); }
+  watched() {
+    const s = (k) => this.e('sensor', k);
+    return ['print_status', 'progress', 'print_progress', 'current_print', 'task_name', 'remaining_time', 'end_time', 'current_layer', 'total_layers', 'total_layer_count', 'bed_temperature',
+      'chamber_temperature', 'left_nozzle_temperature', 'right_nozzle_temperature', 'nozzle_temperature', 'hms_errors', 'print_stage'].map(s).concat([this.e('light', 'chamber_light')]);
+  }
+  template() {
+    return `<div class="card"><div class="cam"><span class="tag"><i></i><span class="tt">LIVE</span></span><div class="pct"></div></div>
+<div class="inf"><div class="hd"><div><b></b><small class="sub"></small></div><span class="st"></span></div><div class="job"></div><div class="pb"><i></i></div><div class="meta"><span class="l"></span><span class="r"></span></div>
+<div class="tmp"></div><div class="hms" hidden></div><div class="acts"></div></div></div>`;
+  }
+  bind() {
+    this.$('.cam').addEventListener('click', () => { const cam = this.first('camera', ['camera']); if (cam) this.moreInfo(cam); });
+    this.$('.acts').addEventListener('click', (ev) => {
+      ev.stopPropagation(); const b = ev.target.closest('[data-a]'); if (!b) return;
+      const a = b.dataset.a;
+      if (a === 'light') return this.call('light', 'toggle', { entity_id: this.e('light', 'chamber_light') });
+      if (a === 'stop' && !confirm('Διακοπή εκτύπωσης;')) return;
+      const id = this.first('button', [`${a}_print`, a]); if (id) this.call('button', 'press', { entity_id: id });
+    });
+  }
+  update() {
+    const c = this._config, v = (k) => this.val(this.e('sensor', k)), n = (k) => this.num(this.e('sensor', k));
+    const st = String(v('print_status') || '').toLowerCase();
+    const run = /running|printing|prepare/.test(st), paused = /pause/.test(st), done = /finish/.test(st), fail = /fail|error/.test(st);
+    const ST = { running: 'Τυπώνει', printing: 'Τυπώνει', prepare: 'Προετοιμασία', pause: 'Παύση', paused: 'Παύση', finish: 'Τελείωσε', finished: 'Τελείωσε', idle: 'Αναμονή', failed: 'Απέτυχε', offline: 'Εκτός' };
+    const prog = !isNaN(n('progress')) ? n('progress') : n('print_progress');
+    const job = [v('current_print'), v('task_name')].find((x) => x && !['unknown', 'unavailable', 'none'].includes(x)) || '';
+    this.$('.hd b').textContent = c.name || (this.friendly(this.e('sensor', 'print_status')).split(' ').slice(0, 2).join(' ')) || 'Εκτυπωτής';
+    this.$('.sub').textContent = v('print_stage') && v('print_stage') !== 'idle' ? v('print_stage').replace(/_/g, ' ') : '';
+    const sb = this.$('.st'); sb.textContent = ST[st] || st || '—'; sb.className = 'st' + (run ? ' run' : done ? ' ok' : fail ? ' err' : '');
+    this.$('.job').textContent = job || 'Καμία εργασία';
+    this.$('.pb i').style.width = `${isNaN(prog) ? 0 : prog}%`;
+    const layer = v('current_layer'), tot = v('total_layers') || v('total_layer_count');
+    const end = this.st(this.e('sensor', 'end_time'))?.state, endD = end && !isNaN(new Date(end)) ? new Date(end) : null;
+    const left = n('remaining_time');
+    this.$('.meta .l').textContent = layer && tot && tot !== '0' ? `στρώση ${layer}/${tot}` : '';
+    this.$('.meta .r').textContent = run || paused ? (endD ? `τέλος ${hhmm(endD)}` : !isNaN(left) && left > 0 ? `${durText(left)} απομένουν` : '') : '';
+    this.$('.pct').innerHTML = isNaN(prog) ? '' : `${Math.round(prog)}%<small>${ST[st] || ''}</small>`;
+    const T = (k) => (isNaN(n(k)) ? null : `${Math.round(n(k))}°`);
+    const temps = [['Αριστ.', T('left_nozzle_temperature') || T('nozzle_temperature')], ['Δεξ.', T('right_nozzle_temperature')], ['Πλάκα', T('bed_temperature')], ['Θάλαμος', T('chamber_temperature')]].filter((x) => x[1]);
+    this.$('.tmp').style.gridTemplateColumns = `repeat(${temps.length || 1},1fr)`;
+    this.$('.tmp').innerHTML = temps.map(([k, t]) => `<div><small>${k}</small>${t}</div>`).join('');
+    const hms = n('hms_errors'); const he = this.$('.hms'); he.hidden = !(hms > 0); if (!he.hidden) he.innerHTML = `<span class="ms fill">warning</span>${hms} ειδοποιήσεις HMS`;
+    const lightId = this.e('light', 'chamber_light'), lit = this.val(lightId) === 'on';
+    this.$('.acts').innerHTML = [run || paused ? `<button class="pri" data-a="${paused ? 'resume' : 'pause'}"><span class="ms fill">${paused ? 'play_arrow' : 'pause'}</span>${paused ? 'Συνέχεια' : 'Παύση'}</button>` : '',
+      this.st(lightId) ? `<button class="${lit ? 'on' : ''}" data-a="light"><span class="ms fill">${lit ? 'light' : 'light_off'}</span>Φως</button>` : '',
+      run || paused ? `<button data-a="stop"><span class="ms fill">stop</span>Διακοπή</button>` : ''].join('');
+    /* κάμερα: ζωντανή όταν τυπώνει, αλλιώς η εικόνα της εργασίας */
+    const camId = this.first('camera', ['camera']), tok = this.st(camId)?.attributes?.access_token;
+    const cover = this.first('image', ['cover_image']), coverUrl = this.st(cover)?.attributes?.entity_picture;
+    const want = (run || paused) && tok ? `/api/camera_proxy_stream/${camId}?token=${tok}` : coverUrl || (tok ? `/api/camera_proxy/${camId}?token=${tok}` : '');
+    if (want !== this._src) {
+      this._src = want; const cam = this.$('.cam'); cam.querySelector('img')?.remove();
+      if (want) { const im = document.createElement('img'); im.src = want; cam.prepend(im); }
+    }
+    this.$('.tt').textContent = (run || paused) && tok ? 'LIVE' : 'ΕΡΓΑΣΙΑ';
+    this.$('.tag i').style.display = (run || paused) && tok ? '' : 'none';
+  }
+}
+
+/* ── AMS: οι θέσεις νήματος (χρώμα, υλικό, υπόλοιπο), υγρασία, θερμοκρασία, ξήρανση ──
+   Βρίσκει μόνη της τα entities από το πρόθεμα (π.χ. του Bambuddy: sensor.<ams>_slot_1…4). */
+class WallAmsCard extends Wall2Card {
+  static css2 = `
+.card.v2{padding:14px 16px;gap:12px;cursor:pointer}
+.hd{display:flex;align-items:center;gap:10px}.hd .ms{font-size:22px;color:var(--mut)}
+.hd b{font:700 14px var(--w-font)}.hd small{display:block;font:600 11px var(--w-font);color:var(--mut)}
+.env{margin-left:auto;display:flex;gap:6px}.env>span{display:flex;align-items:center;gap:3px;padding:4px 9px;border-radius:10px;background:var(--chip);font:700 12px var(--w-font)}
+.env .ms{font-size:16px}.env .wet{background:#e8603c;color:#fff}.env .dry{background:#f0a020;color:#fff}
+.slots{flex:1;min-height:0;display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:10px}
+.sl{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:10px 6px 8px;border-radius:16px;background:var(--chip);position:relative}
+.sl.act{box-shadow:inset 0 0 0 2px var(--acc,#3fb87a)}
+.sp{position:relative;width:46px;height:46px;flex:none;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 4px rgba(0,0,0,.12),0 2px 5px rgba(0,0,0,.2)}
+.sp::before{content:'';position:absolute;inset:9px;border-radius:50%;background:repeating-radial-gradient(circle,rgba(255,255,255,.18) 0 1px,transparent 1px 3px)}
+.sp::after{content:'';position:absolute;inset:16px;border-radius:50%;background:var(--box);box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+.sl.empty .sp{background:transparent;box-shadow:inset 0 0 0 2px var(--line)}
+.sl b{font:700 12px var(--w-font);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl small{font:600 10.5px var(--w-font);color:var(--mut);white-space:nowrap}
+.rb{width:80%;height:4px;border-radius:2px;background:var(--line);overflow:hidden}.rb i{display:block;height:100%;border-radius:2px;background:var(--c2,#3fb87a)}
+.sl .no{position:absolute;left:8px;top:6px;font:800 10px var(--w-font);color:var(--faint)}
+`;
+  static getConfigForm() {
+    return form([['prefix', 'Πρόθεμα AMS (π.χ. x2d_combo_ams_a_ams_2_pro_…)', TEXT], ['name', 'Όνομα', TEXT]]);
+  }
+  static getStubConfig(hass) {
+    const s = Object.keys(hass?.states || {}).find((e) => /^sensor\..+_slot_1$/.test(e));
+    return { prefix: s ? s.slice(7, -7) : '' };
+  }
+  getGridOptions() { return { columns: 6, rows: 3 }; }
+  slots() {
+    const P = this._config.prefix, out = [];
+    for (let i = 1; i <= 8; i++) { const id = `sensor.${P}_slot_${i}`; if (this._hass?.states[id]) out.push(id); else if (i > 4) break; }
+    return out.length ? out : (this._config.slots || []);
+  }
+  watched() { const P = this._config.prefix; return [...this.slots(), `sensor.${P}_humidity`, `sensor.${P}_temperature`, `binary_sensor.${P}_drying`, `sensor.${P}_drying_time_left`]; }
+  template() { return `<div class="card"><div class="hd"><span class="ms fill">deployed_code</span><div><b></b><small></small></div><div class="env"></div></div><div class="slots"></div></div>`; }
+  bind() { this.tapMore(() => this.slots()[0] && this.moreInfo(this.slots()[0])); }
+  update() {
+    const c = this._config, P = c.prefix, ids = this.slots();
+    this.$('.hd b').textContent = c.name || 'AMS';
+    const fr = this.friendly(ids[0] || '').match(/\(([^/)]+)/);
+    this.$('.hd small').textContent = fr ? fr[1].trim() : '';
+    const h = this.num(`sensor.${P}_humidity`), tp = this.num(`sensor.${P}_temperature`), drying = this.val(`binary_sensor.${P}_drying`) === 'on';
+    this.$('.env').innerHTML = [drying ? `<span class="dry"><span class="ms">local_fire_department</span>Ξήρανση</span>` : '',
+      !isNaN(h) ? `<span class="${h > 40 ? 'wet' : ''}"><span class="ms">humidity_percentage</span>${Math.round(h)}%</span>` : '',
+      !isNaN(tp) ? `<span><span class="ms">thermostat</span>${fmt(tp, 0)}°</span>` : ''].join('');
+    this.$('.slots').style.setProperty('--n', Math.max(ids.length, 1));
+    this.$('.slots').innerHTML = ids.map((id, i) => {
+      const s = this.st(id), a = s?.attributes || {}, inv = a.inventory_spool || {};
+      const empty = a.empty || !s || s.state === 'empty' || s.state === 'unknown';
+      const col = (a.color || (inv.rgba ? '#' + inv.rgba : '#999')).slice(0, 7);
+      const pct = inv.remaining_pct ?? (a.remaining >= 0 ? a.remaining : a.remain >= 0 ? a.remain : null);
+      const g = inv.remaining_g;
+      return `<div class="sl${empty ? ' empty' : ''}${a.active ? ' act' : ''}" style="--c:${col}"><span class="no">${i + 1}</span><span class="sp"></span>
+        <b>${empty ? 'Κενό' : inv.color_name || a.type || s.state}</b><small>${empty ? '' : [a.type, inv.subtype || ''].filter(Boolean).join(' ')}</small>
+        ${!empty && pct != null ? `<span class="rb" style="--c2:${pct < 15 ? '#e8603c' : '#3fb87a'}"><i style="width:${pct}%"></i></span><small>${g != null ? g + ' g' : pct + '%'}</small>` : ''}</div>`;
+    }).join('');
+  }
+}
+
 /* ── Μουσική και τηλεόραση: ό,τι παίζει τώρα, και κάτω οι υπόλοιπες πηγές ── */
 class WallMediaCard extends Wall2Card {
   static css2 = `
@@ -5209,6 +5359,8 @@ register('wall-shopping', WallShopCard, 'Wall v2 · Ψώνια', 'Λίστα ψ�
 register('wall-media', WallMediaCard, 'Wall v2 · Μουσική και TV', 'Ό,τι παίζει τώρα, με εναλλαγή πηγής.');
 register('wall-actions', WallActionsCard, 'Wall v2 · Γρήγορες ενέργειες', 'Κουμπιά για σκηνές και scripts.');
 register('wall-status', WallStatusCard, 'Wall v2 · Μπάρα κατάστασης', 'Καιρός ή συνθήκες σπιτιού σαν εικονίδιο στη μπάρα· με πάτημα ανοίγει panel με πρόγνωση ή διαγράμματα.');
+register('wall-printer', WallPrinterCard, 'Wall v2 · Εκτυπωτής 3D', 'Κάμερα, πρόοδος, θερμοκρασίες και κουμπιά του εκτυπωτή (Bambuddy ή ha-bambulab).');
+register('wall-ams', WallAmsCard, 'Wall v2 · AMS', 'Οι θέσεις νήματος του AMS: χρώμα, υλικό, υπόλοιπο, υγρασία.');
 register('wall-family', WallFamilyCard, 'Wall v2 · Family Matters', 'Ψώνια, υπενθυμίσεις και δουλειές σε μία κάρτα με καρτέλες.');
 register('wall-layout', WallLayoutCard, 'Wall v2 · Σελίδα', 'Η σελίδα του tablet: sidebar, κέντρο και δεξιά στήλη, με θέμα και στιλ.');
 
